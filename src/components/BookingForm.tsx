@@ -126,9 +126,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
           )}
         </div>
 
-        {/* Vertical Connecting Line between top dot and bottom square */}
-        <div className="absolute left-[21px] top-[28px] bottom-[28px] w-0.5 bg-slate-400 z-10 pointer-events-none"></div>
-
+        
         {/* Input 2: Grade Level or Topic */}
         <div className="relative">
           <div className="relative flex items-center bg-slate-100 rounded-xl px-4 py-3.5 border border-transparent focus-within:border-[#15803D] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#15803D]/20 transition-all">
@@ -184,26 +182,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 
       </form>
 
-      {/* Quick Subject Chips underneath */}
-      <div className="pt-2 border-t border-slate-100">
-        <div className="text-xs font-semibold text-slate-500 mb-2.5 flex items-center">
-          <Sparkles className="w-3.5 h-3.5 mr-1 text-[#15803D]" />
-          Popular at {formState.institution.split(' ')[0]}:
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {['Python', 'Calculus', 'Accounting', 'Physics', 'Essay Writing'].map((chip) => (
-            <button
-              key={chip}
-              type="button"
-              onClick={() => setFormState(prev => ({ ...prev, subject: chip }))}
-              className="text-xs font-semibold bg-slate-100 hover:bg-[#15803D]/10 hover:text-[#15803D] text-[#0F172A] px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-            >
-              + {chip}
-            </button>
-          ))}
-        </div>
-      </div>
-
+     
     </div>
   );
-};
+}
