@@ -1,7 +1,49 @@
 import React from 'react';
 import { UserCheck, Calendar, FileText, GraduationCap, Users, UserPlus, ArrowUpRight, Sparkles } from 'lucide-react';
-import { SUGGESTIONS_LIST } from '../data/mockData';
 import { SuggestionItem } from '../types';
+
+// Static learning-format copy — there's no database table for this, it's
+// presentational content the UI owns, not tutor/institution data.
+const SUGGESTIONS_LIST: SuggestionItem[] = [
+  {
+    id: '1-on-1',
+    title: '1-on-1 Tutoring',
+    description: 'Personalized live instruction tailored to your specific pace & syllabus.',
+    iconName: '1-on-1',
+    badge: 'Popular'
+  },
+  {
+    id: 'scheduled',
+    title: 'Scheduled Sessions',
+    description: 'Book ahead for weekly recurring study blocks with top verified mentors.',
+    iconName: 'scheduled'
+  },
+  {
+    id: 'homework',
+    title: 'Homework Help',
+    description: 'Get step-by-step guidance on assignments, code reviews, and labs.',
+    iconName: 'homework'
+  },
+  {
+    id: 'examprep',
+    title: 'Exam Prep',
+    description: 'Targeted past-paper drills, crash courses, and exam strategy reviews.',
+    iconName: 'examprep',
+    badge: 'High Impact'
+  },
+  {
+    id: 'group',
+    title: 'Group Classes',
+    description: 'Collaborative peer workshops with max 6 students per session.',
+    iconName: 'group'
+  },
+  {
+    id: 'teens',
+    title: 'Kids & Teens',
+    description: 'Engaging, safe foundational tutoring for secondary school learners.',
+    iconName: 'teens'
+  }
+];
 
 interface SuggestionsGridProps {
   onSelectSuggestion: (item: SuggestionItem) => void;
@@ -61,7 +103,7 @@ export const SuggestionsGrid: React.FC<SuggestionsGridProps> = ({ onSelectSugges
           Suggestions
         </h2>
         <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-          6 Formats Available
+          {SUGGESTIONS_LIST.length} Formats Available
         </span>
       </div>
 

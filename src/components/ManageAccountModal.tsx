@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, User, BookOpen, Calendar, ShieldCheck, Settings, LogOut, Award, CreditCard, ChevronRight } from 'lucide-react';
 import { UserAccount } from '../types';
+import { TeachingProfilePanel } from './TeachingProfilePanel';
 
 interface ManageAccountModalProps {
   isOpen: boolean;
   onClose: () => void;
   userAccount: UserAccount;
   onUpdateInstitution: () => void;
+  initialTab?: 'profile' | 'sessions' | 'billing' | 'teaching';
+  tutorId: string;
+  onSignOut: () => void;
 }
 
 export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
@@ -14,8 +18,18 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
   onClose,
   userAccount,
   onUpdateInstitution,
+  initialTab = 'profile',
+  tutorId,
+  onSignOut,
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'sessions' | 'billing'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'sessions' | 'billing' | 'teaching'>(initialTab);
+
+  // The modal stays mounted (it just returns null below) so state survives
+  // between opens — reset to whichever tab the caller asked for each time
+  // it's (re)opened, rather than only on first mount.
+  useEffect(() => {
+    if (isOpen) setActiveTab(initialTab);
+  }, [isOpen, initialTab]);
 
   if (!isOpen) return null;
 
@@ -30,10 +44,10 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
         <div className="p-6 bg-[#0A192F] text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 rounded-full bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-lg shadow-md border-2 border-white">
-              P
+              {userAccount.name ? userAccount.name.charAt(0).toUpperCase() : '?'}
             </div>
             <div>
-              <h3 className="text-xl font-extrabold tracking-tight">{userAccount.name}</h3>
+              <h3 className="text-xl font-extrabold tracking-tight">{userAccount.name || 'Loading…'}</h3>
               <p className="text-xs text-slate-300 mt-0.5">{userAccount.email}</p>
             </div>
           </div>
@@ -77,6 +91,16 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
           >
             Payment Methods
           </button>
+          <button
+            onClick={() => setActiveTab('teaching')}
+            className={`pb-2.5 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
+              activeTab === 'teaching'
+                ? 'border-[#15803D] text-[#15803D]'
+                : 'border-transparent text-slate-500 hover:text-[#0F172A]'
+            }`}
+          >
+            Teaching
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -92,7 +116,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
                     Primary Campus Institution
                   </div>
                   <div className="text-sm font-bold text-[#0F172A] mt-0.5">
-                    {userAccount.institution}
+                    {userAccount.institution || 'Not set'}
                   </div>
                   <div className="text-xs text-emerald-700 font-semibold mt-0.5">
                     Verified Student Membership
@@ -109,24 +133,24 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
                 </button>
               </div>
 
-              {/* Stats Grid */}
+              {/* Stats Grid — real (currently zero, no bookings backend yet) */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-white p-3.5 rounded-2xl border border-slate-200 text-center">
-                  <div className="text-xl font-extrabold text-[#0F172A]">0</div>
+                  <div className="text-xl font-extrabold text-[#0F172A]">{userAccount.upcomingSessions}</div>
                   <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">
                     Upcoming
                   </div>
                 </div>
                 <div className="bg-white p-3.5 rounded-2xl border border-slate-200 text-center">
-                  <div className="text-xl font-extrabold text-[#0F172A]">12</div>
+                  <div className="text-xl font-extrabold text-[#0F172A]">{userAccount.completedSessions}</div>
                   <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">
                     Completed
                   </div>
                 </div>
                 <div className="bg-white p-3.5 rounded-2xl border border-slate-200 text-center">
-                  <div className="text-xl font-extrabold text-[#15803D]">4.9 / 5</div>
+                  <div className="text-xl font-extrabold text-[#15803D]">{userAccount.savedTutorsCount}</div>
                   <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">
-                    Student Rating
+                    Saved Tutors
                   </div>
                 </div>
               </div>
@@ -179,14 +203,16 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
             </div>
           )}
 
+          {activeTab === 'teaching' && <TeachingProfilePanel tutorId={tutorId} />}
+
         </div>
 
         {/* Footer */}
         <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between px-6">
           <button
             onClick={() => {
-              alert("Signed out from Tutorlage");
               onClose();
+              onSignOut();
             }}
             className="flex items-center space-x-1.5 text-xs font-bold text-rose-600 hover:text-rose-800 cursor-pointer"
           >

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapPin, Clock, ChevronDown, ArrowRight, Circle, Square, Search, Sparkles } from 'lucide-react';
 import { BookingFormState } from '../types';
-import { POPULAR_SUBJECTS, POPULAR_GRADE_LEVELS } from '../data/mockData';
+import { fetchSubjectSuggestions, fetchGradeLevelSuggestions } from '../lib/queries';
 
 interface BookingFormProps {
   formState: BookingFormState;
@@ -20,12 +20,19 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 }) => {
   const [showSubjectSuggestions, setShowSubjectSuggestions] = useState(false);
   const [showGradeSuggestions, setShowGradeSuggestions] = useState(false);
+  const [subjectOptions, setSubjectOptions] = useState<string[]>([]);
+  const [gradeLevelOptions, setGradeLevelOptions] = useState<string[]>([]);
 
-  const filteredSubjects = POPULAR_SUBJECTS.filter(s =>
+  useEffect(() => {
+    fetchSubjectSuggestions().then(setSubjectOptions).catch(() => setSubjectOptions([]));
+    fetchGradeLevelSuggestions().then(setGradeLevelOptions).catch(() => setGradeLevelOptions([]));
+  }, []);
+
+  const filteredSubjects = subjectOptions.filter(s =>
     s.toLowerCase().includes(formState.subject.toLowerCase())
   );
 
-  const filteredGradeLevels = POPULAR_GRADE_LEVELS.filter(g =>
+  const filteredGradeLevels = gradeLevelOptions.filter(g =>
     g.toLowerCase().includes(formState.gradeLevel.toLowerCase())
   );
 
@@ -41,7 +48,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
       <div className="flex items-center space-x-2 text-sm text-slate-700 font-medium mb-6 flex-wrap gap-y-1">
         <div className="flex items-center text-[#0F172A] font-semibold">
           <MapPin className="w-4 h-4 mr-1.5 text-[#15803D] shrink-0" />
-          <span>{formState.institution}</span>
+          <span>{formState.institution || 'Select your institution'}</span>
         </div>
         <span className="text-slate-300">•</span>
         <button

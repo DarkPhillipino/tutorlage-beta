@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Separate admin app: private-network-only, not part of the public deploy.
+/admin/
+
+# Local tooling state (Claude Code worktrees, Vite dep cache) — not project source.
+/.claude/
+.vite/
