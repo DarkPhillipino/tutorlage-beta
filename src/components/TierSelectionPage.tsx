@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Loader2, ChevronRight, Users, GraduationCap, Award, Crown } from 'lucide-react';
+import { ArrowLeft, Loader2, ChevronRight, Users, GraduationCap, Award, Crown, AlertTriangle } from 'lucide-react';
 import { BookingFormState, TierDefinition } from '../types';
 import { fetchTierDefinitions } from '../lib/queries';
+import { formatRateRange } from '../lib/format';
 
 interface TierSelectionPageProps {
   formState: BookingFormState;
@@ -25,13 +26,21 @@ export const TierSelectionPage: React.FC<TierSelectionPageProps> = ({
 }) => {
   const [tiers, setTiers] = useState<TierDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
+    setIsLoading(true);
+    setLoadError(false);
     fetchTierDefinitions()
       .then(setTiers)
-      .catch(() => setTiers([]))
+      .catch((err) => {
+        console.error('fetchTierDefinitions failed:', err);
+        setTiers([]);
+        setLoadError(true);
+      })
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [retryCount]);
 
   return (
     <div className="max-w-2xl mx-auto w-full">
@@ -58,6 +67,19 @@ export const TierSelectionPage: React.FC<TierSelectionPageProps> = ({
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
             <span className="text-sm font-semibold">Loading pricing tiers…</span>
           </div>
+        ) : loadError ? (
+          <div className="text-center py-16 px-4">
+            <AlertTriangle className="w-8 h-8 text-rose-400 mx-auto mb-2" />
+            <p className="text-sm font-bold text-[#0F172A]">Couldn't load pricing tiers</p>
+            <p className="text-xs text-slate-500 mt-1">Check your connection and try again.</p>
+            <button
+              type="button"
+              onClick={() => setRetryCount((c) => c + 1)}
+              className="mt-3 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-[#0F172A] font-bold text-xs rounded-xl cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
         ) : tiers.length === 0 ? (
           <div className="text-center py-16 px-4">
             <p className="text-sm font-bold text-[#0F172A]">No pricing tiers configured yet</p>
@@ -67,7 +89,6 @@ export const TierSelectionPage: React.FC<TierSelectionPageProps> = ({
           <div className="space-y-3">
             {tiers.map((tier) => {
               const Icon = TIER_ICONS[tier.id] ?? Users;
-              const isUncapped = tier.maxRate >= 100000;
               return (
                 <button
                   key={tier.id}
@@ -83,7 +104,7 @@ export const TierSelectionPage: React.FC<TierSelectionPageProps> = ({
                       <h3 className="text-base font-bold text-[#0F172A]">{tier.publicName}</h3>
                       <div className="text-right shrink-0">
                         <div className="text-sm font-black text-[#0F172A]">
-                          R{tier.minRate}{isUncapped ? '+' : ` - R${tier.maxRate}`}
+                          {formatRateRange(tier.minRate, tier.maxRate)}
                         </div>
                         <div className="text-[10px] text-slate-400 font-semibold">/ hr</div>
                       </div>

@@ -5,7 +5,7 @@ import { SuggestionItem } from '../types';
 interface SuggestionDetailModalProps {
   item: SuggestionItem | null;
   onClose: () => void;
-  onSelectFormat: (formatTitle: string) => void;
+  onSelectFormat: (format: SuggestionItem) => void;
 }
 
 export const SuggestionDetailModal: React.FC<SuggestionDetailModalProps> = ({
@@ -42,8 +42,7 @@ export const SuggestionDetailModal: React.FC<SuggestionDetailModalProps> = ({
         return [
           'Curated vault of past exam papers & memorandum walkthroughs',
           'High-yield formula cheat sheets & exam technique drills',
-          'Time management strategies for midterms & finals',
-          'Pass guarantee backed by Tutorlage Academic Refund'
+          'Time management strategies for midterms & finals'
         ];
       case 'group':
         return [
@@ -65,8 +64,11 @@ export const SuggestionDetailModal: React.FC<SuggestionDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div 
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
         className="bg-white rounded-3xl max-w-lg w-full overflow-hidden flex flex-col shadow-2xl border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -114,12 +116,11 @@ export const SuggestionDetailModal: React.FC<SuggestionDetailModalProps> = ({
             </ul>
           </div>
 
-          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between text-xs">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center text-xs">
             <div className="flex items-center space-x-2 text-[#15803D] font-bold">
               <ShieldCheck className="w-4 h-4" />
               <span>Verified Institution Mentors</span>
             </div>
-            <span className="font-semibold text-slate-600">Satisfaction Guaranteed</span>
           </div>
         </div>
 
@@ -133,7 +134,7 @@ export const SuggestionDetailModal: React.FC<SuggestionDetailModalProps> = ({
           </button>
           <button
             onClick={() => {
-              onSelectFormat(item.title);
+              onSelectFormat(item);
               onClose();
             }}
             className="px-5 py-2.5 bg-[#15803D] hover:bg-[#166534] text-white font-bold text-xs rounded-xl transition-all shadow-xs cursor-pointer flex items-center space-x-1.5"

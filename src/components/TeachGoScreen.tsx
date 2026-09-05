@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Menu, MapPin, Loader2, CheckCircle2, Circle, Sparkles, UserX } from 'lucide-react';
 import { TutorDashboardData, SubTierDefinition } from '../types';
 import { fetchTutorDashboard, fetchSubTierDefinitions } from '../lib/queries';
+import { IncomingSessionRequests } from './IncomingSessionRequests';
 
 interface TeachGoScreenProps {
   tutorId: string;
@@ -150,6 +151,10 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
               <span className="text-xs font-bold text-[#15803D]">Top tier reached — great work!</span>
             </div>
           )}
+
+          {/* Real, pending session requests — accept/decline turns one into
+              an actual public.sessions row. */}
+          <IncomingSessionRequests tutorId={tutor.id} />
 
           {/* Tips (illustrative, not data-driven) */}
           <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-slate-200">

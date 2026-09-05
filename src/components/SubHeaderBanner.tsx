@@ -2,12 +2,14 @@ import React from 'react';
 import { Calendar, FileText, Tag, User } from 'lucide-react';
 
 interface SubHeaderBannerProps {
+  upcomingSessionsCount: number;
   onOpenActivity?: () => void;
   onOpenPromotions?: () => void;
   onOpenAccount?: () => void;
 }
 
 export const SubHeaderBanner: React.FC<SubHeaderBannerProps> = ({
+  upcomingSessionsCount,
   onOpenActivity,
   onOpenPromotions,
   onOpenAccount,
@@ -24,7 +26,11 @@ export const SubHeaderBanner: React.FC<SubHeaderBannerProps> = ({
           
           <div className="flex items-center text-xs sm:text-sm font-medium text-slate-300 bg-slate-800/60 px-3 py-1.5 rounded-full border border-slate-700/60">
             <Calendar className="w-4 h-4 mr-2 text-emerald-400 shrink-0" />
-            <span>You have no upcoming sessions</span>
+            <span>
+              {upcomingSessionsCount === 0
+                ? 'You have no upcoming sessions'
+                : `You have ${upcomingSessionsCount} upcoming session${upcomingSessionsCount === 1 ? '' : 's'}`}
+            </span>
           </div>
         </div>
 

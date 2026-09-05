@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { X, User, BookOpen, Calendar, ShieldCheck, Settings, LogOut, Award, CreditCard, ChevronRight } from 'lucide-react';
+import { X, User, BookOpen, ShieldCheck, Settings, LogOut, Award, CreditCard, ChevronRight } from 'lucide-react';
 import { UserAccount } from '../types';
 import { TeachingProfilePanel } from './TeachingProfilePanel';
+import { UpcomingSessionsPanel } from './UpcomingSessionsPanel';
 
 interface ManageAccountModalProps {
   isOpen: boolean;
@@ -178,15 +179,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
             </div>
           )}
 
-          {activeTab === 'sessions' && (
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 text-center space-y-2">
-              <Calendar className="w-8 h-8 text-slate-400 mx-auto" />
-              <h4 className="text-sm font-bold text-[#0F172A]">No Active Sessions Pending</h4>
-              <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                When you book a tutor for 1-on-1, homework help, or exam prep, your schedule will appear right here.
-              </p>
-            </div>
-          )}
+          {activeTab === 'sessions' && <UpcomingSessionsPanel studentId={tutorId} />}
 
           {activeTab === 'billing' && (
             <div className="space-y-3">

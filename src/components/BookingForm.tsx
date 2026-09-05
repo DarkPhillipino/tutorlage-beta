@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MapPin, Clock, ChevronDown, ArrowRight, Circle, Square, Search, Sparkles } from 'lucide-react';
 import { BookingFormState } from '../types';
 import { fetchSubjectSuggestions, fetchGradeLevelSuggestions } from '../lib/queries';
+import { describeDate } from '../lib/format';
 
 interface BookingFormProps {
   formState: BookingFormState;
@@ -24,8 +25,18 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   const [gradeLevelOptions, setGradeLevelOptions] = useState<string[]>([]);
 
   useEffect(() => {
-    fetchSubjectSuggestions().then(setSubjectOptions).catch(() => setSubjectOptions([]));
-    fetchGradeLevelSuggestions().then(setGradeLevelOptions).catch(() => setGradeLevelOptions([]));
+    fetchSubjectSuggestions()
+      .then(setSubjectOptions)
+      .catch((err) => {
+        console.error('fetchSubjectSuggestions failed:', err);
+        setSubjectOptions([]);
+      });
+    fetchGradeLevelSuggestions()
+      .then(setGradeLevelOptions)
+      .catch((err) => {
+        console.error('fetchGradeLevelSuggestions failed:', err);
+        setGradeLevelOptions([]);
+      });
   }, []);
 
   const filteredSubjects = subjectOptions.filter(s =>
@@ -76,7 +87,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
           <span>
             {formState.scheduleType === 'now' 
               ? 'Schedule session' 
-              : `Scheduled: ${formState.scheduledDate || 'Today'}, ${formState.scheduledTime || '14:00'}`}
+              : `Scheduled: ${describeDate(formState.scheduledDate)}, ${formState.scheduledTime || '14:00'}`}
           </span>
           <ChevronDown className="w-4 h-4 text-slate-600" />
         </button>

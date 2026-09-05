@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Search, Building, Check, Loader2 } from 'lucide-react';
+import { X, Search, Building, Check, Loader2, AlertTriangle } from 'lucide-react';
 import { Institution } from '../types';
 import { fetchInstitutions } from '../lib/queries';
 
@@ -19,14 +19,22 @@ export const InstitutionModal: React.FC<InstitutionModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     if (!isOpen) return;
     setIsLoading(true);
+    setLoadError(false);
     fetchInstitutions()
       .then(setInstitutions)
+      .catch((err) => {
+        console.error('fetchInstitutions failed:', err);
+        setInstitutions([]);
+        setLoadError(true);
+      })
       .finally(() => setIsLoading(false));
-  }, [isOpen]);
+  }, [isOpen, retryCount]);
 
   if (!isOpen) return null;
 
@@ -35,8 +43,11 @@ export const InstitutionModal: React.FC<InstitutionModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div 
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
         className="bg-white rounded-3xl max-w-lg w-full overflow-hidden flex flex-col shadow-2xl border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -77,6 +88,19 @@ export const InstitutionModal: React.FC<InstitutionModalProps> = ({
             <div className="flex items-center justify-center py-10 text-slate-400">
               <Loader2 className="w-5 h-5 animate-spin mr-2" />
               <span className="text-sm font-semibold">Loading institutions…</span>
+            </div>
+          ) : loadError ? (
+            <div className="text-center py-10 px-4">
+              <AlertTriangle className="w-8 h-8 text-rose-400 mx-auto mb-2" />
+              <p className="text-sm font-bold text-[#0F172A]">Couldn't load institutions</p>
+              <p className="text-xs text-slate-500 mt-1">Check your connection and try again.</p>
+              <button
+                type="button"
+                onClick={() => setRetryCount((c) => c + 1)}
+                className="mt-3 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-[#0F172A] font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Retry
+              </button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-10 px-4">

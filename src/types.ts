@@ -9,6 +9,7 @@ export interface Institution {
 
 // Mirrors public.tutor_subject_competencies for one tutor.
 export interface TutorSubjectCompetency {
+  id: string;
   subjectName: string;
   curriculum: string;
   minGradeLevel: string;
@@ -75,6 +76,35 @@ export interface TutorSession {
   scheduledStart: string; // ISO timestamptz
   durationHours: number;
   status: string | null;
+}
+
+// The student-side mirror of TutorSession above — the same public.sessions
+// row, from the other participant's point of view. Used for the student's
+// "upcoming sessions" surfaces (SubHeaderBanner count, ManageAccountModal's
+// Sessions & History tab) that were placeholder zeros until this existed.
+export interface StudentSession {
+  id: string;
+  tutorName: string;
+  subjectName: string | null;
+  scheduledStart: string; // ISO timestamptz
+  durationHours: number;
+  status: string | null;
+}
+
+// Mirrors public.session_requests, joined with the requesting student's
+// name and the subject/grade they enrolled for — a real pending request a
+// tutor needs to accept or decline (see acceptSessionRequest/
+// declineSessionRequest in queries.ts). Not to be confused with
+// TutorSession above, which is an already-confirmed public.sessions row.
+export interface IncomingSessionRequest {
+  id: string;
+  studentId: string;
+  studentName: string;
+  subjectName: string | null;
+  gradeLevel: string | null;
+  requestedStart: string; // ISO timestamptz
+  durationHours: number;
+  enrollmentId: string | null;
 }
 
 // Mirrors public.sub_tier_definitions — the progression thresholds a tutor

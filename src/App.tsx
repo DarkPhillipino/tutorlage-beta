@@ -16,6 +16,8 @@ import { ManageAccountModal } from './components/ManageAccountModal';
 import { Footer } from './components/Footer';
 
 import { BookingFormState, SuggestionItem, UserAccount, Tutor, TierDefinition } from './types';
+import { toIsoDate } from './lib/format';
+import { fetchUpcomingStudentSessions } from './lib/queries';
 
 export default function App() {
   const navigate = useNavigate();
@@ -30,14 +32,14 @@ export default function App() {
     subject: '',
     gradeLevel: '',
     scheduleType: 'now',
-    scheduledDate: 'Today',
+    scheduledDate: toIsoDate(new Date()),
     scheduledTime: '14:00',
   });
 
   // User Account State. Name/email come from the real signed-in profile;
-  // the booking-activity stats below aren't backed by real queries yet
-  // (sessions/reviews for the student side), so they stay placeholder zeros
-  // rather than fabricated numbers.
+  // upcomingSessions is now real too (see below) — completedSessions/
+  // savedTutorsCount aren't backed by real queries yet, so they stay
+  // placeholder zeros rather than fabricated numbers.
   const [userAccount, setUserAccount] = useState<UserAccount>({
     name: '',
     email: '',
@@ -52,9 +54,17 @@ export default function App() {
     setUserAccount(prev => ({ ...prev, name: profile.fullName, email: profile.email }));
   }, [profile]);
 
+  useEffect(() => {
+    if (!user) return;
+    fetchUpcomingStudentSessions(user.id)
+      .then((sessions) => setUserAccount(prev => ({ ...prev, upcomingSessions: sessions.length })))
+      .catch((err) => console.error('fetchUpcomingStudentSessions failed:', err));
+  }, [user]);
+
   // Page / view state
   const [view, setView] = useState<'home' | 'prices' | 'tiers' | 'teach' | 'about'>('home');
   const [selectedTier, setSelectedTier] = useState<TierDefinition | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState<SuggestionItem | null>(null);
 
   // Left-nav clicks (Learn/Teach/About, and Schools/Resources while they're
   // hidden in Header.tsx) double as view switches: Teach and About jump to
@@ -107,8 +117,11 @@ export default function App() {
     showToast(scheduleType === 'now' ? 'Set to instant tutor matching' : `Scheduled for ${date || 'Today'} at ${time || '14:00'}`);
   };
 
-  const handleSelectSuggestionFormat = (formatTitle: string) => {
-    setFormState(prev => ({ ...prev, subject: formatTitle }));
+  // The picked format (1-on-1, Homework Help, etc.) is a teaching-style
+  // choice, not a subject — kept as its own piece of state so it never
+  // overwrites whatever the student already typed into the subject field.
+  const handleSelectSuggestionFormat = (format: SuggestionItem) => {
+    setSelectedFormat(format);
     setView('prices');
   };
 
@@ -129,6 +142,7 @@ export default function App() {
 
       {/* 2. Secondary Sub-Header Banner */}
       <SubHeaderBanner
+        upcomingSessionsCount={userAccount.upcomingSessions}
         onOpenActivity={() => showToast('Activity log: 12 completed tutoring sessions.')}
         onOpenPromotions={() => showToast('Promotions: Use code CAMPUS2026 for 15% off exam prep!')}
         onOpenAccount={() => openManageAccount('profile')}
@@ -165,6 +179,8 @@ export default function App() {
             onSearch={() => setView('tiers')}
             selectedTier={selectedTier}
             onClearTier={() => setSelectedTier(null)}
+            selectedFormat={selectedFormat}
+            onClearFormat={() => setSelectedFormat(null)}
           />
         ) : (
           <>

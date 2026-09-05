@@ -142,12 +142,11 @@ export const SuggestionsGrid: React.FC<SuggestionsGridProps> = ({ onSelectSugges
       </div>
 
       {/* Trust & Verification Footer Strip */}
-      <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+      <div className="mt-6 pt-5 border-t border-slate-100 flex items-center text-xs text-slate-500">
         <div className="flex items-center space-x-1.5">
           <Sparkles className="w-4 h-4 text-[#15803D]" />
           <span className="font-medium">100% Academic Vetted Mentors</span>
         </div>
-        <span className="text-slate-400 hidden sm:inline">24-hr Money Back Guarantee</span>
       </div>
 
     </div>

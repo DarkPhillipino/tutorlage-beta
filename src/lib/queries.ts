@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession } from '../types';
+import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, IncomingSessionRequest, StudentSession } from '../types';
 
 // The signed-in user's own profiles row (see UserProfile in types.ts).
 export async function fetchProfile(userId: string): Promise<UserProfile | null> {
@@ -50,6 +50,7 @@ interface TutorRow {
   current_tier_id: number;
   profiles: { full_name: string; avatar_url: string | null } | null;
   tutor_subject_competencies: {
+    id: string;
     subject_name: string;
     curriculum: string;
     min_grade_level: string;
@@ -57,9 +58,30 @@ interface TutorRow {
   }[];
 }
 
-// tierId narrows results to tutors currently in that pricing tier (see
-// fetchTierDefinitions) — used after the student picks a tier on TierSelectionPage.
-export async function fetchTutors(tierId?: number): Promise<Tutor[]> {
+export interface TutorSearchFilters {
+  subject?: string;
+  gradeLevel?: string;
+  tierId?: number;
+}
+
+export interface TutorSearchResult {
+  tutors: Tutor[];
+  // False only when a gradeLevel filter was actually requested but didn't
+  // match any known grade_levels.name (even case-insensitively) — lets the
+  // caller tell "we searched and found none" apart from "we didn't
+  // recognize your grade level, so we didn't filter by it at all."
+  gradeLevelRecognized: boolean;
+}
+
+// subject/gradeLevel narrow results to tutors who actually teach that subject
+// and grade level (via tutor_subject_competencies); tierId narrows to tutors
+// currently in that pricing tier (see fetchTierDefinitions) — used after the
+// student picks a tier on TierSelectionPage. All three are optional: an
+// unset filter means "don't restrict on this dimension."
+export async function fetchTutors(filters: TutorSearchFilters = {}): Promise<TutorSearchResult> {
+  const { subject, gradeLevel, tierId } = filters;
+  const hasSubjectFilter = !!subject?.trim();
+
   let query = supabase
     .from('tutor_profiles')
     .select(`
@@ -74,19 +96,62 @@ export async function fetchTutors(tierId?: number): Promise<Tutor[]> {
       total_sessions_completed,
       current_tier_id,
       profiles!tutor_profiles_id_fkey ( full_name, avatar_url ),
-      tutor_subject_competencies ( subject_name, curriculum, min_grade_level, max_grade_level )
+      tutor_subject_competencies${hasSubjectFilter ? '!inner' : ''} ( id, subject_name, curriculum, min_grade_level, max_grade_level )
     `);
 
   if (tierId !== undefined) {
     query = query.eq('current_tier_id', tierId);
   }
 
+  // Filtering through an embedded resource requires the join hint above
+  // (!inner) — without it, PostgREST treats this as a left join and the
+  // filter is ignored.
+  if (hasSubjectFilter) {
+    query = query.ilike('tutor_subject_competencies.subject_name', `%${subject!.trim()}%`);
+  }
+
   const { data, error } = await query;
 
   if (error) throw error;
 
-  return ((data ?? []) as unknown as TutorRow[]).map((row) => {
+  let rows = (data ?? []) as unknown as TutorRow[];
+
+  // Grade level is a text name (e.g. "Grade 10"), not a number, so "does this
+  // tutor teach Grade 9" is a range check against grade_levels.sort_order —
+  // done client-side rather than a query PostgREST can't express directly.
+  // Matched case-insensitively (subject matching is already fuzzy; grade
+  // level requiring exact case would be an inconsistent, silent trap).
+  const trimmedGradeLevel = gradeLevel?.trim();
+  let gradeLevelRecognized = true;
+
+  if (trimmedGradeLevel) {
+    const { data: levels, error: levelsError } = await supabase
+      .from('grade_levels')
+      .select('name, sort_order');
+    if (levelsError) throw levelsError;
+
+    const sortOrderByName = new Map((levels ?? []).map((l) => [l.name.toLowerCase(), l.sort_order]));
+    const targetOrder = sortOrderByName.get(trimmedGradeLevel.toLowerCase());
+
+    if (targetOrder === undefined) {
+      // Not a recognized grade level at all (not even case-insensitively) —
+      // don't silently drop the filter and pretend nothing was wrong; tell
+      // the caller so it can surface that to the user.
+      gradeLevelRecognized = false;
+    } else {
+      rows = rows.filter((row) =>
+        row.tutor_subject_competencies.some((c) => {
+          const min = sortOrderByName.get(c.min_grade_level.toLowerCase());
+          const max = sortOrderByName.get(c.max_grade_level.toLowerCase());
+          return min !== undefined && max !== undefined && targetOrder >= min && targetOrder <= max;
+        })
+      );
+    }
+  }
+
+  const tutors = rows.map((row) => {
     const subjects: TutorSubjectCompetency[] = row.tutor_subject_competencies.map((c) => ({
+      id: c.id,
       subjectName: c.subject_name,
       curriculum: c.curriculum,
       minGradeLevel: c.min_grade_level,
@@ -109,6 +174,8 @@ export async function fetchTutors(tierId?: number): Promise<Tutor[]> {
       currentTierId: row.current_tier_id,
     };
   });
+
+  return { tutors, gradeLevelRecognized };
 }
 
 // The pricing tiers students choose between, e.g. "Peer-to-Peer Tutors: R50-R150/hr".
@@ -177,6 +244,7 @@ interface TutorDashboardRow {
   qualified_uplift_students_count: number | null;
   profiles: { full_name: string; avatar_url: string | null } | null;
   tutor_subject_competencies: {
+    id: string;
     subject_name: string;
     curriculum: string;
     min_grade_level: string;
@@ -207,7 +275,7 @@ export async function fetchTutorDashboard(tutorId: string): Promise<TutorDashboa
       avg_grade_uplift_pct,
       qualified_uplift_students_count,
       profiles!tutor_profiles_id_fkey ( full_name, avatar_url ),
-      tutor_subject_competencies ( subject_name, curriculum, min_grade_level, max_grade_level ),
+      tutor_subject_competencies ( id, subject_name, curriculum, min_grade_level, max_grade_level ),
       tier_definitions!tutor_profiles_current_tier_id_fkey ( id, public_name, min_rate, max_rate )
     `)
     .eq('id', tutorId)
@@ -245,6 +313,7 @@ export async function fetchTutorDashboard(tutorId: string): Promise<TutorDashboa
     avgGradeUpliftPct: Number(row.avg_grade_uplift_pct ?? 0),
     qualifiedUpliftStudentsCount: row.qualified_uplift_students_count ?? 0,
     subjects: row.tutor_subject_competencies.map((c) => ({
+      id: c.id,
       subjectName: c.subject_name,
       curriculum: c.curriculum,
       minGradeLevel: c.min_grade_level,
@@ -377,6 +446,292 @@ export async function fetchUpcomingTutorSessions(tutorId: string): Promise<Tutor
   return ((data ?? []) as unknown as TutorSessionRow[]).map((row) => ({
     id: row.id,
     studentName: row.profiles?.full_name ?? 'Student',
+    subjectName: row.student_subject_enrollments?.subject_name ?? null,
+    scheduledStart: row.scheduled_start,
+    durationHours: Number(row.duration_hours),
+    status: row.status,
+  }));
+}
+
+// Updates the signed-in tutor's own editable profile fields (RLS: "Tutors
+// (can) update own profile" — auth.uid() = id). teaching_mode is
+// deliberately not editable here — the teaching_mode enum currently only
+// has one value ('online'), so there's nothing to choose between yet.
+export async function updateTutorProfile(
+  tutorId: string,
+  updates: { headline?: string; hourlyRate?: number }
+): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  if (updates.headline !== undefined) patch.headline = updates.headline;
+  if (updates.hourlyRate !== undefined) patch.hourly_rate = updates.hourlyRate;
+
+  const { error } = await supabase.from('tutor_profiles').update(patch).eq('id', tutorId);
+  if (error) throw error;
+}
+
+// Adds one subject a tutor teaches (RLS: "Tutors manage own competencies" —
+// auth.uid() = tutor_id). This is the thing that actually makes a tutor
+// show up in subject-filtered search results (see fetchTutors above) — an
+// empty tutor_subject_competencies table is why the seeded tutor never
+// matched any subject search before this existed.
+export async function addTutorSubjectCompetency(
+  tutorId: string,
+  competency: { subjectName: string; curriculum: string; minGradeLevel: string; maxGradeLevel: string }
+): Promise<TutorSubjectCompetency> {
+  // verification_status defaults to 'pending', which the "Public can view
+  // verified tutor competencies" RLS policy hides from search entirely —
+  // there's no per-subject admin review queue built (only the tutor's
+  // overall is_verified flag has one), so a subject a tutor adds would
+  // otherwise be permanently invisible to students. Auto-verifying here is a
+  // deliberate pilot-scoped decision: the tutor's own document verification
+  // is the real trust gate; per-subject review is a possible later
+  // refinement, not required for launch.
+  const { data, error } = await supabase
+    .from('tutor_subject_competencies')
+    .insert({
+      tutor_id: tutorId,
+      subject_name: competency.subjectName,
+      curriculum: competency.curriculum,
+      min_grade_level: competency.minGradeLevel,
+      max_grade_level: competency.maxGradeLevel,
+      verification_status: 'verified',
+    })
+    .select('id, subject_name, curriculum, min_grade_level, max_grade_level')
+    .single();
+
+  if (error) throw error;
+
+  return {
+    id: data.id,
+    subjectName: data.subject_name,
+    curriculum: data.curriculum,
+    minGradeLevel: data.min_grade_level,
+    maxGradeLevel: data.max_grade_level,
+  };
+}
+
+// Removes one of the signed-in tutor's own subject competencies (RLS
+// enforces ownership).
+export async function deleteTutorSubjectCompetency(competencyId: string): Promise<void> {
+  const { error } = await supabase.from('tutor_subject_competencies').delete().eq('id', competencyId);
+  if (error) throw error;
+}
+
+// Finds the student's existing enrollment for this subject/grade this
+// academic year, or creates one — student_subject_enrollments has no unique
+// constraint to upsert against, so this is a real find-then-insert rather
+// than a single atomic call. Not exported: only ever needed as part of
+// creating a session request.
+async function findOrCreateStudentEnrollment(
+  studentId: string,
+  subjectName: string,
+  gradeLevel: string
+): Promise<string> {
+  const academicYear = new Date().getFullYear();
+
+  const { data: existing, error: findError } = await supabase
+    .from('student_subject_enrollments')
+    .select('id')
+    .eq('student_id', studentId)
+    .eq('subject_name', subjectName)
+    .eq('grade_level', gradeLevel)
+    .eq('academic_year', academicYear)
+    .maybeSingle();
+
+  if (findError) throw findError;
+  if (existing) return existing.id;
+
+  const { data: created, error: insertError } = await supabase
+    .from('student_subject_enrollments')
+    .insert({ student_id: studentId, subject_name: subjectName, grade_level: gradeLevel, academic_year: academicYear })
+    .select('id')
+    .single();
+
+  if (insertError) throw insertError;
+  return created.id;
+}
+
+// Creates a real tutoring request (RLS: "Students manage own session
+// requests" — auth.uid() = student_id) — what "Book Session" on
+// PricesPage.tsx actually does now, instead of just showing a toast.
+// requestedStart is a real timestamp: "now" for instant bookings, or the
+// student's chosen ISO date + time combined for a scheduled one.
+export async function createSessionRequest(params: {
+  studentId: string;
+  tutorId: string;
+  subjectName: string;
+  gradeLevel: string;
+  scheduleType: 'now' | 'scheduled';
+  scheduledDate: string; // ISO date, e.g. from BookingFormState.scheduledDate
+  scheduledTime: string; // "HH:MM"
+  durationHours?: number;
+}): Promise<{ id: string; requestedStart: string }> {
+  const { studentId, tutorId, subjectName, gradeLevel, scheduleType, scheduledDate, scheduledTime, durationHours = 1 } = params;
+
+  const requestedStart =
+    scheduleType === 'now' ? new Date().toISOString() : new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString();
+
+  let enrollmentId: string | null = null;
+  if (subjectName.trim() && gradeLevel.trim()) {
+    enrollmentId = await findOrCreateStudentEnrollment(studentId, subjectName.trim(), gradeLevel.trim());
+  }
+
+  const { data, error } = await supabase
+    .from('session_requests')
+    .insert({
+      student_id: studentId,
+      tutor_id: tutorId,
+      enrollment_id: enrollmentId,
+      requested_by_profile_id: studentId,
+      requested_start: requestedStart,
+      duration_hours: durationHours,
+      status: 'pending',
+    })
+    .select('id, requested_start')
+    .single();
+
+  if (error) throw error;
+  return { id: data.id, requestedStart: data.requested_start };
+}
+
+interface SessionRequestRow {
+  id: string;
+  student_id: string;
+  requested_start: string;
+  duration_hours: number;
+  enrollment_id: string | null;
+  profiles: { full_name: string } | null;
+  student_subject_enrollments: { subject_name: string; grade_level: string } | null;
+}
+
+// The signed-in tutor's own pending requests (RLS: "Tutors view and respond
+// to their requests" — auth.uid() = tutor_id) — the tutor-facing accept/
+// decline queue on TeachGoScreen.
+export async function fetchIncomingSessionRequests(tutorId: string): Promise<IncomingSessionRequest[]> {
+  const { data, error } = await supabase
+    .from('session_requests')
+    .select(`
+      id,
+      student_id,
+      requested_start,
+      duration_hours,
+      enrollment_id,
+      profiles!session_requests_student_id_fkey ( full_name ),
+      student_subject_enrollments ( subject_name, grade_level )
+    `)
+    .eq('tutor_id', tutorId)
+    .eq('status', 'pending')
+    .order('requested_start');
+
+  if (error) throw error;
+
+  return ((data ?? []) as unknown as SessionRequestRow[]).map((row) => ({
+    id: row.id,
+    studentId: row.student_id,
+    studentName: row.profiles?.full_name ?? 'Student',
+    subjectName: row.student_subject_enrollments?.subject_name ?? null,
+    gradeLevel: row.student_subject_enrollments?.grade_level ?? null,
+    requestedStart: row.requested_start,
+    durationHours: Number(row.duration_hours),
+    enrollmentId: row.enrollment_id,
+  }));
+}
+
+// Accepts a pending request: creates the real public.sessions row (using
+// the tutor's *current* rate/tier commission at accept-time, not whatever
+// it was when the request was made) and marks the request confirmed,
+// linked via resulting_session_id. Two writes, not a DB transaction — if
+// the second write fails the session exists but the request stays
+// "pending"; acceptable for the pilot (RLS/policy means this can't be made
+// atomic from the client, and a stuck "pending" request is a safe failure
+// mode, not a silent double-booking).
+export async function acceptSessionRequest(request: IncomingSessionRequest, tutorId: string): Promise<void> {
+  const { data: tutorProfile, error: tutorError } = await supabase
+    .from('tutor_profiles')
+    .select('hourly_rate, currency_code, tier_definitions!tutor_profiles_current_tier_id_fkey ( commission_rate_pct )')
+    .eq('id', tutorId)
+    .single();
+
+  if (tutorError) throw tutorError;
+
+  const hourlyRate = Number(tutorProfile.hourly_rate);
+  const commissionPct = Number(
+    (tutorProfile.tier_definitions as unknown as { commission_rate_pct: number } | null)?.commission_rate_pct ?? 0
+  );
+  const grossAmount = hourlyRate * request.durationHours;
+  const tutorPayoutAmount = grossAmount * (1 - commissionPct / 100);
+
+  const { data: session, error: sessionError } = await supabase
+    .from('sessions')
+    .insert({
+      student_id: request.studentId,
+      tutor_id: tutorId,
+      duration_hours: request.durationHours,
+      hourly_rate_charged: hourlyRate,
+      platform_commission_pct: commissionPct,
+      gross_amount: grossAmount,
+      tutor_payout_amount: tutorPayoutAmount,
+      scheduled_start: request.requestedStart,
+      enrollment_id: request.enrollmentId,
+      booked_by_profile_id: request.studentId,
+      currency_code: tutorProfile.currency_code,
+    })
+    .select('id')
+    .single();
+
+  if (sessionError) throw sessionError;
+
+  const { error: updateError } = await supabase
+    .from('session_requests')
+    .update({ status: 'accepted', resulting_session_id: session.id, responded_at: new Date().toISOString() })
+    .eq('id', request.id);
+
+  if (updateError) throw updateError;
+}
+
+// Declines a pending request — no sessions row is created.
+export async function declineSessionRequest(requestId: string): Promise<void> {
+  const { error } = await supabase
+    .from('session_requests')
+    .update({ status: 'declined', responded_at: new Date().toISOString() })
+    .eq('id', requestId);
+
+  if (error) throw error;
+}
+
+interface StudentSessionRow {
+  id: string;
+  scheduled_start: string;
+  duration_hours: number;
+  status: string | null;
+  tutor_profiles: { profiles: { full_name: string } | null } | null;
+  student_subject_enrollments: { subject_name: string } | null;
+}
+
+// The signed-in student's own upcoming sessions (RLS: "Students view own
+// sessions" — auth.uid() = student_id) — the student-side mirror of
+// fetchUpcomingTutorSessions. sessions.tutor_id references tutor_profiles,
+// not profiles directly, so getting the tutor's name is a two-hop embed.
+export async function fetchUpcomingStudentSessions(studentId: string): Promise<StudentSession[]> {
+  const { data, error } = await supabase
+    .from('sessions')
+    .select(`
+      id,
+      scheduled_start,
+      duration_hours,
+      status,
+      tutor_profiles!sessions_tutor_id_fkey ( profiles!tutor_profiles_id_fkey ( full_name ) ),
+      student_subject_enrollments ( subject_name )
+    `)
+    .eq('student_id', studentId)
+    .gte('scheduled_start', new Date().toISOString())
+    .order('scheduled_start');
+
+  if (error) throw error;
+
+  return ((data ?? []) as unknown as StudentSessionRow[]).map((row) => ({
+    id: row.id,
+    tutorName: row.tutor_profiles?.profiles?.full_name ?? 'Tutor',
     subjectName: row.student_subject_enrollments?.subject_name ?? null,
     scheduledStart: row.scheduled_start,
     durationHours: Number(row.duration_hours),

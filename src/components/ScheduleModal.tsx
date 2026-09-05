@@ -1,6 +1,22 @@
 import React, { useState } from 'react';
 import { X, Clock, Calendar as CalendarIcon, Check } from 'lucide-react';
 import { BookingFormState } from '../types';
+import { describeDate, toIsoDate } from '../lib/format';
+
+// Real, always-current date options — "Today"/"Tomorrow" plus the next few
+// actual calendar dates, instead of a fixed list that goes stale the day
+// after it was written. The value stored/selected is a real ISO date
+// ("YYYY-MM-DD"), not the display label — a real booking downstream needs
+// an actual date, not "Monday, Sep 7" as a string to re-parse.
+function getUpcomingDateOptions(count: number): { iso: string; label: string }[] {
+  const today = new Date();
+  const options: { iso: string; label: string }[] = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+    options.push({ iso: toIsoDate(d), label: describeDate(toIsoDate(d)) });
+  }
+  return options;
+}
 
 interface ScheduleModalProps {
   isOpen: boolean;
@@ -16,12 +32,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   onUpdateSchedule,
 }) => {
   const [activeOption, setActiveOption] = useState<'now' | 'scheduled'>(formState.scheduleType);
-  const [selectedDate, setSelectedDate] = useState(formState.scheduledDate || 'Today');
+  const [selectedDate, setSelectedDate] = useState(formState.scheduledDate || toIsoDate(new Date()));
   const [selectedTime, setSelectedTime] = useState(formState.scheduledTime || '14:00');
 
   if (!isOpen) return null;
 
-  const dates = ['Today', 'Tomorrow', 'Friday, Aug 15', 'Saturday, Aug 16', 'Monday, Aug 18'];
+  const dates = getUpcomingDateOptions(5);
   const times = ['09:00', '10:30', '12:00', '14:00', '15:30', '17:00', '18:30', '20:00'];
 
   const handleSave = () => {
@@ -30,8 +46,11 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div 
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
         className="bg-white rounded-3xl max-w-md w-full overflow-hidden flex flex-col shadow-2xl border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -96,15 +115,15 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 <div className="flex flex-wrap gap-1.5">
                   {dates.map((d) => (
                     <button
-                      key={d}
-                      onClick={() => setSelectedDate(d)}
+                      key={d.iso}
+                      onClick={() => setSelectedDate(d.iso)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                        selectedDate === d
+                        selectedDate === d.iso
                           ? 'bg-[#15803D] text-white border-[#15803D]'
                           : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                       }`}
                     >
-                      {d}
+                      {d.label}
                     </button>
                   ))}
                 </div>
