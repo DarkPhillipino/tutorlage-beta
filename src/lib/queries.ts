@@ -459,11 +459,12 @@ export async function fetchUpcomingTutorSessions(tutorId: string): Promise<Tutor
 // has one value ('online'), so there's nothing to choose between yet.
 export async function updateTutorProfile(
   tutorId: string,
-  updates: { headline?: string; hourlyRate?: number }
+  updates: { headline?: string; hourlyRate?: number; isDispatchActive?: boolean }
 ): Promise<void> {
   const patch: Record<string, unknown> = {};
   if (updates.headline !== undefined) patch.headline = updates.headline;
   if (updates.hourlyRate !== undefined) patch.hourly_rate = updates.hourlyRate;
+  if (updates.isDispatchActive !== undefined) patch.is_dispatch_active = updates.isDispatchActive;
 
   const { error } = await supabase.from('tutor_profiles').update(patch).eq('id', tutorId);
   if (error) throw error;

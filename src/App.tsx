@@ -143,7 +143,7 @@ export default function App() {
       {/* 2. Secondary Sub-Header Banner */}
       <SubHeaderBanner
         upcomingSessionsCount={userAccount.upcomingSessions}
-        onOpenActivity={() => showToast('Activity log: 12 completed tutoring sessions.')}
+        onOpenActivity={() => showToast(`Activity log: ${userAccount.completedSessions} completed tutoring session${userAccount.completedSessions === 1 ? '' : 's'}.`)}
         onOpenPromotions={() => showToast('Promotions: Use code CAMPUS2026 for 15% off exam prep!')}
         onOpenAccount={() => openManageAccount('profile')}
       />

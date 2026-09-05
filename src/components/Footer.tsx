@@ -11,7 +11,7 @@ export const Footer: React.FC = () => {
           <div>
             <span className="text-2xl font-extrabold text-white tracking-tight">Tutorlage</span>
             <p className="text-xs text-slate-400 mt-1 max-w-md">
-              Democratizing access to high-impact academic mentorship, campus tutors, exam prep, and group workshops worldwide.
+              Democratizing access to high-impact academic mentorship, campus tutors, exam prep, and group workshops.
             </p>
           </div>
           <div className="flex items-center space-x-6 text-xs text-slate-400 font-semibold">

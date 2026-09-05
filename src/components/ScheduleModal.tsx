@@ -102,7 +102,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               </div>
               <h4 className="text-sm font-extrabold text-[#0F172A]">Instant Match Active</h4>
               <p className="text-xs text-slate-500 mt-1">
-                Connect with mentors online right now at your institution. Typical response time &lt; 3 mins.
+                Connect with mentors online right now at your institution.
               </p>
             </div>
           ) : (

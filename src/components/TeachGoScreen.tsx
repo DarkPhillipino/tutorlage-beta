@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Menu, MapPin, Loader2, CheckCircle2, Circle, Sparkles, UserX } from 'lucide-react';
+import { Menu, MapPin, Loader2, CheckCircle2, Circle, Sparkles, UserX, AlertCircle } from 'lucide-react';
 import { TutorDashboardData, SubTierDefinition } from '../types';
-import { fetchTutorDashboard, fetchSubTierDefinitions } from '../lib/queries';
+import { fetchTutorDashboard, fetchSubTierDefinitions, updateTutorProfile } from '../lib/queries';
 import { IncomingSessionRequests } from './IncomingSessionRequests';
 
 interface TeachGoScreenProps {
@@ -25,7 +25,8 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
   const [tutor, setTutor] = useState<TutorDashboardData | null>(null);
   const [nextSubTier, setNextSubTier] = useState<SubTierDefinition | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isOnline, setIsOnline] = useState(false);
+  const [isTogglingOnline, setIsTogglingOnline] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTutorDashboard(tutorId)
@@ -41,6 +42,23 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
       .catch(() => setTutor(null))
       .finally(() => setIsLoading(false));
   }, [tutorId]);
+
+  // Real online/offline state — writes tutor_profiles.is_dispatch_active
+  // instead of the local-only toggle this was before.
+  const handleToggleOnline = async () => {
+    if (!tutor) return;
+    setToggleError(null);
+    setIsTogglingOnline(true);
+    const nextValue = !tutor.isDispatchActive;
+    try {
+      await updateTutorProfile(tutor.id, { isDispatchActive: nextValue });
+      setTutor({ ...tutor, isDispatchActive: nextValue });
+    } catch (e) {
+      setToggleError(e instanceof Error ? e.message : 'Could not update your status.');
+    } finally {
+      setIsTogglingOnline(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -98,12 +116,13 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
           <MapPin className="w-6 h-6 text-slate-300 absolute bottom-10 right-10" />
 
           <button
-            onClick={() => setIsOnline((v) => !v)}
-            className={`w-28 h-28 rounded-full flex items-center justify-center text-white font-black text-xl tracking-wide shadow-xl transition-all cursor-pointer active:scale-95 ${
-              isOnline ? 'bg-[#15803D] hover:bg-[#166534]' : 'bg-[#0F172A] hover:bg-slate-800'
+            onClick={handleToggleOnline}
+            disabled={isTogglingOnline}
+            className={`w-28 h-28 rounded-full flex items-center justify-center text-white font-black text-xl tracking-wide shadow-xl transition-all cursor-pointer active:scale-95 disabled:opacity-70 ${
+              tutor.isDispatchActive ? 'bg-[#15803D] hover:bg-[#166534]' : 'bg-[#0F172A] hover:bg-slate-800'
             }`}
           >
-            {isOnline ? 'END' : 'GO'}
+            {isTogglingOnline ? <Loader2 className="w-6 h-6 animate-spin" /> : tutor.isDispatchActive ? 'END' : 'GO'}
           </button>
         </div>
 
@@ -111,11 +130,17 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
         <div className="p-6 space-y-4">
           <div className="text-center">
             <h2 className="text-lg font-extrabold text-[#0F172A]">
-              {isOnline ? "You're online" : "You're offline"}
+              {tutor.isDispatchActive ? "You're online" : "You're offline"}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              {isOnline ? 'Accepting new session requests' : 'Tap GO to start accepting sessions'}
+              {tutor.isDispatchActive ? 'Accepting new session requests' : 'Tap GO to start accepting sessions'}
             </p>
+            {toggleError && (
+              <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-rose-600">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                {toggleError}
+              </p>
+            )}
           </div>
 
           {/* Tier progress */}

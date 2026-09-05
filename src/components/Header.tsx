@@ -136,7 +136,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
             {/* Help Button */}
             <a
               href="#help"
-              onClick={(e) => { e.preventDefault(); alert("Tutorlage 24/7 Academic Support Center: How can we assist you today?"); }}
+              onClick={(e) => { e.preventDefault(); alert("Tutorlage Support: How can we assist you today?"); }}
               className="px-3 py-1.5 rounded-full text-sm font-semibold text-[#0F172A] hover:bg-slate-100 flex items-center space-x-1.5 transition-colors"
             >
               <HelpCircle className="w-4 h-4 text-[#0F172A] sm:hidden" />

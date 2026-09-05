@@ -64,9 +64,9 @@ expand internationally.
 
 ## Known gaps / explicitly deferred (not bugs — just not built yet)
 
-- **Payments and payouts**: no real money moves through the platform yet. Whether to build
-  in-house banking/payout handling or lean on a third-party payments processor is still an open
-  question.
+- **Payments and payouts**: no real money moves through the platform yet — decided (2026-09-05):
+  integrate Paystack rather than build in-house, scheduled as Day 3 of the phase-2 production
+  plan below.
 - **Multi-country/multi-currency**: see the dedicated "Internationalization plan" section below
   — this is one piece of a bigger rigidity problem, not an isolated gap.
 - **Self-expanding subject taxonomy**: the idea that a tutor who wants to teach a subject not in
@@ -154,8 +154,10 @@ This is a genuinely different architecture from what's built today, not a small 
 
 This needs a real design pass (schema, RLS policies for a request a tutor hasn't been assigned
 to yet, the accept flow, the reveal notification) before any code gets written — it isn't
-something to assume details on and just build. **Deferred past the 7-day pilot below** — kept
-scoped out deliberately so the pilot ships with the simpler direct-booking model instead.
+something to assume details on and just build. **Deferred past the phase-1 pilot** (below) so
+that pilot could ship with the simpler direct-booking model first — now scheduled as Day 2 of
+the phase-2 production plan, with the schema direction decided: `session_requests.tutor_id`
+becomes nullable until a tutor accepts, rather than a separate broadcast table.
 
 **What the Day 3 booking implementation actually does today, to be explicit about it:**
 `createSessionRequest()` targets exactly one `tutor_id` — the specific tutor whose card the
@@ -276,12 +278,80 @@ than redoing them.
       student, booked, switched accounts and accepted as the tutor (correct commission math:
       R120/hr × 1h → R84 payout at 30%), and confirmed both sides reflect reality. All test
       accounts and data fully deleted afterward — verified counts back to baseline.
-- [ ] **Day 6 — Buffer / polish.** Whatever Days 1-5 didn't finish, plus a pass on anything that
-      would visibly embarrass a pilot: mobile responsiveness spot-check, any remaining
-      misleading copy, a final look at the deployed GitHub Pages build itself (not just local
-      dev).
-- [ ] **Day 7 — Buffer / ship.** Final QA pass and go live. If Days 1-6 finished early, this day
-      simply doesn't get used — the goal is 7 days or fewer, not exactly 7.
+Days 1-5 above finished in a single real session, not five calendar days — so rather than
+spend two more days on buffer/polish alone, the plan below replaces the old Day 6/7 placeholder
+with a full second phase: take everything else already logged in this document (the anonymous-
+matching architecture, payments, admin deployment, i18n foundation, and the smaller deferred
+items) and actually build it, moving from "pilot" to "real production." Same "day" caveat as
+above: a day here means a focused work session, not a guaranteed calendar day — some items
+(payments especially) also depend on things outside pure coding time (provider sign-up/
+approval), which is called out below where relevant.
+
+## 7-day production plan (phase 2)
+
+Same process rule as phase 1: stop at the end of each day and ask before continuing into the
+next one, rather than assuming.
+
+- [x] **Day 1 — Polish + the decisions everything else depends on.** Done. Two things bundled
+      together because both need to happen before Day 2 can start cleanly:
+      1. The original "Day 6 buffer" work — **done**: mobile spot-check across Learn home,
+         Suggestions, the Teach screen (GO button, tier progress, requests, tips), and
+         `ManageAccountModal` (Account Details, Teaching tab including the subject-add row) all
+         held up cleanly at 375px, nothing broke. Deployed GitHub Pages build confirmed matching
+         the latest commit and loading/signing-in cleanly (the one thing that looked like a
+         mismatch — the GO button showing stale state — turned out to be because that day's
+         fix hadn't been pushed yet, not a real bug). Misleading-copy sweep found and fixed
+         three real overclaims: the footer's "...group workshops **worldwide**" (this is an
+         SA-only pilot), the Help button's fabricated "24/7 Academic Support Center," and two
+         fabricated specific numbers — the Activity toast's hardcoded "12 completed tutoring
+         sessions" (now reads the real, currently-zero `userAccount.completedSessions`) and
+         Schedule Session's fabricated "Typical response time < 3 mins" (removed outright, no
+         data backs it).
+      2. Two decisions, now made: **payments will use a real third-party processor — Paystack**
+         (the user will sign up and hand over API keys, since account creation isn't something
+         to do on their behalf); **anonymous-matching schema will make `session_requests.tutor_id`
+         nullable until a tutor accepts**, rather than a separate broadcast table.
+      Also: wire `TeachGoScreen`'s GO button to actually write
+      `tutor_profiles.is_dispatch_active` — small, self-contained, no dependency on the bigger
+      items below, so it's a good same-day win. **Done** — `updateTutorProfile()` extended to
+      accept `isDispatchActive`; the button now reads/writes the real column instead of local
+      `useState(false)`. Verified live: toggled Paul's real account off then back on, confirmed
+      the DB value flipped both times, restored to its original `true` state afterward.
+- [ ] **Day 2 — Anonymous request/accept matching (the big one).** The architecture change
+      already scoped in this doc's "The big one" section: a student sends a request without
+      picking a named tutor, any matching tutor can see and accept it, only the accepting tutor
+      is revealed to the student (and vice versa). Needs the schema change decided on Day 1,
+      a tutor-facing browse/accept queue (replacing today's direct "Book Session" on a named
+      card), removing the named-tutor-picking UI from `PricesPage.tsx`, and a real match-reveal
+      notification. This changes the core booking UX, so build it deliberately and re-verify
+      the whole booking loop against it afterward, the same way Day 5 of phase 1 did.
+- [ ] **Day 3 — Real payments.** Integrate whatever was decided on Day 1. At minimum: a real
+      charge at the point a session is confirmed (whatever "confirmed" means under the new Day-2
+      matching flow), and the existing `hourly_rate_charged`/`gross_amount`/
+      `platform_commission_pct`/`tutor_payout_amount` fields on `sessions` become real numbers
+      tied to an actual transaction, not just bookkeeping copied from the tutor's profile.
+- [ ] **Day 4 — Admin panel goes live + institution-based matching.** `admin/` is fully built
+      but has never been deployed anywhere — set up the private network access (Tailscale/VPN
+      mesh, per the earlier architecture decision) so tutor verification and dispute handling
+      can actually happen for real bookings. Alongside that: add the institution link
+      `tutor_profiles` is missing (schema change) and wire it into the search query, so "hyper-
+      local matching" becomes real instead of collected-but-unused.
+- [ ] **Day 5 — Social login + self-expanding subject taxonomy.** Enable Google (and any other
+      relevant provider) in Supabase Auth and wire up `signInWithOAuth()` on the login/signup
+      pages. Separately: let a tutor type a subject not on the official list during signup and
+      have it logged as a candidate addition instead of being blocked, per the idea already
+      discussed earlier in this document.
+- [ ] **Day 6 — Internationalization foundation.** Wire the already-seeded `currencies`/
+      `curricula` tables into the actual UI (replace the hardcoded `R` prefix and the old
+      `curriculum` enum usage), per the phased plan in the "Internationalization plan" section
+      above. Explicitly **not** in scope: fabricating a second country's schools/subjects/grade-
+      level data — that still waits on a real decision about which market comes next, which
+      isn't something to guess at just to fill out this schedule.
+- [ ] **Day 7 — Full QA + marketing identity + ship.** End-to-end QA across the now much larger
+      feature set (matching, payments, admin, i18n foundation, social login) — this is a real
+      final pass, not a formality, given how much changed since phase 1's own Day 5 test. Add
+      the marketing-facing identity to `CLAUDE.md` per the "Future" section below, now that
+      there's something real to market. Ship.
 
 ## Idea: availability-driven starting price
 
@@ -313,13 +383,3 @@ messaging, and go-to-market, the way the current identity additions cover produc
 and the educator-domain perspective. Not needed yet while the product itself is still being
 built; revisit once there's something real to market.
 
-## Suggested rough order for what's next
-
-1. Finish hardening the existing Learn flow (the open errors file) so what's already built is
-   solid before layering the bigger anonymous-matching change on top of it.
-2. Design (not yet build) the anonymous request/accept matching flow — schema changes, tutor
-   acceptance UI, match-reveal notification.
-3. Decide the payments/payouts approach (in-house vs. third-party) — this blocks "real" booking
-   regardless of the matching model chosen above.
-4. Wire the international tables into the actual UI once a second market is genuinely being
-   planned — no need to build this ahead of an actual need.
