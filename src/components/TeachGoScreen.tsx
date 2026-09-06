@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Menu, MapPin, Loader2, CheckCircle2, Circle, Sparkles, UserX, AlertCircle } from 'lucide-react';
 import { TutorDashboardData, SubTierDefinition } from '../types';
 import { fetchTutorDashboard, fetchSubTierDefinitions, updateTutorProfile } from '../lib/queries';
-import { IncomingSessionRequests } from './IncomingSessionRequests';
+import { AvailableRequestsQueue } from './AvailableRequestsQueue';
 
 interface TeachGoScreenProps {
   tutorId: string;
@@ -177,9 +177,9 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
             </div>
           )}
 
-          {/* Real, pending session requests — accept/decline turns one into
-              an actual public.sessions row. */}
-          <IncomingSessionRequests tutorId={tutor.id} />
+          {/* Anonymous requests this tutor can browse and claim — accepting
+              one turns it into an actual public.sessions row. */}
+          <AvailableRequestsQueue tutorId={tutor.id} />
 
           {/* Tips (illustrative, not data-driven) */}
           <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-slate-200">

@@ -17,15 +17,22 @@ export interface TutorSubjectCompetency {
 }
 
 // Mirrors public.tutor_profiles joined with public.profiles (name/avatar)
-// and public.tutor_subject_competencies (subjects). The schema has no bio,
-// currency, free-text availability, or institution link for tutors — those
-// were mock-only fields; dropped rather than faked.
+// and public.tutor_subject_competencies (subjects). The schema has no bio
+// or free-text availability for tutors — those were mock-only fields;
+// dropped rather than faked. institutionId is null until the tutor sets
+// one (see TeachingProfilePanel.tsx) — null means "not
+// institution-restricted," matching students anywhere, not "matches no
+// one" (see fetchTutors/fetchAvailableRequests in queries.ts). currencyCode
+// drives which symbol hourlyRate renders with (see getCurrencySymbol in
+// lib/currencies.ts) — every real row is 'ZAR' today, but nothing in the
+// UI should hardcode that.
 export interface Tutor {
   id: string;
   name: string;
   avatarUrl: string | null;
   headline: string | null;
   hourlyRate: number;
+  currencyCode: string;
   verified: boolean;
   rating: number;
   reviewsCount: number;
@@ -34,6 +41,7 @@ export interface Tutor {
   totalSessionsCompleted: number;
   subjects: TutorSubjectCompetency[];
   currentTierId: number;
+  institutionId: string | null;
 }
 
 // Mirrors public.tier_definitions — the pricing bands students choose
@@ -45,6 +53,7 @@ export interface TierDefinition {
   minRate: number;
   maxRate: number;
   commissionRatePct: number;
+  currencyCode: string;
 }
 
 // Mirrors public.reviews for one tutor. student_id exists in the schema but
@@ -91,20 +100,29 @@ export interface StudentSession {
   status: string | null;
 }
 
-// Mirrors public.session_requests, joined with the requesting student's
-// name and the subject/grade they enrolled for — a real pending request a
-// tutor needs to accept or decline (see acceptSessionRequest/
-// declineSessionRequest in queries.ts). Not to be confused with
-// TutorSession above, which is an already-confirmed public.sessions row.
-export interface IncomingSessionRequest {
+// Mirrors public.session_requests while it's still anonymous — tutor_id is
+// null, so this is a request any qualifying tutor can browse and claim
+// (see fetchAvailableRequests/acceptAvailableRequest in queries.ts).
+// Deliberately has no student name/identity: that's the whole point of
+// anonymous matching — a tutor only learns who they're paired with after
+// accepting (see StudentSession/TutorSession, the post-match reveal
+// surfaces). student_id still travels internally (needed to create the
+// resulting public.sessions row on accept), but is never rendered.
+export interface AvailableSessionRequest {
   id: string;
   studentId: string;
-  studentName: string;
   subjectName: string | null;
   gradeLevel: string | null;
+  tierId: number | null;
+  tierName: string | null;
   requestedStart: string; // ISO timestamptz
   durationHours: number;
   enrollmentId: string | null;
+  // What the student was actually charged via Paystack when they sent this
+  // request (see createSessionRequest/acceptAvailableRequest in queries.ts)
+  // — becomes the resulting sessions.gross_amount verbatim on accept.
+  chargedAmount: number;
+  currencyCode: string;
 }
 
 // Mirrors public.sub_tier_definitions — the progression thresholds a tutor
@@ -136,6 +154,7 @@ export interface TutorDashboardData {
   avatarUrl: string | null;
   headline: string | null;
   hourlyRate: number;
+  currencyCode: string;
   verified: boolean;
   onboardingStatus: string | null;
   rating: number;
@@ -150,6 +169,8 @@ export interface TutorDashboardData {
   avgGradeUpliftPct: number;
   qualifiedUpliftStudentsCount: number;
   subjects: TutorSubjectCompetency[];
+  institutionId: string | null;
+  institutionName: string | null;
 }
 
 export interface SuggestionItem {
@@ -161,7 +182,8 @@ export interface SuggestionItem {
 }
 
 export interface BookingFormState {
-  institution: string;
+  institution: string; // display name — see institutionId below for the real FK used to filter/match
+  institutionId: string | null;
   subject: string;
   gradeLevel: string;
   scheduleType: 'now' | 'scheduled';

@@ -3,6 +3,7 @@ import { ArrowLeft, Loader2, ChevronRight, Users, GraduationCap, Award, Crown, A
 import { BookingFormState, TierDefinition } from '../types';
 import { fetchTierDefinitions } from '../lib/queries';
 import { formatRateRange } from '../lib/format';
+import { getCurrencySymbol } from '../lib/currencies';
 
 interface TierSelectionPageProps {
   formState: BookingFormState;
@@ -104,7 +105,7 @@ export const TierSelectionPage: React.FC<TierSelectionPageProps> = ({
                       <h3 className="text-base font-bold text-[#0F172A]">{tier.publicName}</h3>
                       <div className="text-right shrink-0">
                         <div className="text-sm font-black text-[#0F172A]">
-                          {formatRateRange(tier.minRate, tier.maxRate)}
+                          {formatRateRange(tier.minRate, tier.maxRate, getCurrencySymbol(tier.currencyCode))}
                         </div>
                         <div className="text-[10px] text-slate-400 font-semibold">/ hr</div>
                       </div>

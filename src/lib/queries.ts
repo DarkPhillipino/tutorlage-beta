@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, IncomingSessionRequest, StudentSession } from '../types';
+import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, AvailableSessionRequest, StudentSession } from '../types';
 
 // The signed-in user's own profiles row (see UserProfile in types.ts).
 export async function fetchProfile(userId: string): Promise<UserProfile | null> {
@@ -21,10 +21,46 @@ export async function fetchProfile(userId: string): Promise<UserProfile | null> 
   };
 }
 
+// Fixes up a brand-new Google-OAuth signup that wanted to be a tutor. The
+// on_auth_user_created trigger always defaults an OAuth user to 'student'
+// (Google's identity data has no room for our custom role field the way
+// email/password signUp()'s options.data does — see src/lib/oauth.ts), so
+// this is called from AuthCallback.tsx right after the redirect completes,
+// when the person had picked "tutor" before starting the Google flow.
+// Idempotent: a no-op if the profile is already a tutor, so re-running the
+// callback (e.g. a page reload) can't double-convert or error.
+export async function convertProfileToTutor(userId: string, displayName: string): Promise<void> {
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+
+  if (profileError) throw profileError;
+  if (profile.role === 'tutor') return;
+
+  const { error: roleError } = await supabase.from('profiles').update({ role: 'tutor' }).eq('id', userId);
+  if (roleError) throw roleError;
+
+  const { error: tutorError } = await supabase
+    .from('tutor_profiles')
+    .insert({ id: userId, headline: `${displayName} - Tutor` });
+  if (tutorError) throw tutorError;
+
+  // The trigger already created a student_profiles row under the default
+  // role — remove it now that this person is actually a tutor, so they
+  // don't end up with both role-specific rows.
+  await supabase.from('student_profiles').delete().eq('id', userId);
+}
+
+// curriculum comes from the real curricula table via curriculum_id (fully
+// backfilled — every schools_institutions row has one), not the old fixed
+// curriculum enum column, which only ever meant something in South Africa
+// (see the "Internationalization plan" section in the game plan doc).
 export async function fetchInstitutions(): Promise<Institution[]> {
   const { data, error } = await supabase
     .from('schools_institutions')
-    .select('id, name, curriculum, institution_type')
+    .select('id, name, institution_type, curricula ( name )')
     .order('name');
 
   if (error) throw error;
@@ -32,7 +68,7 @@ export async function fetchInstitutions(): Promise<Institution[]> {
   return (data ?? []).map((row) => ({
     id: row.id,
     name: row.name,
-    curriculum: row.curriculum,
+    curriculum: (row.curricula as unknown as { name: string } | null)?.name ?? 'Other',
     institutionType: row.institution_type,
   }));
 }
@@ -41,6 +77,7 @@ interface TutorRow {
   id: string;
   headline: string | null;
   hourly_rate: number;
+  currency_code: string;
   is_verified: boolean | null;
   avg_rating: number | null;
   total_reviews_count: number | null;
@@ -48,6 +85,7 @@ interface TutorRow {
   is_dispatch_active: boolean;
   total_sessions_completed: number | null;
   current_tier_id: number;
+  institution_id: string | null;
   profiles: { full_name: string; avatar_url: string | null } | null;
   tutor_subject_competencies: {
     id: string;
@@ -62,6 +100,7 @@ export interface TutorSearchFilters {
   subject?: string;
   gradeLevel?: string;
   tierId?: number;
+  institutionId?: string;
 }
 
 export interface TutorSearchResult {
@@ -79,7 +118,7 @@ export interface TutorSearchResult {
 // student picks a tier on TierSelectionPage. All three are optional: an
 // unset filter means "don't restrict on this dimension."
 export async function fetchTutors(filters: TutorSearchFilters = {}): Promise<TutorSearchResult> {
-  const { subject, gradeLevel, tierId } = filters;
+  const { subject, gradeLevel, tierId, institutionId } = filters;
   const hasSubjectFilter = !!subject?.trim();
 
   let query = supabase
@@ -88,6 +127,7 @@ export async function fetchTutors(filters: TutorSearchFilters = {}): Promise<Tut
       id,
       headline,
       hourly_rate,
+      currency_code,
       is_verified,
       avg_rating,
       total_reviews_count,
@@ -95,12 +135,20 @@ export async function fetchTutors(filters: TutorSearchFilters = {}): Promise<Tut
       is_dispatch_active,
       total_sessions_completed,
       current_tier_id,
+      institution_id,
       profiles!tutor_profiles_id_fkey ( full_name, avatar_url ),
       tutor_subject_competencies${hasSubjectFilter ? '!inner' : ''} ( id, subject_name, curriculum, min_grade_level, max_grade_level )
     `);
 
   if (tierId !== undefined) {
     query = query.eq('current_tier_id', tierId);
+  }
+
+  // Hyper-local matching: a tutor who hasn't set an institution teaches
+  // anywhere (null is a wildcard, not "matches nobody"); one who has only
+  // matches students at that same institution.
+  if (institutionId) {
+    query = query.or(`institution_id.is.null,institution_id.eq.${institutionId}`);
   }
 
   // Filtering through an embedded resource requires the join hint above
@@ -164,6 +212,7 @@ export async function fetchTutors(filters: TutorSearchFilters = {}): Promise<Tut
       avatarUrl: row.profiles?.avatar_url ?? null,
       headline: row.headline,
       hourlyRate: row.hourly_rate,
+      currencyCode: row.currency_code.trim(),
       verified: row.is_verified ?? false,
       rating: row.avg_rating ?? 0,
       reviewsCount: row.total_reviews_count ?? 0,
@@ -172,6 +221,7 @@ export async function fetchTutors(filters: TutorSearchFilters = {}): Promise<Tut
       totalSessionsCompleted: row.total_sessions_completed ?? 0,
       subjects,
       currentTierId: row.current_tier_id,
+      institutionId: row.institution_id,
     };
   });
 
@@ -182,7 +232,7 @@ export async function fetchTutors(filters: TutorSearchFilters = {}): Promise<Tut
 export async function fetchTierDefinitions(): Promise<TierDefinition[]> {
   const { data, error } = await supabase
     .from('tier_definitions')
-    .select('id, public_name, positioning_quote, min_rate, max_rate, commission_rate_pct')
+    .select('id, public_name, positioning_quote, min_rate, max_rate, commission_rate_pct, currency_code')
     .order('min_rate');
 
   if (error) throw error;
@@ -194,6 +244,7 @@ export async function fetchTierDefinitions(): Promise<TierDefinition[]> {
     minRate: Number(row.min_rate),
     maxRate: Number(row.max_rate),
     commissionRatePct: Number(row.commission_rate_pct),
+    currencyCode: row.currency_code.trim(),
   }));
 }
 
@@ -230,6 +281,7 @@ interface TutorDashboardRow {
   id: string;
   headline: string | null;
   hourly_rate: number;
+  currency_code: string;
   is_verified: boolean | null;
   onboarding_status: string | null;
   avg_rating: number | null;
@@ -251,6 +303,8 @@ interface TutorDashboardRow {
     max_grade_level: string;
   }[];
   tier_definitions: { id: number; public_name: string; min_rate: number; max_rate: number } | null;
+  institution_id: string | null;
+  schools_institutions: { id: string; name: string } | null;
 }
 
 // Loads the signed-in tutor's own profile — tutorId should be auth user id
@@ -262,6 +316,7 @@ export async function fetchTutorDashboard(tutorId: string): Promise<TutorDashboa
       id,
       headline,
       hourly_rate,
+      currency_code,
       is_verified,
       onboarding_status,
       avg_rating,
@@ -274,9 +329,11 @@ export async function fetchTutorDashboard(tutorId: string): Promise<TutorDashboa
       repeat_student_rate_pct,
       avg_grade_uplift_pct,
       qualified_uplift_students_count,
+      institution_id,
       profiles!tutor_profiles_id_fkey ( full_name, avatar_url ),
       tutor_subject_competencies ( id, subject_name, curriculum, min_grade_level, max_grade_level ),
-      tier_definitions!tutor_profiles_current_tier_id_fkey ( id, public_name, min_rate, max_rate )
+      tier_definitions!tutor_profiles_current_tier_id_fkey ( id, public_name, min_rate, max_rate ),
+      schools_institutions ( id, name )
     `)
     .eq('id', tutorId)
     .maybeSingle();
@@ -292,6 +349,7 @@ export async function fetchTutorDashboard(tutorId: string): Promise<TutorDashboa
     avatarUrl: row.profiles?.avatar_url ?? null,
     headline: row.headline,
     hourlyRate: row.hourly_rate,
+    currencyCode: row.currency_code.trim(),
     verified: row.is_verified ?? false,
     onboardingStatus: row.onboarding_status,
     rating: row.avg_rating ?? 0,
@@ -312,6 +370,8 @@ export async function fetchTutorDashboard(tutorId: string): Promise<TutorDashboa
     repeatStudentRatePct: Number(row.repeat_student_rate_pct ?? 0),
     avgGradeUpliftPct: Number(row.avg_grade_uplift_pct ?? 0),
     qualifiedUpliftStudentsCount: row.qualified_uplift_students_count ?? 0,
+    institutionId: row.institution_id,
+    institutionName: row.schools_institutions?.name ?? null,
     subjects: row.tutor_subject_competencies.map((c) => ({
       id: c.id,
       subjectName: c.subject_name,
@@ -459,12 +519,13 @@ export async function fetchUpcomingTutorSessions(tutorId: string): Promise<Tutor
 // has one value ('online'), so there's nothing to choose between yet.
 export async function updateTutorProfile(
   tutorId: string,
-  updates: { headline?: string; hourlyRate?: number; isDispatchActive?: boolean }
+  updates: { headline?: string; hourlyRate?: number; isDispatchActive?: boolean; institutionId?: string | null }
 ): Promise<void> {
   const patch: Record<string, unknown> = {};
   if (updates.headline !== undefined) patch.headline = updates.headline;
   if (updates.hourlyRate !== undefined) patch.hourly_rate = updates.hourlyRate;
   if (updates.isDispatchActive !== undefined) patch.is_dispatch_active = updates.isDispatchActive;
+  if (updates.institutionId !== undefined) patch.institution_id = updates.institutionId;
 
   const { error } = await supabase.from('tutor_profiles').update(patch).eq('id', tutorId);
   if (error) throw error;
@@ -511,6 +572,22 @@ export async function addTutorSubjectCompetency(
   };
 }
 
+// Logs a subject a tutor typed that isn't on the official `subjects` list —
+// the self-expanding taxonomy idea: instead of blocking the tutor from
+// teaching it, addTutorSubjectCompetency above still adds it to their
+// profile immediately, and this just records it as a candidate for the
+// official list (admin review, not built yet — see subject_candidates RLS,
+// which already grants admins read/update via is_active_admin() for when
+// that screen exists). Best-effort: SubjectCompetencyEditor.tsx doesn't let
+// a failure here block the real subject add.
+export async function logSubjectCandidate(tutorId: string, subjectName: string, curriculum: string): Promise<void> {
+  const { error } = await supabase
+    .from('subject_candidates')
+    .insert({ subject_name: subjectName, curriculum, requested_by: tutorId });
+
+  if (error) throw error;
+}
+
 // Removes one of the signed-in tutor's own subject competencies (RLS
 // enforces ownership).
 export async function deleteTutorSubjectCompetency(competencyId: string): Promise<void> {
@@ -552,22 +629,41 @@ async function findOrCreateStudentEnrollment(
   return created.id;
 }
 
-// Creates a real tutoring request (RLS: "Students manage own session
-// requests" — auth.uid() = student_id) — what "Book Session" on
-// PricesPage.tsx actually does now, instead of just showing a toast.
-// requestedStart is a real timestamp: "now" for instant bookings, or the
+// Creates a real, anonymous tutoring request (RLS: "Students manage own
+// session requests" — auth.uid() = student_id) — what "Send Request" on
+// PricesPage.tsx does. tutor_id is deliberately left unset (defaults to
+// NULL): no tutor is chosen up front — any qualifying tutor can browse and
+// claim it (see fetchAvailableRequests/acceptAvailableRequest below).
+// requestedStart is a real timestamp: "now" for instant requests, or the
 // student's chosen ISO date + time combined for a scheduled one.
 export async function createSessionRequest(params: {
   studentId: string;
-  tutorId: string;
   subjectName: string;
   gradeLevel: string;
+  tierId?: number;
+  institutionId?: string | null;
   scheduleType: 'now' | 'scheduled';
   scheduledDate: string; // ISO date, e.g. from BookingFormState.scheduledDate
   scheduledTime: string; // "HH:MM"
   durationHours?: number;
+  paystackReference: string;
+  chargedAmount: number;
+  currencyCode?: string;
 }): Promise<{ id: string; requestedStart: string }> {
-  const { studentId, tutorId, subjectName, gradeLevel, scheduleType, scheduledDate, scheduledTime, durationHours = 1 } = params;
+  const {
+    studentId,
+    subjectName,
+    gradeLevel,
+    tierId,
+    institutionId,
+    scheduleType,
+    scheduledDate,
+    scheduledTime,
+    durationHours = 1,
+    paystackReference,
+    chargedAmount,
+    currencyCode = 'ZAR',
+  } = params;
 
   const requestedStart =
     scheduleType === 'now' ? new Date().toISOString() : new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString();
@@ -577,16 +673,27 @@ export async function createSessionRequest(params: {
     enrollmentId = await findOrCreateStudentEnrollment(studentId, subjectName.trim(), gradeLevel.trim());
   }
 
+  // payment_status starts at 'initiated', not 'paid' — the RLS policies
+  // that let a tutor see/claim this row require payment_status = 'paid',
+  // so this request stays invisible to every tutor until
+  // confirmSessionRequestPayment() below flips it after Paystack actually
+  // confirms the charge. That's deliberate: nobody should be able to accept
+  // (and get a real sessions row created for) a request nobody paid for.
   const { data, error } = await supabase
     .from('session_requests')
     .insert({
       student_id: studentId,
-      tutor_id: tutorId,
       enrollment_id: enrollmentId,
+      tier_id: tierId ?? null,
+      institution_id: institutionId ?? null,
       requested_by_profile_id: studentId,
       requested_start: requestedStart,
       duration_hours: durationHours,
       status: 'pending',
+      payment_status: 'initiated',
+      paystack_reference: paystackReference,
+      charged_amount: chargedAmount,
+      currency_code: currencyCode,
     })
     .select('id, requested_start')
     .single();
@@ -595,20 +702,57 @@ export async function createSessionRequest(params: {
   return { id: data.id, requestedStart: data.requested_start };
 }
 
-interface SessionRequestRow {
+// Called from PaymentCallback.tsx once Paystack's own /transaction/verify
+// endpoint (proxied through server/index.ts) has confirmed what actually
+// happened — never trust the redirect query params alone. 'paid' makes the
+// request visible to tutors for the first time; 'failed' leaves it
+// permanently invisible (payment_status never becomes 'paid'), a harmless
+// dead row rather than something requiring cleanup.
+export async function confirmSessionRequestPayment(paystackReference: string, succeeded: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('session_requests')
+    .update({ payment_status: succeeded ? 'paid' : 'failed' })
+    .eq('paystack_reference', paystackReference);
+
+  if (error) throw error;
+}
+
+interface AvailableRequestRow {
   id: string;
   student_id: string;
   requested_start: string;
   duration_hours: number;
   enrollment_id: string | null;
-  profiles: { full_name: string } | null;
+  charged_amount: number;
+  currency_code: string;
+  institution_id: string | null;
   student_subject_enrollments: { subject_name: string; grade_level: string } | null;
+  tier_definitions: { id: number; public_name: string } | null;
 }
 
-// The signed-in tutor's own pending requests (RLS: "Tutors view and respond
-// to their requests" — auth.uid() = tutor_id) — the tutor-facing accept/
-// decline queue on TeachGoScreen.
-export async function fetchIncomingSessionRequests(tutorId: string): Promise<IncomingSessionRequest[]> {
+// Anonymous, unclaimed pending requests a tutor can browse and claim (RLS:
+// "Tutors view unclaimed pending requests" — tutor_id is null and status =
+// 'pending'). Filtered client-side to requests this tutor is actually
+// positioned to take: same pricing tier (or no tier preference at all),
+// same institution (hyper-local matching — null on either side is a
+// wildcard, not "matches nobody"; see the note on Tutor.institutionId in
+// types.ts), and — when the request named a subject — one this tutor
+// actually teaches. A tutor with no subjects registered yet still sees
+// any-subject requests, just not subject-specific ones they haven't
+// claimed expertise in.
+export async function fetchAvailableRequests(tutorId: string): Promise<AvailableSessionRequest[]> {
+  const { data: tutorProfile, error: tutorError } = await supabase
+    .from('tutor_profiles')
+    .select('current_tier_id, institution_id, tutor_subject_competencies ( subject_name )')
+    .eq('id', tutorId)
+    .single();
+
+  if (tutorError) throw tutorError;
+
+  const mySubjects = new Set(
+    ((tutorProfile.tutor_subject_competencies ?? []) as { subject_name: string }[]).map((c) => c.subject_name)
+  );
+
   const { data, error } = await supabase
     .from('session_requests')
     .select(`
@@ -617,49 +761,83 @@ export async function fetchIncomingSessionRequests(tutorId: string): Promise<Inc
       requested_start,
       duration_hours,
       enrollment_id,
-      profiles!session_requests_student_id_fkey ( full_name ),
-      student_subject_enrollments ( subject_name, grade_level )
+      charged_amount,
+      currency_code,
+      institution_id,
+      student_subject_enrollments ( subject_name, grade_level ),
+      tier_definitions ( id, public_name )
     `)
-    .eq('tutor_id', tutorId)
+    .is('tutor_id', null)
     .eq('status', 'pending')
+    .eq('payment_status', 'paid')
     .order('requested_start');
 
   if (error) throw error;
 
-  return ((data ?? []) as unknown as SessionRequestRow[]).map((row) => ({
-    id: row.id,
-    studentId: row.student_id,
-    studentName: row.profiles?.full_name ?? 'Student',
-    subjectName: row.student_subject_enrollments?.subject_name ?? null,
-    gradeLevel: row.student_subject_enrollments?.grade_level ?? null,
-    requestedStart: row.requested_start,
-    durationHours: Number(row.duration_hours),
-    enrollmentId: row.enrollment_id,
-  }));
+  const rows = (data ?? []) as unknown as AvailableRequestRow[];
+
+  return rows
+    .filter((row) => {
+      const tierMatches = row.tier_definitions === null || row.tier_definitions.id === tutorProfile.current_tier_id;
+      const institutionMatches =
+        row.institution_id === null || tutorProfile.institution_id === null || row.institution_id === tutorProfile.institution_id;
+      const subjectMatches = !row.student_subject_enrollments || mySubjects.has(row.student_subject_enrollments.subject_name);
+      return tierMatches && institutionMatches && subjectMatches;
+    })
+    .map((row) => ({
+      id: row.id,
+      studentId: row.student_id,
+      subjectName: row.student_subject_enrollments?.subject_name ?? null,
+      gradeLevel: row.student_subject_enrollments?.grade_level ?? null,
+      tierId: row.tier_definitions?.id ?? null,
+      tierName: row.tier_definitions?.public_name ?? null,
+      requestedStart: row.requested_start,
+      durationHours: Number(row.duration_hours),
+      enrollmentId: row.enrollment_id,
+      chargedAmount: Number(row.charged_amount),
+      currencyCode: row.currency_code,
+    }));
 }
 
-// Accepts a pending request: creates the real public.sessions row (using
-// the tutor's *current* rate/tier commission at accept-time, not whatever
-// it was when the request was made) and marks the request confirmed,
-// linked via resulting_session_id. Two writes, not a DB transaction — if
-// the second write fails the session exists but the request stays
-// "pending"; acceptable for the pilot (RLS/policy means this can't be made
-// atomic from the client, and a stuck "pending" request is a safe failure
-// mode, not a silent double-booking).
-export async function acceptSessionRequest(request: IncomingSessionRequest, tutorId: string): Promise<void> {
+// Claims an anonymous request and turns it into a real session — the two
+// steps are deliberately in this order, not a DB transaction (the client
+// can't open one): (1) an atomic claim, racing safely against any other
+// tutor trying to claim the same request at the same moment (RLS: "Tutors
+// claim unclaimed pending requests" only lets the UPDATE succeed while
+// tutor_id is still null; the loser's UPDATE matches zero rows and throws
+// here instead of silently double-booking); (2) only once the claim
+// succeeds, create the real public.sessions row and link it back via
+// resulting_session_id. gross_amount is the request's own charged_amount —
+// what the student was actually charged via Paystack when they sent the
+// request (fixed to the tier's floor rate before any specific tutor was
+// known) — not the accepting tutor's own listed hourly_rate: gross_amount
+// must always match real money that moved, never a number recomputed after
+// the fact. Only the commission percentage still comes from the accepting
+// tutor's own tier.
+export async function acceptAvailableRequest(request: AvailableSessionRequest, tutorId: string): Promise<void> {
+  const { data: claimed, error: claimError } = await supabase
+    .from('session_requests')
+    .update({ tutor_id: tutorId, status: 'accepted', responded_at: new Date().toISOString() })
+    .eq('id', request.id)
+    .select('id')
+    .maybeSingle();
+
+  if (claimError) throw claimError;
+  if (!claimed) throw new Error('Another tutor already accepted this request.');
+
   const { data: tutorProfile, error: tutorError } = await supabase
     .from('tutor_profiles')
-    .select('hourly_rate, currency_code, tier_definitions!tutor_profiles_current_tier_id_fkey ( commission_rate_pct )')
+    .select('tier_definitions!tutor_profiles_current_tier_id_fkey ( commission_rate_pct )')
     .eq('id', tutorId)
     .single();
 
   if (tutorError) throw tutorError;
 
-  const hourlyRate = Number(tutorProfile.hourly_rate);
   const commissionPct = Number(
     (tutorProfile.tier_definitions as unknown as { commission_rate_pct: number } | null)?.commission_rate_pct ?? 0
   );
-  const grossAmount = hourlyRate * request.durationHours;
+  const grossAmount = request.chargedAmount;
+  const hourlyRateCharged = grossAmount / request.durationHours;
   const tutorPayoutAmount = grossAmount * (1 - commissionPct / 100);
 
   const { data: session, error: sessionError } = await supabase
@@ -668,36 +846,26 @@ export async function acceptSessionRequest(request: IncomingSessionRequest, tuto
       student_id: request.studentId,
       tutor_id: tutorId,
       duration_hours: request.durationHours,
-      hourly_rate_charged: hourlyRate,
+      hourly_rate_charged: hourlyRateCharged,
       platform_commission_pct: commissionPct,
       gross_amount: grossAmount,
       tutor_payout_amount: tutorPayoutAmount,
       scheduled_start: request.requestedStart,
       enrollment_id: request.enrollmentId,
       booked_by_profile_id: request.studentId,
-      currency_code: tutorProfile.currency_code,
+      currency_code: request.currencyCode,
     })
     .select('id')
     .single();
 
   if (sessionError) throw sessionError;
 
-  const { error: updateError } = await supabase
+  const { error: linkError } = await supabase
     .from('session_requests')
-    .update({ status: 'accepted', resulting_session_id: session.id, responded_at: new Date().toISOString() })
+    .update({ resulting_session_id: session.id })
     .eq('id', request.id);
 
-  if (updateError) throw updateError;
-}
-
-// Declines a pending request — no sessions row is created.
-export async function declineSessionRequest(requestId: string): Promise<void> {
-  const { error } = await supabase
-    .from('session_requests')
-    .update({ status: 'declined', responded_at: new Date().toISOString() })
-    .eq('id', requestId);
-
-  if (error) throw error;
+  if (linkError) throw linkError;
 }
 
 interface StudentSessionRow {

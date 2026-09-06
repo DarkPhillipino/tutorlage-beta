@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Star, ShieldCheck, Loader2, MessageSquare, Clock, UserX, Pencil, Check, X, AlertCircle } from 'lucide-react';
-import { TutorDashboardData, TutorReview, TutorAvailabilitySlot, TutorSession } from '../types';
+import { Star, ShieldCheck, Loader2, MessageSquare, Clock, UserX, Pencil, Check, X, AlertCircle, MapPin } from 'lucide-react';
+import { TutorDashboardData, TutorReview, TutorAvailabilitySlot, TutorSession, Institution } from '../types';
 import { fetchTutorDashboard, fetchTutorReviews, fetchTutorAvailability, fetchUpcomingTutorSessions, updateTutorProfile } from '../lib/queries';
 import { formatRate } from '../lib/format';
+import { getCurrencySymbol } from '../lib/currencies';
 import { TutorCalendar } from './TutorCalendar';
 import { AvailabilityEditor } from './AvailabilityEditor';
 import { SubjectCompetencyEditor } from './SubjectCompetencyEditor';
+import { InstitutionModal } from './InstitutionModal';
 
 // The "Teaching" tab body inside ManageAccountModal.tsx — content only, no
 // outer page frame (the modal already provides that). Was previously its
@@ -26,6 +28,8 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [headlineDraft, setHeadlineDraft] = useState('');
   const [hourlyRateDraft, setHourlyRateDraft] = useState('');
+  const [institutionDraft, setInstitutionDraft] = useState<Institution | null>(null);
+  const [isInstitutionModalOpen, setIsInstitutionModalOpen] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
@@ -52,6 +56,7 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
     if (!tutor) return;
     setHeadlineDraft(tutor.headline ?? '');
     setHourlyRateDraft(String(tutor.hourlyRate));
+    setInstitutionDraft(tutor.institutionId ? { id: tutor.institutionId, name: tutor.institutionName ?? '', curriculum: '', institutionType: '' } : null);
     setProfileError(null);
     setIsEditingProfile(true);
   };
@@ -68,8 +73,18 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
 
     setIsSavingProfile(true);
     try {
-      await updateTutorProfile(tutor.id, { headline: headlineDraft.trim(), hourlyRate: parsedRate });
-      setTutor({ ...tutor, headline: headlineDraft.trim(), hourlyRate: parsedRate });
+      await updateTutorProfile(tutor.id, {
+        headline: headlineDraft.trim(),
+        hourlyRate: parsedRate,
+        institutionId: institutionDraft?.id ?? null,
+      });
+      setTutor({
+        ...tutor,
+        headline: headlineDraft.trim(),
+        hourlyRate: parsedRate,
+        institutionId: institutionDraft?.id ?? null,
+        institutionName: institutionDraft?.name ?? null,
+      });
       setIsEditingProfile(false);
     } catch (e) {
       setProfileError(e instanceof Error ? e.message : 'Could not save your profile.');
@@ -126,7 +141,7 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
               <>
                 <div className="text-xs text-slate-500 truncate">{tutor.headline || 'Tutorlage Tutor'}</div>
                 <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
-                  {tutor.tier ? `${tutor.tier.publicName} · ` : ''}R{formatRate(tutor.hourlyRate)} / hr
+                  {tutor.tier ? `${tutor.tier.publicName} · ` : ''}{getCurrencySymbol(tutor.currencyCode)}{formatRate(tutor.hourlyRate)} / hr
                 </div>
               </>
             )}
@@ -164,6 +179,31 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
                 onChange={(e) => setHourlyRateDraft(e.target.value)}
                 className="w-full bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
               />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Institution (optional — narrows matching to students there)
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsInstitutionModalOpen(true)}
+                className="w-full flex items-center justify-between bg-slate-100 hover:bg-slate-200/80 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 transition-colors cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5 truncate">
+                  <MapPin className="w-3.5 h-3.5 text-[#15803D] shrink-0" />
+                  <span className="truncate">{institutionDraft?.name || 'Not set — matches students anywhere'}</span>
+                </span>
+                <span className="text-[10px] font-bold text-[#15803D] shrink-0 ml-2">Change</span>
+              </button>
+              {institutionDraft && (
+                <button
+                  type="button"
+                  onClick={() => setInstitutionDraft(null)}
+                  className="text-[10px] font-semibold text-slate-400 hover:text-rose-600 mt-1 cursor-pointer"
+                >
+                  Clear institution
+                </button>
+              )}
             </div>
             {profileError && (
               <div className="flex items-center gap-1.5 text-[11px] text-rose-600 font-semibold">
@@ -276,6 +316,13 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
 
       {/* Calendar: availability (open vs booked) + upcoming sessions */}
       <TutorCalendar availability={availability} sessions={sessions} />
+
+      <InstitutionModal
+        isOpen={isInstitutionModalOpen}
+        onClose={() => setIsInstitutionModalOpen(false)}
+        currentInstitution={institutionDraft?.name ?? ''}
+        onSelectInstitution={setInstitutionDraft}
+      />
 
     </div>
   );

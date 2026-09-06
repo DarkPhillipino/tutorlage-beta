@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, GraduationCap, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, GraduationCap, AlertCircle, Info } from 'lucide-react';
 import { TutorSubjectCompetency } from '../types';
-import { addTutorSubjectCompetency, deleteTutorSubjectCompetency, fetchSubjectSuggestions, fetchGradeLevelSuggestions } from '../lib/queries';
+import { addTutorSubjectCompetency, deleteTutorSubjectCompetency, fetchSubjectSuggestions, fetchGradeLevelSuggestions, logSubjectCandidate } from '../lib/queries';
 
 // Curriculum is a fixed Postgres enum (see CLAUDE.md's routing table), not a
 // reference table — hardcoded here the same way TIER_ICONS is hardcoded in
@@ -37,12 +37,12 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [candidateNotice, setCandidateNotice] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSubjectSuggestions()
       .then((names) => {
         setSubjectOptions(names);
-        setSubjectName((prev) => prev || names[0] || '');
       })
       .catch((err) => {
         console.error('fetchSubjectSuggestions failed:', err);
@@ -62,8 +62,10 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
 
   const handleAdd = async () => {
     setError(null);
-    if (!subjectName) {
-      setError('Choose a subject.');
+    setCandidateNotice(null);
+    const trimmedName = subjectName.trim();
+    if (!trimmedName) {
+      setError('Enter a subject.');
       return;
     }
     const minIdx = gradeLevelOptions.indexOf(minGradeLevel);
@@ -73,15 +75,32 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
       return;
     }
 
+    // Self-expanding taxonomy: a subject not on the official list isn't
+    // blocked — it's added to the tutor's profile right away (so they can
+    // start teaching it immediately) and separately logged as a candidate
+    // for the official list, rather than making the tutor wait on approval
+    // before they can use it at all.
+    const isKnownSubject = subjectOptions.some((s) => s.toLowerCase() === trimmedName.toLowerCase());
+
     setIsSaving(true);
     try {
       const competency = await addTutorSubjectCompetency(tutorId, {
-        subjectName,
+        subjectName: trimmedName,
         curriculum,
         minGradeLevel,
         maxGradeLevel,
       });
       onChange([...subjects, competency]);
+      setSubjectName('');
+
+      if (!isKnownSubject) {
+        logSubjectCandidate(tutorId, trimmedName, curriculum).catch((e) =>
+          console.error('logSubjectCandidate failed:', e)
+        );
+        setCandidateNotice(
+          `"${trimmedName}" isn't on our official subject list yet — it's live on your profile now, and we've logged it for review.`
+        );
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not add that subject.');
     } finally {
@@ -136,15 +155,19 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
 
       <div className="bg-white rounded-2xl p-3 border border-slate-200 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <select
+          <input
+            type="text"
+            list="subject-options"
             value={subjectName}
             onChange={(e) => setSubjectName(e.target.value)}
-            className="flex-1 min-w-[8rem] bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20 cursor-pointer"
-          >
+            placeholder="e.g. Mathematics, or type a new subject"
+            className="flex-1 min-w-[8rem] bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
+          />
+          <datalist id="subject-options">
             {subjectOptions.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s} />
             ))}
-          </select>
+          </datalist>
           <select
             value={curriculum}
             onChange={(e) => setCurriculum(e.target.value)}
@@ -190,6 +213,12 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
         <div className="flex items-center gap-1.5 mt-2 text-[11px] text-rose-600 font-semibold">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+      {candidateNotice && (
+        <div className="flex items-start gap-1.5 mt-2 text-[11px] text-[#15803D] font-semibold">
+          <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
+          <span>{candidateNotice}</span>
         </div>
       )}
     </div>

@@ -24,6 +24,17 @@ from having lived in it, and are actively working on making Tutorlage the best p
 to that gap while realistically accounting for those challenges, not just building features in
 the abstract.
 
+You also have experience as a marketing and go-to-market lead who has launched consumer
+marketplaces before — you think about positioning (how Tutorlage is different from a generic
+tutor directory: real anonymous matching, zero platform markup on the rate itself, a
+high-schooler-tutor onboarding path, not just another listings site), messaging (what a student,
+a parent, and a prospective teen tutor each actually need to hear to trust and use this), and
+go-to-market sequencing (who the first real cohort is, how word-of-mouth inside one institution
+actually spreads, what has to be true before spending on acquisition). Added once there was
+something real to market (2026-09-05, end of the phase-2 production plan) — bring this
+perspective to copy, onboarding flow framing, and launch sequencing decisions, not to feature
+scoping or architecture, which stay the head-developer/educator personas' call.
+
 ## Rules
 
 - Write in plain, clear language
@@ -140,7 +151,7 @@ Row counts are as of 2026-08-31 (near-empty dev DB) and will drift — treat the
 
 | Table | Purpose | Access | Key relations | Rows |
 |---|---|---|---|---|
-| `session_requests` | A requested session before it's confirmed | 🔒 | → `profiles` (student), → `tutor_profiles`, → `student_subject_enrollments` | 0 |
+| `session_requests` | A requested session before it's confirmed. Anonymous-matching fields: `tutor_id`/`tier_id`/`institution_id` nullable (null = wildcard, see `AvailableSessionRequest` in `src/types.ts`). Payment fields: `payment_status` (unpaid/initiated/paid/refund_pending/refunded/refund_failed/failed), `paystack_reference`, `charged_amount`, `currency_code`, `refund_request_id` (correlates to `net._http_response.id` — see the pg_cron note below) | 🔒 | → `profiles` (student), → `tutor_profiles`, → `student_subject_enrollments`, → `tier_definitions`, → `schools_institutions` | 0 |
 | `sessions` | A confirmed/completed session — rate charged, commission, payout amount | 🔒 | → `profiles` (student), → `tutor_profiles`, → `student_subject_enrollments` | 0 |
 | `student_subject_enrollments` | A student's enrollment in one subject at one school | 🔒 | → `student_profiles`, → `schools_institutions` | 0 |
 | `student_subject_goals` | Target marks for an enrollment | 🔒 | → `student_subject_enrollments` | 0 |
@@ -163,5 +174,24 @@ Row counts are as of 2026-08-31 (near-empty dev DB) and will drift — treat the
 | `admin_audit_logs` | Audit trail of admin actions — every `admin/` mutation writes here via `logAdminAction()` | 🔐 admin read+insert (append-only: no update/delete policy) | → `admin_profiles` | 2 |
 | `platform_disputes` | A dispute raised on a session, resolved from `admin/`'s Disputes screen | 🔒 owner (raise/view own) + 🔐 admin (full) | → `sessions`, → `profiles` (raised by), → `admin_profiles` (assigned), → `currencies` | 0 |
 | `system_settings` | Key/value platform config (jsonb), managed from `admin/`'s System Settings screen | 🔐 admin (full) · public-read policy exists but `anon` still has no GRANT, so it 401s for anon specifically — only fix this if something actually needs anonymous access, `authenticated` admin access already works | → `admin_profiles` (`last_updated_by`) | 0 |
+
+**pg_cron jobs (2026-09-05):** two scheduled Postgres jobs handle unaccepted paid requests —
+`expire-stale-paid-requests` (every 5 min, calls `public.expire_stale_paid_requests()`) finds
+`session_requests` that are still `status='pending'`/`payment_status='paid'` more than 30
+minutes past their `requested_start`, immediately flips `status` to `'expired'` (closing the
+claim window right away, regardless of refund outcome), and fires an async Paystack refund via
+`pg_net` (`net.http_post`), storing the pg_net request id in the new `refund_request_id` column.
+`reconcile-pending-refunds` (also every 5 min) checks `net._http_response` for those ids once
+the async response lands and sets `payment_status` to `'refunded'` only if Paystack's own
+response body says `status: true` — never optimistically on request, only on confirmation
+(`'refund_failed'` otherwise, left for manual follow-up). The Paystack secret key these
+functions use lives in **Supabase Vault** (`vault.create_secret`, name `paystack_secret_key`) —
+**not** `.env` — because these run inside Postgres via `pg_cron`, with no access to the Node
+process's environment. If the Paystack key in `.env` ever changes (e.g. switching to live
+keys), the Vault copy must be updated too via `select vault.update_secret(...)` — the two are
+not linked and won't drift-detect each other. Verified live with real Paystack test-mode calls,
+both outcomes: a bogus reference correctly reconciled to `refund_failed`, a real paid
+transaction correctly reconciled to `refunded` (confirmed via Paystack's own "Refund has been
+queued for processing" response).
 
 These files are living documents — update them as the project changes, don't let them go stale.

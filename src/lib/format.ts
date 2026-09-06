@@ -17,11 +17,15 @@ export function isUncappedRate(maxRate: number): boolean {
 }
 
 // Formats a tier's rate range for display, collapsing the uncapped sentinel
-// into "R{min}+" instead of ever showing the literal huge max_rate.
-export function formatRateRange(minRate: number, maxRate: number): string {
+// into "{symbol}{min}+" instead of ever showing the literal huge max_rate.
+// symbol defaults to Rand ('R') since that's every real record's currency
+// today, but callers with a real currency_code should resolve the actual
+// symbol via getCurrencySymbol() in lib/currencies.ts and pass it through —
+// this function itself has no data dependency, just formatting.
+export function formatRateRange(minRate: number, maxRate: number, symbol: string = 'R'): string {
   return isUncappedRate(maxRate)
-    ? `R${formatRate(minRate)}+`
-    : `R${formatRate(minRate)} - R${formatRate(maxRate)}`;
+    ? `${symbol}${formatRate(minRate)}+`
+    : `${symbol}${formatRate(minRate)} - ${symbol}${formatRate(maxRate)}`;
 }
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

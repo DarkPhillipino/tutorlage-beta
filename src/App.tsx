@@ -15,7 +15,7 @@ import { SuggestionDetailModal } from './components/SuggestionDetailModal';
 import { ManageAccountModal } from './components/ManageAccountModal';
 import { Footer } from './components/Footer';
 
-import { BookingFormState, SuggestionItem, UserAccount, Tutor, TierDefinition } from './types';
+import { BookingFormState, SuggestionItem, UserAccount, TierDefinition, Institution } from './types';
 import { toIsoDate } from './lib/format';
 import { fetchUpcomingStudentSessions } from './lib/queries';
 
@@ -29,6 +29,7 @@ export default function App() {
   // empty table); the user picks one via InstitutionModal.
   const [formState, setFormState] = useState<BookingFormState>({
     institution: '',
+    institutionId: null,
     subject: '',
     gradeLevel: '',
     scheduleType: 'now',
@@ -97,14 +98,10 @@ export default function App() {
     }, 3500);
   };
 
-  const handleBookTutor = (tutor: Tutor) => {
-    showToast(`Session request sent to ${tutor.name} (${formState.subject || 'Tutoring'})!`);
-  };
-
-  const handleSelectInstitution = (instName: string) => {
-    setFormState(prev => ({ ...prev, institution: instName }));
-    setUserAccount(prev => ({ ...prev, institution: instName }));
-    showToast(`Institution updated to "${instName}"`);
+  const handleSelectInstitution = (institution: Institution) => {
+    setFormState(prev => ({ ...prev, institution: institution.name, institutionId: institution.id }));
+    setUserAccount(prev => ({ ...prev, institution: institution.name }));
+    showToast(`Institution updated to "${institution.name}"`);
   };
 
   const handleUpdateSchedule = (scheduleType: 'now' | 'scheduled', date?: string, time?: string) => {
@@ -175,7 +172,6 @@ export default function App() {
             onBack={() => setView('home')}
             onChangeInstitution={() => setIsInstitutionModalOpen(true)}
             onOpenScheduleModal={() => setIsScheduleModalOpen(true)}
-            onBookTutor={handleBookTutor}
             onSearch={() => setView('tiers')}
             selectedTier={selectedTier}
             onClearTier={() => setSelectedTier(null)}

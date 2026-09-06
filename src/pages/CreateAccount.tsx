@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, GraduationCap, BookOpen, AlertCircle, MailCheck } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../lib/AuthContext';
+import { GoogleSignInButton } from '../components/GoogleSignInButton';
 
 type Role = 'tutor' | 'student';
 
@@ -179,6 +180,14 @@ export default function CreateAccount() {
               Your subjects, rate tier, and availability are set up next, from your Teaching dashboard.
             </p>
           )}
+
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-slate-200" />
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">or</span>
+            <div className="flex-1 h-px bg-slate-200" />
+          </div>
+
+          <GoogleSignInButton role={role} label={`Sign up with Google`} onError={setError} />
 
           <p className="text-center text-xs text-slate-500 mt-6">
             Already have an account?{' '}

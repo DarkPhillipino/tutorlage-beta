@@ -7,7 +7,7 @@ interface InstitutionModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentInstitution: string;
-  onSelectInstitution: (institutionName: string) => void;
+  onSelectInstitution: (institution: Institution) => void;
 }
 
 export const InstitutionModal: React.FC<InstitutionModalProps> = ({
@@ -119,7 +119,7 @@ export const InstitutionModal: React.FC<InstitutionModalProps> = ({
                 <button
                   key={inst.id}
                   onClick={() => {
-                    onSelectInstitution(inst.name);
+                    onSelectInstitution(inst);
                     onClose();
                   }}
                   className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${

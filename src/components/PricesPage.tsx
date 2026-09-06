@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, MapPin, Clock, ChevronDown, Star, ShieldCheck, CheckCircle2, ChevronRight, Search, Loader2, UserX, Radio, Tag, X, AlertTriangle } from 'lucide-react';
-import { BookingFormState, Tutor, TierDefinition, SuggestionItem } from '../types';
+import { ArrowLeft, MapPin, Clock, ChevronDown, ShieldCheck, Search, Loader2, UserX, Tag, X, AlertTriangle, Users, CreditCard } from 'lucide-react';
+import { BookingFormState, TierDefinition, SuggestionItem } from '../types';
 import { fetchTutors, createSessionRequest } from '../lib/queries';
-import { formatRate, formatRateRange, describeDate } from '../lib/format';
+import { initializePayment } from '../lib/payments';
+import { getCurrencySymbol } from '../lib/currencies';
+import { formatRate, describeDate } from '../lib/format';
 import { useAuth } from '../lib/AuthContext';
 
 interface PricesPageProps {
@@ -11,7 +13,6 @@ interface PricesPageProps {
   onBack: () => void;
   onChangeInstitution: () => void;
   onOpenScheduleModal: () => void;
-  onBookTutor: (tutor: Tutor) => void;
   onSearch: () => void;
   selectedTier: TierDefinition | null;
   onClearTier: () => void;
@@ -25,7 +26,6 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   onBack,
   onChangeInstitution,
   onOpenScheduleModal,
-  onBookTutor,
   onSearch,
   selectedTier,
   onClearTier,
@@ -33,15 +33,15 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   onClearFormat,
 }) => {
   const { user } = useAuth();
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'verified' | 'today'>('all');
-  const [bookedTutorSuccess, setBookedTutorSuccess] = useState<Tutor | null>(null);
-  const [isBooking, setIsBooking] = useState(false);
-  const [bookingError, setBookingError] = useState<string | null>(null);
-  const [tutors, setTutors] = useState<Tutor[]>([]);
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [tutorCount, setTutorCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [gradeLevelUnrecognized, setGradeLevelUnrecognized] = useState(false);
+  const [rateBounds, setRateBounds] = useState<{ min: number; max: number } | null>(null);
+  const [rateCurrency, setRateCurrency] = useState('ZAR');
 
   // What the search is actually run against — separate from formState so
   // editing the subject/grade fields below doesn't re-query on every
@@ -55,18 +55,27 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   useEffect(() => {
     setIsLoading(true);
     setLoadError(false);
-    fetchTutors({ subject: appliedSearch.subject, gradeLevel: appliedSearch.gradeLevel, tierId: selectedTier?.id })
+    fetchTutors({
+      subject: appliedSearch.subject,
+      gradeLevel: appliedSearch.gradeLevel,
+      tierId: selectedTier?.id,
+      institutionId: formState.institutionId ?? undefined,
+    })
       .then(({ tutors, gradeLevelRecognized }) => {
-        setTutors(tutors);
+        setTutorCount(tutors.length);
         setGradeLevelUnrecognized(!gradeLevelRecognized);
+        const rates = tutors.map((t) => t.hourlyRate);
+        setRateBounds(rates.length ? { min: Math.min(...rates), max: Math.max(...rates) } : null);
+        if (tutors[0]) setRateCurrency(tutors[0].currencyCode);
       })
       .catch((err) => {
         console.error('fetchTutors failed:', err);
-        setTutors([]);
+        setTutorCount(0);
+        setRateBounds(null);
         setLoadError(true);
       })
       .finally(() => setIsLoading(false));
-  }, [appliedSearch, selectedTier, retryCount]);
+  }, [appliedSearch, selectedTier, retryCount, formState.institutionId]);
 
   const searchIsStale = formState.subject !== appliedSearch.subject || formState.gradeLevel !== appliedSearch.gradeLevel;
 
@@ -110,40 +119,59 @@ export const PricesPage: React.FC<PricesPageProps> = ({
     }
   }, [formState.institution, missingField]);
 
-  // Actually creates the request (RLS-backed insert), instead of just
-  // showing a toast — this is what makes a booking real.
-  const handleBookSession = async (tutor: Tutor) => {
-    if (!user) return;
-    setBookingError(null);
-    setIsBooking(true);
+  // A tier is required before Send Request can charge anything real — it's
+  // the only firm number available before a specific tutor is known (see
+  // the note on acceptAvailableRequest in queries.ts: whatever gets charged
+  // here becomes the session's gross_amount verbatim once a tutor accepts).
+  const durationHours = 1;
+  const chargedAmount = selectedTier ? selectedTier.minRate * durationHours : null;
+
+  // Charges the student via Paystack *before* the anonymous request becomes
+  // visible to any tutor (see createSessionRequest/confirmSessionRequestPayment
+  // in queries.ts — payment_status starts at 'initiated' and only the
+  // Paystack redirect + PaymentCallback.tsx flips it to 'paid'), then sends
+  // the browser to Paystack's own hosted checkout. This function's own
+  // "success" is just handing off to Paystack — the actual confirmation
+  // happens on /payment/callback after the student pays (or doesn't).
+  const handleSendRequest = async () => {
+    if (!user?.email || !selectedTier || chargedAmount === null) return;
+    setSendError(null);
+    setIsSending(true);
     try {
+      const reference = crypto.randomUUID();
+
       await createSessionRequest({
         studentId: user.id,
-        tutorId: tutor.id,
         subjectName: appliedSearch.subject,
         gradeLevel: appliedSearch.gradeLevel,
+        tierId: selectedTier.id,
+        institutionId: formState.institutionId,
         scheduleType: formState.scheduleType,
         scheduledDate: formState.scheduledDate,
         scheduledTime: formState.scheduledTime,
+        durationHours,
+        paystackReference: reference,
+        chargedAmount,
+        currencyCode: selectedTier.currencyCode,
       });
-      setBookedTutorSuccess(tutor);
-      onBookTutor(tutor);
+
+      const { authorizationUrl } = await initializePayment({
+        email: user.email,
+        amountRands: chargedAmount,
+        reference,
+        currency: selectedTier.currencyCode,
+        metadata: { subject: appliedSearch.subject, gradeLevel: appliedSearch.gradeLevel },
+      });
+
+      window.location.href = authorizationUrl;
     } catch (e) {
-      setBookingError(e instanceof Error ? e.message : 'Could not send that session request.');
-    } finally {
-      setIsBooking(false);
+      setSendError(e instanceof Error ? e.message : 'Could not start payment.');
+      setIsSending(false);
     }
   };
 
-  const filteredTutors = tutors.filter(t => {
-    if (selectedFilter === 'verified' && !t.verified) return false;
-    if (selectedFilter === 'today' && !t.isDispatchActive) return false;
-    return true;
-  });
-
-  const rates = filteredTutors.map(t => t.hourlyRate);
-  const rateRange = rates.length
-    ? `R${formatRate(Math.min(...rates))} - R${formatRate(Math.max(...rates))} / hr`
+  const rateRangeText = rateBounds
+    ? `${getCurrencySymbol(rateCurrency)}${formatRate(rateBounds.min)} - ${getCurrencySymbol(rateCurrency)}${formatRate(rateBounds.max)} / hr`
     : '—';
 
   // What to tell the student when the search came back empty — distinguishes
@@ -187,7 +215,6 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                 <Tag className="w-4 h-4 text-emerald-400 shrink-0" />
                 <div className="min-w-0">
                   <div className="text-xs font-bold truncate">{selectedTier.publicName}</div>
-                  <div className="text-[10px] text-slate-300">{formatRateRange(selectedTier.minRate, selectedTier.maxRate)} / hr</div>
                 </div>
               </div>
               <button
@@ -294,7 +321,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
           <button
             type="button"
             onClick={onOpenScheduleModal}
-            className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 mb-3 transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 mb-6 transition-colors cursor-pointer"
           >
             <span className="flex items-center space-x-2.5 text-sm font-semibold text-[#0F172A]">
               <Clock className="w-4 h-4 text-[#0F172A]" />
@@ -306,17 +333,6 @@ export const PricesPage: React.FC<PricesPageProps> = ({
             </span>
             <ChevronDown className="w-4 h-4 text-slate-600" />
           </button>
-
-          {/* Filter dropdown */}
-          <select
-            value={selectedFilter}
-            onChange={(e) => setSelectedFilter(e.target.value as 'all' | 'verified' | 'today')}
-            className="w-full px-4 py-3.5 rounded-xl bg-slate-100 text-sm font-semibold text-[#0F172A] mb-6 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20 cursor-pointer"
-          >
-            <option value="all">All tutors ({tutors.length})</option>
-            <option value="verified">Verified only</option>
-            <option value="today">Accepting sessions now</option>
-          </select>
 
           <button
             type="button"
@@ -337,7 +353,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
           <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
             <div>
               <h2 className="text-lg font-extrabold text-[#0F172A]">
-                {filteredTutors.length} tutor{filteredTutors.length === 1 ? '' : 's'} available
+                {tutorCount} tutor{tutorCount === 1 ? '' : 's'} available
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Matching for <span className="font-semibold text-[#0F172A]">{appliedSearch.subject || 'any subject'}</span> ({appliedSearch.gradeLevel || 'any grade level'})
@@ -350,15 +366,15 @@ export const PricesPage: React.FC<PricesPageProps> = ({
               )}
             </div>
             <div className="text-xs font-medium text-slate-500">
-              Avg Rate: <span className="font-bold text-[#0F172A]">{rateRange}</span>
+              Avg Rate: <span className="font-bold text-[#0F172A]">{rateRangeText}</span>
             </div>
           </div>
 
           <div className="p-6 space-y-4 bg-[#FAF7F2]">
-            {bookingError && (
+            {sendError && (
               <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs font-semibold text-rose-700">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{bookingError}</span>
+                <span>{sendError}</span>
               </div>
             )}
             {isLoading ? (
@@ -379,116 +395,54 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   Retry
                 </button>
               </div>
-            ) : bookedTutorSuccess ? (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center">
-                <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-[#15803D] mx-auto mb-3">
-                  <CheckCircle2 className="w-7 h-7" />
-                </div>
-                <h4 className="text-xl font-extrabold text-[#0F172A] mb-1">
-                  Session Requested with {bookedTutorSuccess.name}!
-                </h4>
-                <p className="text-xs text-slate-600 mb-4 max-w-md mx-auto">
-                  We have sent your confirmation details for {formState.subject || 'Tutoring'}. Your tutor will confirm within 15 minutes.
-                </p>
-                <button
-                  onClick={() => setBookedTutorSuccess(null)}
-                  className="px-5 py-2.5 bg-[#15803D] text-white font-bold rounded-xl text-sm hover:bg-[#166534] transition-all cursor-pointer"
-                >
-                  View Other Tutors
-                </button>
-              </div>
-            ) : filteredTutors.length === 0 ? (
+            ) : tutorCount === 0 ? (
               <div className="text-center py-16 px-4">
                 <UserX className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                 <p className="text-sm font-bold text-[#0F172A]">No tutors match yet</p>
                 <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                  {tutors.length === 0
-                    ? noTutorsMessage
-                    : 'Try a different filter, subject, or grade level.'}
+                  {noTutorsMessage}
                 </p>
               </div>
-            ) : (
-              filteredTutors.map((tutor) => (
-                <div
-                  key={tutor.id}
-                  className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs hover:shadow-md transition-all flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-                >
-                  <div className="flex items-start space-x-4">
-                    {tutor.avatarUrl ? (
-                      <img
-                        src={tutor.avatarUrl}
-                        alt={tutor.name}
-                        className="w-14 h-14 rounded-2xl object-cover border border-slate-200 shadow-xs shrink-0"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200 shadow-xs shrink-0 flex items-center justify-center text-slate-500 font-bold text-lg">
-                        {tutor.name.charAt(0)}
-                      </div>
-                    )}
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <h4 className="text-base font-bold text-[#0F172A]">{tutor.name}</h4>
-                        {tutor.verified && (
-                          <span className="inline-flex items-center text-[10px] font-bold bg-emerald-100 text-[#15803D] px-2 py-0.5 rounded-full border border-emerald-200">
-                            <ShieldCheck className="w-3 h-3 mr-0.5" />
-                            Verified
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs font-medium text-slate-600 mt-0.5">{tutor.headline || 'Tutorlage Tutor'}</div>
-
-                      <div className="flex items-center space-x-3 text-xs mt-2 flex-wrap gap-y-1">
-                        <div className="flex items-center text-amber-500 font-bold">
-                          <Star className="w-3.5 h-3.5 fill-current mr-1" />
-                          <span>{tutor.rating.toFixed(2)}</span>
-                          <span className="text-slate-400 font-normal ml-1">({tutor.reviewsCount})</span>
-                        </div>
-                        <span className="text-slate-300">•</span>
-                        <div className="flex items-center text-slate-600 font-medium capitalize">
-                          <span>{tutor.teachingMode}</span>
-                        </div>
-                        {tutor.isDispatchActive && (
-                          <>
-                            <span className="text-slate-300">•</span>
-                            <div className="flex items-center text-[#15803D] font-medium">
-                              <Radio className="w-3.5 h-3.5 mr-1" />
-                              <span>Accepting sessions now</span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {tutor.subjects.length > 0 && (
-                        <p className="text-xs text-slate-500 mt-2 line-clamp-2">
-                          {tutor.subjects.map(s => s.subjectName).join(', ')}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex md:flex-col items-center md:items-end justify-between border-t md:border-t-0 border-slate-100 pt-3 md:pt-0 shrink-0">
-                    <div className="text-left md:text-right mb-0 md:mb-3">
-                      <div className="text-2xl font-black text-[#0F172A]">
-                        R{formatRate(tutor.hourlyRate)}
-                        <span className="text-xs text-slate-500 font-semibold"> / hr</span>
-                      </div>
-                      <div className="text-[11px] text-emerald-700 font-bold">
-                        Zero platform markup
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleBookSession(tutor)}
-                      disabled={isBooking}
-                      className="px-5 py-2.5 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer flex items-center space-x-1"
-                    >
-                      <span>{isBooking ? 'Sending…' : 'Book Session'}</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-
+            ) : !selectedTier ? (
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-xs flex flex-col items-center text-center">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 shadow-xs flex items-center justify-center text-[#15803D] mb-3">
+                  <Users className="w-7 h-7" />
                 </div>
-              ))
+                <p className="text-sm font-bold text-[#0F172A] mb-1">
+                  {tutorCount} qualifying tutor{tutorCount === 1 ? '' : 's'} in range ({rateRangeText})
+                </p>
+                <p className="text-xs text-slate-500 mb-5 max-w-sm">
+                  Choose a pricing tier so we know the exact amount to charge — payment happens before your
+                  request goes out to tutors, so the price has to be firm first.
+                </p>
+                <button
+                  onClick={onSearch}
+                  className="px-6 py-3 bg-[#0F172A] hover:bg-slate-800 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+                >
+                  Choose a pricing tier
+                </button>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-xs flex flex-col items-center text-center">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 shadow-xs flex items-center justify-center text-[#15803D] mb-3">
+                  <CreditCard className="w-7 h-7" />
+                </div>
+                <p className="text-sm font-bold text-[#0F172A] mb-1">
+                  {tutorCount} qualifying tutor{tutorCount === 1 ? '' : 's'} ready to take this request
+                </p>
+                <p className="text-xs text-slate-500 mb-5 max-w-sm">
+                  You'll be charged <span className="font-bold text-[#0F172A]">{getCurrencySymbol(selectedTier.currencyCode)}{formatRate(chargedAmount ?? 0)}</span> now
+                  via Paystack ({selectedTier.publicName} tier). The first qualifying tutor to accept is matched with
+                  you — no need to pick one yourself.
+                </p>
+                <button
+                  onClick={handleSendRequest}
+                  disabled={isSending}
+                  className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+                >
+                  {isSending ? 'Redirecting to secure payment…' : `Pay ${getCurrencySymbol(selectedTier.currencyCode)}${formatRate(chargedAmount ?? 0)} & Send Request`}
+                </button>
+              </div>
             )}
           </div>
 

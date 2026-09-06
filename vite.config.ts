@@ -19,6 +19,14 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // Forwards to the local Express payments API (server/index.ts) so the
+      // browser only ever talks to Vite's own origin — no CORS needed.
+      proxy: {
+        '/api': {
+          target: `http://localhost:${process.env.PORT || 8787}`,
+          changeOrigin: true,
+        },
+      },
     },
   };
 });
