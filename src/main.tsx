@@ -12,6 +12,7 @@ import {AuthProvider} from './lib/AuthContext.tsx';
 import {RequireAuth} from './components/RequireAuth.tsx';
 import {AccountGate} from './components/AccountGate.tsx';
 import {loadCurrencySymbols} from './lib/currencies.ts';
+import {BASE_PATH} from './lib/siteUrl.ts';
 // Side-effect import: initializes i18next before anything renders.
 import './lib/i18n.ts';
 // Ignore missing type declarations for CSS side-effect import
@@ -24,7 +25,7 @@ loadCurrencySymbols();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={BASE_PATH || '/'}>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />

@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthContext';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
 import { fetchCurrentPolicyVersions, PolicyVersions } from '../lib/queries';
 import { ADULT_AGE, COPY, ROLE_LABELS, ageFromIsoDate, isPlausibleDateOfBirth, parseSignupRole } from '../lib/accountRules';
+import { siteUrl } from '../lib/siteUrl';
 
 const inputClass = 'w-full bg-slate-100 text-[#0F172A] placeholder-slate-400 text-sm font-semibold px-4 py-3.5 rounded-xl border border-transparent focus:outline-none focus:border-[#15803D] focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 transition-all';
 const labelClass = 'block text-xs font-bold text-slate-500 mb-1.5';
@@ -88,6 +89,10 @@ export default function CreateAccount() {
       email,
       password,
       options: {
+        // Where the confirmation email's link returns to: this same site (local or GitHub Pages), whose
+        // login page signs the person straight in. Supabase uses its Site URL instead if this address
+        // isn't on its allow list.
+        emailRedirectTo: siteUrl('/login'),
         data: {
           first_name: firstName,
           surname,

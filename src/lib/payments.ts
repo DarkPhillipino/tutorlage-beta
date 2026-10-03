@@ -7,6 +7,7 @@
 // split so the tutor's share goes straight to them. An unmatched request is
 // never charged.
 import { apiUrl, authHeaders } from './api';
+import { siteUrl } from './siteUrl';
 
 async function readJson(response: Response): Promise<any> {
   return response.json().catch(() => ({}));
@@ -19,7 +20,7 @@ export async function initializePayment(reference: string): Promise<{ authorizat
   const response = await fetch(apiUrl('/api/payments/initialize'), {
     method: 'POST',
     headers: await authHeaders(),
-    body: JSON.stringify({ reference, callbackUrl: `${window.location.origin}/payment/callback` }),
+    body: JSON.stringify({ reference, callbackUrl: siteUrl('/payment/callback') }),
   });
   const data = await readJson(response);
   if (!response.ok) throw new Error(data.error ?? 'Could not start the card check.');

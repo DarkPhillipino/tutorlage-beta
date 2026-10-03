@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { SignupRole, parseSignupRole } from './accountRules';
+import { siteUrl } from './siteUrl';
 
 // The role the person picked before starting a Google sign-in, stashed so
 // AuthCallback.tsx can read it back after the OAuth redirect round-trip —
@@ -12,7 +13,7 @@ export async function signInWithGoogle(role: SignupRole): Promise<void> {
 
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: `${window.location.origin}/auth/callback` },
+    options: { redirectTo: siteUrl('/auth/callback') },
   });
 
   if (error) {
