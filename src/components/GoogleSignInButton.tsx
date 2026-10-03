@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { signInWithGoogle } from '../lib/oauth';
+import { getErrorMessage } from '../lib/errors';
+import { SignupRole } from '../lib/accountRules';
 
 interface GoogleSignInButtonProps {
-  role: 'tutor' | 'student';
+  role: SignupRole;
   label: string; // e.g. "Continue with Google" / "Sign up with Google"
   onError: (message: string) => void;
 }
@@ -30,7 +32,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ role, la
       // On success the browser navigates away to Google — this component
       // never re-renders past this point during the happy path.
     } catch (e) {
-      onError(e instanceof Error ? e.message : 'Could not start Google sign-in.');
+      onError(getErrorMessage(e, 'Could not start Google sign-in.'));
       setIsSigningIn(false);
     }
   };

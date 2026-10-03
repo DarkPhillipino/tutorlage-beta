@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Globe, ChevronDown, User, HelpCircle } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../lib/i18n';
+import { NotificationsBell } from './NotificationsBell';
 
 interface HeaderProps {
   onOpenManageAccount: () => void;
@@ -23,11 +24,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
     { name: t('nav.resources'), id: 'resources', hidden: true },
   ].filter((link) => !link.hidden);
 
+  // Only entries with a real destination. "Verified Educators" (which claimed
+  // certification that doesn't exist), "Careers" and "Press & Impact" had no
+  // pages behind them and were removed (backlog item 3).
   const aboutLinks = [
-    { id: 'about', title: t('about.aboutTutorlage'), desc: 'Our mission to democratize academic mentorship' },
-    { id: 'verified-educators', title: t('about.verifiedEducators'), desc: 'How we screen and certify top campus tutors' },
-    { id: 'careers', title: t('about.careers'), desc: 'Join our team building future learning engines' },
-    { id: 'press-impact', title: t('about.pressImpact'), desc: 'Stories from university campuses worldwide' },
+    { id: 'about', title: t('about.aboutTutorlage'), desc: 'What we do and how matching works' },
   ];
 
   const currentLanguage = SUPPORTED_LANGUAGES.find((l) => l.code === i18n.language) ?? SUPPORTED_LANGUAGES[0];
@@ -85,8 +86,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
                         onClick={(e) => {
                           e.preventDefault();
                           setShowAboutDropdown(false);
-                          // Only "About Tutorlage" has a real destination so
-                          // far — the other three are still placeholders.
                           if (item.id === 'about') setActiveNav('about');
                         }}
                         className="block px-4 py-2.5 hover:bg-slate-50 transition-colors"
@@ -104,7 +103,10 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
           {/* Right Side: Utility Navigation */}
           <div className="flex items-center space-x-2 sm:space-x-3">
 
-            {/* Language Selector */}
+            {/* Language Selector — hidden 2026-09-09 per CEO request (not deleted; a
+                reinstatement suggestion was logged to the PM's game plan under app
+                features). Restore by uncommenting this block. */}
+            {false && (
             <div className="relative">
               <button
                 onClick={() => setShowLangDropdown(!showLangDropdown)}
@@ -113,7 +115,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
                 aria-label="Select Language"
               >
                 <Globe className="w-4 h-4 text-[#0F172A]" />
-                <span className="hidden xs:inline">{currentLanguage.code.toUpperCase()}</span>
+                <span className="hidden sm:inline">{currentLanguage.code.toUpperCase()}</span>
               </button>
 
               {showLangDropdown && (
@@ -132,24 +134,31 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
                 </div>
               )}
             </div>
+            )}
 
-            {/* Help Button */}
+            {/* Help Button — hidden 2026-09-09 per CEO request (not deleted; a
+                reinstatement suggestion was logged to the PM's game plan under app
+                features). Restore by uncommenting this block. */}
+            {false && (
             <a
               href="#help"
               onClick={(e) => { e.preventDefault(); alert("Tutorlage Support: How can we assist you today?"); }}
-              className="px-3 py-1.5 rounded-full text-sm font-semibold text-[#0F172A] hover:bg-slate-100 flex items-center space-x-1.5 transition-colors"
+              className="px-3 py-1.5 rounded-full text-sm font-semibold text-[#0F172A] hover:bg-slate-100 flex items-center space-x-1.5 transition-colors shrink-0"
             >
               <HelpCircle className="w-4 h-4 text-[#0F172A] sm:hidden" />
-              <span>{t('help')}</span>
+              <span className="hidden sm:inline">{t('help')}</span>
             </a>
+            )}
+
+            <NotificationsBell />
 
             {/* Manage Account Dropdown Pill Button */}
             <button
               onClick={onOpenManageAccount}
-              className="px-4 py-2 rounded-full text-sm font-bold bg-[#0F172A] text-white hover:bg-slate-800 transition-all flex items-center space-x-2 shadow-xs cursor-pointer"
+              className="px-3 sm:px-4 py-2 rounded-full text-sm font-bold bg-[#0F172A] text-white hover:bg-slate-800 transition-all flex items-center space-x-2 shadow-xs cursor-pointer shrink-0 whitespace-nowrap"
             >
               <User className="w-4 h-4 text-emerald-400" />
-              <span>{t('manageAccount')}</span>
+              <span className="hidden sm:inline">{t('manageAccount')}</span>
               <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
             </button>
 

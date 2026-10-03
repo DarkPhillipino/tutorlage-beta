@@ -7,8 +7,10 @@ import SignIn from './pages/SignIn.tsx';
 import CreateAccount from './pages/CreateAccount.tsx';
 import PaymentCallback from './pages/PaymentCallback.tsx';
 import AuthCallback from './pages/AuthCallback.tsx';
+import LegalPage from './pages/LegalPage.tsx';
 import {AuthProvider} from './lib/AuthContext.tsx';
 import {RequireAuth} from './components/RequireAuth.tsx';
+import {AccountGate} from './components/AccountGate.tsx';
 import {loadCurrencySymbols} from './lib/currencies.ts';
 // Side-effect import: initializes i18next before anything renders.
 import './lib/i18n.ts';
@@ -29,19 +31,23 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/signin/:role" element={<SignIn />} />
           <Route path="/signup/:role" element={<CreateAccount />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route
-            path="/payment/callback"
-            element={
-              <RequireAuth>
-                <PaymentCallback />
-              </RequireAuth>
-            }
-          />
+          {/* Legal pages are public: they must be readable before signing up (ECTA s43). */}
+          <Route path="/terms" element={<LegalPage document="terms" />} />
+          <Route path="/privacy" element={<LegalPage document="privacy" />} />
+          <Route path="/refunds" element={<LegalPage document="refunds" />} />
+          {/* Public on purpose: the page only asks server/index.ts to verify the
+              reference, and the server records the result. Gating it behind
+              sign-in meant a student whose session had lapsed during checkout
+              was bounced to /login and the payment was never recorded. */}
+          <Route path="/payment/callback" element={<PaymentCallback />} />
           <Route
             path="/*"
             element={
               <RequireAuth>
-                <App />
+                {/* Date of birth + Terms/Privacy acceptance before the app (7k/7l). */}
+                <AccountGate>
+                  <App />
+                </AccountGate>
               </RequireAuth>
             }
           />

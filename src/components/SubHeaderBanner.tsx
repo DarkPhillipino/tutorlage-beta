@@ -46,14 +46,19 @@ export const SubHeaderBanner: React.FC<SubHeaderBannerProps> = ({
             <span>Activity</span>
           </button>
 
-          {/* Promotions */}
-          <button
-            onClick={onOpenPromotions}
-            className="flex items-center space-x-2 hover:text-white hover:underline transition-all cursor-pointer py-1"
-          >
-            <Tag className="w-4 h-4 text-emerald-400" />
-            <span>Promotions</span>
-          </button>
+          {/* Promotions — only rendered when there's a real promotion to show.
+              The old CAMPUS2026 "15% off" toast advertised a discount that never
+              existed (backlog item 3); the per-school tracking code it was meant to
+              become is parked (game-plan item 22). */}
+          {onOpenPromotions && (
+            <button
+              onClick={onOpenPromotions}
+              className="flex items-center space-x-2 hover:text-white hover:underline transition-all cursor-pointer py-1"
+            >
+              <Tag className="w-4 h-4 text-emerald-400" />
+              <span>Promotions</span>
+            </button>
+          )}
 
           {/* Account */}
           <button

@@ -3,6 +3,7 @@ import { Menu, MapPin, Loader2, CheckCircle2, Circle, Sparkles, UserX, AlertCirc
 import { TutorDashboardData, SubTierDefinition } from '../types';
 import { fetchTutorDashboard, fetchSubTierDefinitions, updateTutorProfile } from '../lib/queries';
 import { AvailableRequestsQueue } from './AvailableRequestsQueue';
+import { getErrorMessage } from '../lib/errors';
 
 interface TeachGoScreenProps {
   tutorId: string;
@@ -54,7 +55,7 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
       await updateTutorProfile(tutor.id, { isDispatchActive: nextValue });
       setTutor({ ...tutor, isDispatchActive: nextValue });
     } catch (e) {
-      setToggleError(e instanceof Error ? e.message : 'Could not update your status.');
+      setToggleError(getErrorMessage(e, 'Could not update your status.'));
     } finally {
       setIsTogglingOnline(false);
     }

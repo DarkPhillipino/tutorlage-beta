@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Trash2, GraduationCap, AlertCircle, Info } from 'lucide-react';
 import { TutorSubjectCompetency } from '../types';
 import { addTutorSubjectCompetency, deleteTutorSubjectCompetency, fetchSubjectSuggestions, fetchGradeLevelSuggestions, logSubjectCandidate } from '../lib/queries';
+import { getErrorMessage } from '../lib/errors';
 
 // Curriculum is a fixed Postgres enum (see CLAUDE.md's routing table), not a
 // reference table — hardcoded here the same way TIER_ICONS is hardcoded in
@@ -102,7 +103,7 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
         );
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not add that subject.');
+      setError(getErrorMessage(e, 'Could not add that subject.'));
     } finally {
       setIsSaving(false);
     }
@@ -115,7 +116,7 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
       await deleteTutorSubjectCompetency(id);
       onChange(subjects.filter((s) => s.id !== id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not remove that subject.');
+      setError(getErrorMessage(e, 'Could not remove that subject.'));
     } finally {
       setDeletingId(null);
     }

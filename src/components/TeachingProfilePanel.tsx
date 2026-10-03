@@ -4,7 +4,11 @@ import { TutorDashboardData, TutorReview, TutorAvailabilitySlot, TutorSession, I
 import { fetchTutorDashboard, fetchTutorReviews, fetchTutorAvailability, fetchUpcomingTutorSessions, updateTutorProfile } from '../lib/queries';
 import { formatRate } from '../lib/format';
 import { getCurrencySymbol } from '../lib/currencies';
+import { getErrorMessage } from '../lib/errors';
 import { TutorCalendar } from './TutorCalendar';
+import { TutorSessionsPanel } from './TutorSessionsPanel';
+import { PayoutAccountPanel } from './PayoutAccountPanel';
+import { VerificationDocumentsPanel } from './VerificationDocumentsPanel';
 import { AvailabilityEditor } from './AvailabilityEditor';
 import { SubjectCompetencyEditor } from './SubjectCompetencyEditor';
 import { InstitutionModal } from './InstitutionModal';
@@ -87,7 +91,7 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
       });
       setIsEditingProfile(false);
     } catch (e) {
-      setProfileError(e instanceof Error ? e.message : 'Could not save your profile.');
+      setProfileError(getErrorMessage(e, 'Could not save your profile.'));
     } finally {
       setIsSavingProfile(false);
     }
@@ -310,6 +314,15 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
           </div>
         )}
       </div>
+
+      {/* Documents Tutorlage checks before verifying the tutor (7h) */}
+      <VerificationDocumentsPanel tutorId={tutor.id} />
+
+      {/* Accepted sessions: add the meeting link, mark complete */}
+      <TutorSessionsPanel tutorId={tutor.id} />
+
+      {/* Where the tutor's share is paid (7a) */}
+      <PayoutAccountPanel tutorId={tutor.id} />
 
       {/* Set working hours */}
       <AvailabilityEditor tutorId={tutor.id} availability={availability} onChange={setAvailability} />

@@ -1,11 +1,45 @@
 import { supabase } from './supabaseClient';
-import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, AvailableSessionRequest, StudentSession } from '../types';
+import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, AvailableSessionRequest, StudentSession, TutorManagedSession, StudentSessionDetail, PriceLevel, PayoutAccount, ProblemReason, AppNotification } from '../types';
 
-// The signed-in user's own profiles row (see UserProfile in types.ts).
-export async function fetchProfile(userId: string): Promise<UserProfile | null> {
+// Model 3 (backlog 12a): the price levels a student can book right now for
+// this search — only levels with at least one matching verified tutor at or
+// above them. Computed in the database (available_price_levels) so counts
+// don't depend on which tutor rows the browser is allowed to read.
+export async function fetchAvailablePriceLevels(params: {
+  subject: string;
+  gradeLevel: string;
+  institutionId: string | null;
+}): Promise<PriceLevel[]> {
+  const { data, error } = await supabase.rpc('available_price_levels', {
+    p_subject: params.subject,
+    p_grade: params.gradeLevel,
+    p_institution: params.institutionId,
+  });
+  if (error) throw error;
+  return ((data ?? []) as {
+    level_id: string;
+    tier_id: number;
+    tier_name: string;
+    price: number;
+    currency_code: string;
+    tutors: number;
+  }[]).map((row) => ({
+    id: row.level_id,
+    tierId: row.tier_id,
+    tierName: row.tier_name,
+    price: Number(row.price),
+    currencyCode: row.currency_code,
+    tutors: row.tutors,
+  }));
+}
+
+// The signed-in user's own profiles row (see UserProfile in types.ts). Email
+// comes from the auth session: profiles.email isn't readable by clients
+// (backlog 7o — it used to be readable by anyone).
+export async function fetchProfile(userId: string, email: string): Promise<UserProfile | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, email, role, avatar_url')
+    .select('id, full_name, role, avatar_url')
     .eq('id', userId)
     .maybeSingle();
 
@@ -15,53 +49,124 @@ export async function fetchProfile(userId: string): Promise<UserProfile | null> 
   return {
     id: data.id,
     fullName: data.full_name,
-    email: data.email,
+    email,
     role: data.role,
     avatarUrl: data.avatar_url,
   };
 }
 
-// Fixes up a brand-new Google-OAuth signup that wanted to be a tutor. The
-// on_auth_user_created trigger always defaults an OAuth user to 'student'
-// (Google's identity data has no room for our custom role field the way
-// email/password signUp()'s options.data does — see src/lib/oauth.ts), so
-// this is called from AuthCallback.tsx right after the redirect completes,
-// when the person had picked "tutor" before starting the Google flow.
-// Idempotent: a no-op if the profile is already a tutor, so re-running the
-// callback (e.g. a page reload) can't double-convert or error.
-export async function convertProfileToTutor(userId: string, displayName: string): Promise<void> {
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', userId)
-    .single();
+// The signed-in student's own grade level (student_profiles.grade_level) —
+// account-level info set once in account settings, not re-entered per
+// search (see the "Not set" nudge on PricesPage.tsx, the same pattern
+// already used for institution). null means the student hasn't set one yet.
+export async function fetchStudentGradeLevel(studentId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('student_profiles')
+    .select('grade_level')
+    .eq('id', studentId)
+    .maybeSingle();
 
-  if (profileError) throw profileError;
-  if (profile.role === 'tutor') return;
+  if (error) throw error;
+  return data?.grade_level ?? null;
+}
 
-  const { error: roleError } = await supabase.from('profiles').update({ role: 'tutor' }).eq('id', userId);
-  if (roleError) throw roleError;
+export async function updateStudentGradeLevel(studentId: string, gradeLevel: string): Promise<void> {
+  const { error } = await supabase.from('student_profiles').update({ grade_level: gradeLevel }).eq('id', studentId);
+  if (error) throw error;
+}
 
-  const { error: tutorError } = await supabase
-    .from('tutor_profiles')
-    .insert({ id: userId, headline: `${displayName} - Tutor` });
-  if (tutorError) throw tutorError;
+// Switches a brand-new Google sign-up to the role the person picked before
+// the Google flow. The on_auth_user_created trigger always makes an OAuth user
+// a learner (Google's identity data has no room for our role field the way
+// email/password signUp()'s options.data does — see src/lib/oauth.ts).
+// The switch happens in the database (convert_new_account_role): clients have
+// no UPDATE privilege on profiles, so the old client-side version of this
+// silently failed. Idempotent, so a reload of the callback page is harmless.
+export async function convertNewAccountRole(role: 'tutor' | 'parent'): Promise<void> {
+  const { error } = await supabase.rpc('convert_new_account_role', { p_role: role });
+  if (error) throw error;
+}
 
-  // The trigger already created a student_profiles row under the default
-  // role — remove it now that this person is actually a tutor, so they
-  // don't end up with both role-specific rows.
-  await supabase.from('student_profiles').delete().eq('id', userId);
+// ---- Account gate (7k/7l): date of birth + Terms/Privacy acceptance ----
+
+export interface PolicyVersions {
+  termsVersion: string;
+  privacyVersion: string;
+  guardianConsentVersion: string;
+}
+
+// Readable before sign-in, so the signup form can record which versions were ticked.
+export async function fetchCurrentPolicyVersions(): Promise<PolicyVersions | null> {
+  const { data, error } = await supabase.rpc('current_policy_versions');
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.terms_version || !row?.privacy_version) return null;
+  return {
+    termsVersion: row.terms_version,
+    privacyVersion: row.privacy_version,
+    guardianConsentVersion: row.guardian_consent_version,
+  };
+}
+
+export interface AccountGateState {
+  dateOfBirth: string | null; // yyyy-mm-dd
+  pendingDocuments: ('terms' | 'privacy')[];
+  hasGuardian: boolean; // a learner account a parent/guardian created
+}
+
+export async function fetchAccountGateState(userId: string): Promise<AccountGateState> {
+  const [dob, pending, links] = await Promise.all([
+    supabase.rpc('my_date_of_birth'),
+    supabase.rpc('my_pending_acceptances'),
+    supabase.from('parent_student_links').select('id', { count: 'exact', head: true }).eq('student_id', userId),
+  ]);
+  if (dob.error) throw dob.error;
+  if (pending.error) throw pending.error;
+  if (links.error) throw links.error;
+  return {
+    dateOfBirth: (dob.data as string | null) ?? null,
+    pendingDocuments: ((pending.data ?? []) as { document: 'terms' | 'privacy' }[]).map((row) => row.document),
+    hasGuardian: (links.count ?? 0) > 0,
+  };
+}
+
+// Once only — correcting a recorded date of birth takes an admin.
+export async function setMyDateOfBirth(isoDate: string): Promise<void> {
+  const { error } = await supabase.rpc('set_my_date_of_birth', { p_dob: isoDate });
+  if (error) throw error;
+}
+
+export async function acceptCurrentPolicies(): Promise<void> {
+  const { error } = await supabase.rpc('accept_current_policies');
+  if (error) throw error;
 }
 
 // curriculum comes from the real curricula table via curriculum_id (fully
 // backfilled — every schools_institutions row has one), not the old fixed
 // curriculum enum column, which only ever meant something in South Africa
 // (see the "Internationalization plan" section in the game plan doc).
-export async function fetchInstitutions(): Promise<Institution[]> {
-  const { data, error } = await supabase
+//
+// Real institutions table is 25k+ rows — Supabase/PostgREST caps an
+// unfiltered fetch at 1000, which silently drops the vast majority of real
+// schools (found 2026-09-08: 2,550 institutions alone sort before "Curro").
+// Search must happen server-side via `.ilike()`, not by fetching everything
+// and filtering client-side. Pass a blank/undefined search to get a capped
+// alphabetical browse list rather than the (impossible) full table.
+const INSTITUTION_FETCH_LIMIT = 50;
+
+export async function fetchInstitutions(search?: string): Promise<Institution[]> {
+  let query = supabase
     .from('schools_institutions')
     .select('id, name, institution_type, curricula ( name )')
-    .order('name');
+    .order('name')
+    .limit(INSTITUTION_FETCH_LIMIT);
+
+  const trimmed = search?.trim();
+  if (trimmed) {
+    query = query.ilike('name', `%${trimmed}%`);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
 
@@ -629,40 +734,40 @@ async function findOrCreateStudentEnrollment(
   return created.id;
 }
 
-// Creates a real, anonymous tutoring request (RLS: "Students manage own
-// session requests" — auth.uid() = student_id) — what "Send Request" on
-// PricesPage.tsx does. tutor_id is deliberately left unset (defaults to
-// NULL): no tutor is chosen up front — any qualifying tutor can browse and
-// claim it (see fetchAvailableRequests/acceptAvailableRequest below).
-// requestedStart is a real timestamp: "now" for instant requests, or the
-// student's chosen ISO date + time combined for a scheduled one.
+// Creates a real, anonymous tutoring request — what "Send Request" on
+// PricesPage.tsx does. RLS ("Learners or their guardians create session
+// requests"): the requester is the signed-in user, and the learner is either
+// themselves (an adult with a date of birth on file) or a learner they're
+// the consenting guardian of (backlog 7k). tutor_id is deliberately left
+// unset (defaults to NULL): no tutor is chosen up front — any qualifying
+// tutor can browse and claim it (see fetchAvailableRequests/
+// acceptAvailableRequest below). requestedStart is a real timestamp: "now"
+// for instant requests, or the chosen ISO date + time combined.
 export async function createSessionRequest(params: {
-  studentId: string;
+  studentId: string; // the learner the session is for
+  requestedById: string; // the signed-in user — the learner themselves, or their guardian
   subjectName: string;
   gradeLevel: string;
-  tierId?: number;
+  minSubTierId: string; // the Model 3 price level chosen as a floor (backlog 12a)
   institutionId?: string | null;
   scheduleType: 'now' | 'scheduled';
   scheduledDate: string; // ISO date, e.g. from BookingFormState.scheduledDate
   scheduledTime: string; // "HH:MM"
   durationHours?: number;
   paystackReference: string;
-  chargedAmount: number;
-  currencyCode?: string;
-}): Promise<{ id: string; requestedStart: string }> {
+}): Promise<{ id: string; requestedStart: string; chargedAmount: number }> {
   const {
     studentId,
+    requestedById,
     subjectName,
     gradeLevel,
-    tierId,
+    minSubTierId,
     institutionId,
     scheduleType,
     scheduledDate,
     scheduledTime,
     durationHours = 1,
     paystackReference,
-    chargedAmount,
-    currencyCode = 'ZAR',
   } = params;
 
   const requestedStart =
@@ -673,48 +778,30 @@ export async function createSessionRequest(params: {
     enrollmentId = await findOrCreateStudentEnrollment(studentId, subjectName.trim(), gradeLevel.trim());
   }
 
-  // payment_status starts at 'initiated', not 'paid' — the RLS policies
-  // that let a tutor see/claim this row require payment_status = 'paid',
-  // so this request stays invisible to every tutor until
-  // confirmSessionRequestPayment() below flips it after Paystack actually
-  // confirms the charge. That's deliberate: nobody should be able to accept
-  // (and get a real sessions row created for) a request nobody paid for.
+  // The database decides everything money- and status-related on insert
+  // (guard_session_request_insert, backlog 7i): payment_status starts at
+  // 'initiated', the price comes from the chosen level (and tier_id is derived
+  // from it), and tutor/status fields are reset. Tutors only see a request
+  // once server/index.ts has confirmed the card check with Paystack and the
+  // database has marked it 'card_verified' (backlog 7a) — the browser can't
+  // update this row. The price itself is charged when a tutor accepts.
   const { data, error } = await supabase
     .from('session_requests')
     .insert({
       student_id: studentId,
       enrollment_id: enrollmentId,
-      tier_id: tierId ?? null,
+      min_sub_tier_id: minSubTierId,
       institution_id: institutionId ?? null,
-      requested_by_profile_id: studentId,
+      requested_by_profile_id: requestedById,
       requested_start: requestedStart,
       duration_hours: durationHours,
-      status: 'pending',
-      payment_status: 'initiated',
       paystack_reference: paystackReference,
-      charged_amount: chargedAmount,
-      currency_code: currencyCode,
     })
-    .select('id, requested_start')
+    .select('id, requested_start, charged_amount')
     .single();
 
   if (error) throw error;
-  return { id: data.id, requestedStart: data.requested_start };
-}
-
-// Called from PaymentCallback.tsx once Paystack's own /transaction/verify
-// endpoint (proxied through server/index.ts) has confirmed what actually
-// happened — never trust the redirect query params alone. 'paid' makes the
-// request visible to tutors for the first time; 'failed' leaves it
-// permanently invisible (payment_status never becomes 'paid'), a harmless
-// dead row rather than something requiring cleanup.
-export async function confirmSessionRequestPayment(paystackReference: string, succeeded: boolean): Promise<void> {
-  const { error } = await supabase
-    .from('session_requests')
-    .update({ payment_status: succeeded ? 'paid' : 'failed' })
-    .eq('paystack_reference', paystackReference);
-
-  if (error) throw error;
+  return { id: data.id, requestedStart: data.requested_start, chargedAmount: Number(data.charged_amount) };
 }
 
 interface AvailableRequestRow {
@@ -728,30 +815,36 @@ interface AvailableRequestRow {
   institution_id: string | null;
   student_subject_enrollments: { subject_name: string; grade_level: string } | null;
   tier_definitions: { id: number; public_name: string } | null;
+  level: { id: string; max_allowed_rate: number; commission_rate_pct: number | null } | null;
 }
 
 // Anonymous, unclaimed pending requests a tutor can browse and claim (RLS:
-// "Tutors view unclaimed pending requests" — tutor_id is null and status =
-// 'pending'). Filtered client-side to requests this tutor is actually
-// positioned to take: same pricing tier (or no tier preference at all),
-// same institution (hyper-local matching — null on either side is a
-// wildcard, not "matches nobody"; see the note on Tutor.institutionId in
-// types.ts), and — when the request named a subject — one this tutor
-// actually teaches. A tutor with no subjects registered yet still sees
-// any-subject requests, just not subject-specific ones they haven't
-// claimed expertise in.
+// "Tutors view unclaimed pending requests" — tutor_id is null, status =
+// 'pending', and the card checked ('card_verified'; 'paid' for requests paid
+// up front before 7a)). Filtered client-side to requests this tutor is
+// actually positioned to take (claim_session_request re-checks all of it): under
+// Model 3, a request at this tutor's level or below (older requests without
+// a level: same tier); same institution (null on either side is a
+// wildcard); and — when the request named a subject — one this tutor
+// actually teaches (case-insensitive, like the database check).
 export async function fetchAvailableRequests(tutorId: string): Promise<AvailableSessionRequest[]> {
   const { data: tutorProfile, error: tutorError } = await supabase
     .from('tutor_profiles')
-    .select('current_tier_id, institution_id, tutor_subject_competencies ( subject_name )')
+    .select(`
+      current_tier_id,
+      institution_id,
+      tutor_subject_competencies ( subject_name ),
+      level:sub_tier_definitions!tutor_profiles_current_sub_tier_id_fkey ( max_allowed_rate )
+    `)
     .eq('id', tutorId)
     .single();
 
   if (tutorError) throw tutorError;
 
   const mySubjects = new Set(
-    ((tutorProfile.tutor_subject_competencies ?? []) as { subject_name: string }[]).map((c) => c.subject_name)
+    ((tutorProfile.tutor_subject_competencies ?? []) as { subject_name: string }[]).map((c) => c.subject_name.toLowerCase())
   );
+  const myLevelRate = Number((tutorProfile.level as unknown as { max_allowed_rate: number } | null)?.max_allowed_rate ?? 0);
 
   const { data, error } = await supabase
     .from('session_requests')
@@ -765,11 +858,12 @@ export async function fetchAvailableRequests(tutorId: string): Promise<Available
       currency_code,
       institution_id,
       student_subject_enrollments ( subject_name, grade_level ),
-      tier_definitions ( id, public_name )
+      tier_definitions ( id, public_name ),
+      level:sub_tier_definitions!session_requests_min_sub_tier_id_fkey ( id, max_allowed_rate, commission_rate_pct )
     `)
     .is('tutor_id', null)
     .eq('status', 'pending')
-    .eq('payment_status', 'paid')
+    .in('payment_status', ['card_verified', 'paid'])
     .order('requested_start');
 
   if (error) throw error;
@@ -778,94 +872,65 @@ export async function fetchAvailableRequests(tutorId: string): Promise<Available
 
   return rows
     .filter((row) => {
-      const tierMatches = row.tier_definitions === null || row.tier_definitions.id === tutorProfile.current_tier_id;
+      const levelMatches = row.level
+        ? Number(row.level.max_allowed_rate) <= myLevelRate
+        : row.tier_definitions === null || row.tier_definitions.id === tutorProfile.current_tier_id;
       const institutionMatches =
         row.institution_id === null || tutorProfile.institution_id === null || row.institution_id === tutorProfile.institution_id;
-      const subjectMatches = !row.student_subject_enrollments || mySubjects.has(row.student_subject_enrollments.subject_name);
-      return tierMatches && institutionMatches && subjectMatches;
+      const subjectMatches =
+        !row.student_subject_enrollments || mySubjects.has(row.student_subject_enrollments.subject_name.toLowerCase());
+      return levelMatches && institutionMatches && subjectMatches;
     })
-    .map((row) => ({
-      id: row.id,
-      studentId: row.student_id,
-      subjectName: row.student_subject_enrollments?.subject_name ?? null,
-      gradeLevel: row.student_subject_enrollments?.grade_level ?? null,
-      tierId: row.tier_definitions?.id ?? null,
-      tierName: row.tier_definitions?.public_name ?? null,
-      requestedStart: row.requested_start,
-      durationHours: Number(row.duration_hours),
-      enrollmentId: row.enrollment_id,
-      chargedAmount: Number(row.charged_amount),
-      currencyCode: row.currency_code,
-    }));
+    .map((row) => {
+      const chargedAmount = Number(row.charged_amount);
+      const commissionPct = row.level?.commission_rate_pct != null ? Number(row.level.commission_rate_pct) : null;
+      return {
+        id: row.id,
+        studentId: row.student_id,
+        subjectName: row.student_subject_enrollments?.subject_name ?? null,
+        gradeLevel: row.student_subject_enrollments?.grade_level ?? null,
+        tierId: row.tier_definitions?.id ?? null,
+        tierName: row.tier_definitions?.public_name ?? null,
+        levelId: row.level?.id ?? null,
+        requestedStart: row.requested_start,
+        durationHours: Number(row.duration_hours),
+        enrollmentId: row.enrollment_id,
+        chargedAmount,
+        // What the tutor would earn: the price less Tutorlage's commission for
+        // the level, as claim_session_request computes it. Paystack's fee comes
+        // out of Tutorlage's commission (paystack_fee_bearer = 'account', CEO
+        // 2026-09-30), so this is what reaches the tutor's bank account.
+        tutorPayout:
+          commissionPct != null
+            ? (Math.round(chargedAmount * 100) - Math.round(chargedAmount * commissionPct)) / 100
+            : null,
+        currencyCode: row.currency_code,
+      };
+    });
 }
 
-// Claims an anonymous request and turns it into a real session — the two
-// steps are deliberately in this order, not a DB transaction (the client
-// can't open one): (1) an atomic claim, racing safely against any other
-// tutor trying to claim the same request at the same moment (RLS: "Tutors
-// claim unclaimed pending requests" only lets the UPDATE succeed while
-// tutor_id is still null; the loser's UPDATE matches zero rows and throws
-// here instead of silently double-booking); (2) only once the claim
-// succeeds, create the real public.sessions row and link it back via
-// resulting_session_id. gross_amount is the request's own charged_amount —
-// what the student was actually charged via Paystack when they sent the
-// request (fixed to the tier's floor rate before any specific tutor was
-// known) — not the accepting tutor's own listed hourly_rate: gross_amount
-// must always match real money that moved, never a number recomputed after
-// the fact. Only the commission percentage still comes from the accepting
-// tutor's own tier.
-export async function acceptAvailableRequest(request: AvailableSessionRequest, tutorId: string): Promise<void> {
-  const { data: claimed, error: claimError } = await supabase
-    .from('session_requests')
-    .update({ tutor_id: tutorId, status: 'accepted', responded_at: new Date().toISOString() })
-    .eq('id', request.id)
-    .select('id')
+// Accepting a request goes through server/index.ts (acceptRequest in
+// payments.ts), not the database directly: the learner's card is charged at
+// that moment, and the charge needs Paystack's secret key (backlog 7a).
+
+// The tutor's payout account, if they've added one (RLS: "Tutors view own
+// payout account"). Only the bank, the last 4 digits and the validation
+// result are stored — never the full account number or the ID number.
+export async function fetchMyPayoutAccount(tutorId: string): Promise<PayoutAccount | null> {
+  const { data, error } = await supabase
+    .from('tutor_payout_accounts')
+    .select('bank_name, account_holder_name, account_number_last4, validation_status, paystack_subaccount_code')
+    .eq('tutor_id', tutorId)
     .maybeSingle();
-
-  if (claimError) throw claimError;
-  if (!claimed) throw new Error('Another tutor already accepted this request.');
-
-  const { data: tutorProfile, error: tutorError } = await supabase
-    .from('tutor_profiles')
-    .select('tier_definitions!tutor_profiles_current_tier_id_fkey ( commission_rate_pct )')
-    .eq('id', tutorId)
-    .single();
-
-  if (tutorError) throw tutorError;
-
-  const commissionPct = Number(
-    (tutorProfile.tier_definitions as unknown as { commission_rate_pct: number } | null)?.commission_rate_pct ?? 0
-  );
-  const grossAmount = request.chargedAmount;
-  const hourlyRateCharged = grossAmount / request.durationHours;
-  const tutorPayoutAmount = grossAmount * (1 - commissionPct / 100);
-
-  const { data: session, error: sessionError } = await supabase
-    .from('sessions')
-    .insert({
-      student_id: request.studentId,
-      tutor_id: tutorId,
-      duration_hours: request.durationHours,
-      hourly_rate_charged: hourlyRateCharged,
-      platform_commission_pct: commissionPct,
-      gross_amount: grossAmount,
-      tutor_payout_amount: tutorPayoutAmount,
-      scheduled_start: request.requestedStart,
-      enrollment_id: request.enrollmentId,
-      booked_by_profile_id: request.studentId,
-      currency_code: request.currencyCode,
-    })
-    .select('id')
-    .single();
-
-  if (sessionError) throw sessionError;
-
-  const { error: linkError } = await supabase
-    .from('session_requests')
-    .update({ resulting_session_id: session.id })
-    .eq('id', request.id);
-
-  if (linkError) throw linkError;
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    bankName: data.bank_name,
+    accountHolderName: data.account_holder_name,
+    last4: data.account_number_last4,
+    validationStatus: data.validation_status,
+    canReceivePayments: !!data.paystack_subaccount_code,
+  };
 }
 
 interface StudentSessionRow {
@@ -877,11 +942,13 @@ interface StudentSessionRow {
   student_subject_enrollments: { subject_name: string } | null;
 }
 
-// The signed-in student's own upcoming sessions (RLS: "Students view own
-// sessions" — auth.uid() = student_id) — the student-side mirror of
+// Upcoming sessions for the given learners — the signed-in student's own
+// (RLS: "Students view own sessions"), or a guardian's learners' ("Parents
+// view linked student sessions") — the student-side mirror of
 // fetchUpcomingTutorSessions. sessions.tutor_id references tutor_profiles,
 // not profiles directly, so getting the tutor's name is a two-hop embed.
-export async function fetchUpcomingStudentSessions(studentId: string): Promise<StudentSession[]> {
+export async function fetchUpcomingStudentSessions(studentIds: string[]): Promise<StudentSession[]> {
+  if (studentIds.length === 0) return [];
   const { data, error } = await supabase
     .from('sessions')
     .select(`
@@ -892,7 +959,7 @@ export async function fetchUpcomingStudentSessions(studentId: string): Promise<S
       tutor_profiles!sessions_tutor_id_fkey ( profiles!tutor_profiles_id_fkey ( full_name ) ),
       student_subject_enrollments ( subject_name )
     `)
-    .eq('student_id', studentId)
+    .in('student_id', studentIds)
     .gte('scheduled_start', new Date().toISOString())
     .order('scheduled_start');
 
@@ -906,4 +973,219 @@ export async function fetchUpcomingStudentSessions(studentId: string): Promise<S
     durationHours: Number(row.duration_hours),
     status: row.status,
   }));
+}
+
+// --- Session lifecycle (backlog 7m and item 10) -------------------------------
+
+// The tutor's sessions that still need something from them: an upcoming one
+// (add or change the meeting link) or one that has ended in the last two weeks
+// but isn't marked complete yet. RLS: "Tutors view own sessions". For a
+// session a parent or guardian booked, their name and phone come from
+// my_session_guardian_contacts() — the tutor can't read parent profiles
+// directly, and legal spec §5 requires the parent to be reachable.
+export async function fetchTutorManagedSessions(tutorId: string): Promise<TutorManagedSession[]> {
+  const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 3600_000).toISOString();
+  const contactsRequest = supabase.rpc('my_session_guardian_contacts');
+  const { data, error } = await supabase
+    .from('sessions')
+    .select(`
+      id,
+      scheduled_start,
+      duration_hours,
+      status,
+      meeting_url,
+      profiles!sessions_student_id_fkey ( full_name ),
+      student_subject_enrollments ( subject_name )
+    `)
+    .eq('tutor_id', tutorId)
+    .eq('status', 'scheduled')
+    .gte('scheduled_start', twoWeeksAgo)
+    .order('scheduled_start');
+
+  if (error) throw error;
+  // A failure here shouldn't hide the tutor's sessions, so it's logged, not thrown.
+  const { data: contacts, error: contactsError } = await contactsRequest;
+  if (contactsError) console.error('my_session_guardian_contacts failed:', contactsError);
+  const contactBySession = new Map(
+    ((contacts ?? []) as { session_id: string; guardian_name: string; guardian_phone: string | null }[])
+      .map((c) => [c.session_id, c]),
+  );
+
+  return ((data ?? []) as unknown as (TutorSessionRow & { meeting_url: string | null })[]).map((row) => {
+    const contact = contactBySession.get(row.id);
+    return {
+      id: row.id,
+      studentName: row.profiles?.full_name ?? 'Student',
+      subjectName: row.student_subject_enrollments?.subject_name ?? null,
+      scheduledStart: row.scheduled_start,
+      durationHours: Number(row.duration_hours),
+      status: row.status,
+      meetingUrl: row.meeting_url,
+      guardianName: contact?.guardian_name,
+      guardianPhone: contact?.guardian_phone ?? undefined,
+    };
+  });
+}
+
+// Only the session's own tutor can set it (set_session_meeting_link checks),
+// and only an https:// link; the learner is notified.
+export async function setSessionMeetingLink(sessionId: string, url: string): Promise<void> {
+  const { error } = await supabase.rpc('set_session_meeting_link', { p_session_id: sessionId, p_url: url.trim() });
+  if (error) throw error;
+}
+
+// Marks a session complete once its scheduled time has ended. This is what
+// makes tier progression run: the database recalculates the tutor's stats and
+// level straight after (trigger_session_completed → fn_recalculate_tutor_tier).
+export async function completeSession(sessionId: string): Promise<void> {
+  const { error } = await supabase.rpc('complete_session', { p_session_id: sessionId });
+  if (error) throw error;
+}
+
+interface StudentSessionDetailRow {
+  id: string;
+  student_id: string;
+  tutor_id: string;
+  scheduled_start: string;
+  duration_hours: number;
+  status: string | null;
+  meeting_url: string | null;
+  tutor_profiles: { profiles: { full_name: string } | null } | null;
+  student_subject_enrollments: { subject_name: string } | null;
+}
+
+// Upcoming sessions plus those completed in the last 30 days, for the given
+// learners.
+async function fetchSessionDetailRows(studentIds: string[]): Promise<StudentSessionDetailRow[]> {
+  if (studentIds.length === 0) return [];
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600_000).toISOString();
+  const { data, error } = await supabase
+    .from('sessions')
+    .select(`
+      id,
+      student_id,
+      tutor_id,
+      scheduled_start,
+      duration_hours,
+      status,
+      meeting_url,
+      tutor_profiles!sessions_tutor_id_fkey ( profiles!tutor_profiles_id_fkey ( full_name ) ),
+      student_subject_enrollments ( subject_name )
+    `)
+    .in('student_id', studentIds)
+    .in('status', ['scheduled', 'completed'])
+    .gte('scheduled_start', thirtyDaysAgo)
+    .order('scheduled_start', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as unknown as StudentSessionDetailRow[];
+}
+
+function toSessionDetail(row: StudentSessionDetailRow, hasReview: boolean): StudentSessionDetail {
+  return {
+    id: row.id,
+    tutorId: row.tutor_id,
+    tutorName: row.tutor_profiles?.profiles?.full_name ?? 'Tutor',
+    subjectName: row.student_subject_enrollments?.subject_name ?? null,
+    scheduledStart: row.scheduled_start,
+    durationHours: Number(row.duration_hours),
+    status: row.status,
+    meetingUrl: row.meeting_url,
+    hasReview,
+  };
+}
+
+// The learner's own sessions, each flagged with whether they've reviewed it.
+export async function fetchStudentSessionDetails(studentId: string): Promise<StudentSessionDetail[]> {
+  const rows = await fetchSessionDetailRows([studentId]);
+  const { data: reviews, error: reviewError } = await supabase
+    .from('reviews')
+    .select('session_id')
+    .eq('student_id', studentId);
+  if (reviewError) throw reviewError;
+  const reviewed = new Set((reviews ?? []).map((r) => r.session_id));
+
+  return rows.map((row) => toSessionDetail(row, reviewed.has(row.id)));
+}
+
+// A parent's or guardian's view of their learners' sessions (backlog 7k).
+// RLS: "Parents view linked student sessions". Rating stays with the learner,
+// who took the session, so reviews aren't looked up here.
+export async function fetchLearnerSessionDetails(
+  learners: { id: string; name: string }[],
+): Promise<StudentSessionDetail[]> {
+  const nameById = new Map(learners.map((l) => [l.id, l.name]));
+  const rows = await fetchSessionDetailRows(learners.map((l) => l.id));
+  return rows.map((row) => ({ ...toSessionDetail(row, false), learnerName: nameById.get(row.student_id) }));
+}
+
+// Cancels an upcoming session with a full refund. The database decides who
+// may and when (cancel_session): the learner or whoever booked, inside the
+// cancellation window set in system_settings (7 days by default, per legal's
+// ECTA s44 working answer), and the tutor any time before it starts.
+export async function cancelSession(sessionId: string, reason?: string): Promise<void> {
+  const { error } = await supabase.rpc('cancel_session', { p_session_id: sessionId, p_reason: reason ?? null });
+  if (error) throw error;
+}
+
+// One review per completed session, by that session's learner — the database
+// enforces both ("Students review their own completed sessions" + a unique
+// index). Submitting it updates the tutor's rating and level straight away.
+export async function submitReview(params: {
+  sessionId: string;
+  tutorId: string;
+  studentId: string;
+  rating: number;
+  comment: string;
+}): Promise<void> {
+  const { error } = await supabase.from('reviews').insert({
+    session_id: params.sessionId,
+    tutor_id: params.tutorId,
+    student_id: params.studentId,
+    rating: params.rating,
+    comment: params.comment.trim() || null,
+  });
+  if (error) throw error;
+}
+
+// Reports a problem with a session (backlog 7u). The database checks the
+// caller is the session's learner, the person who booked it, or its tutor,
+// and within 14 days of the session; an open report stops the session from
+// completing automatically until an admin has looked at it.
+export async function reportSessionProblem(sessionId: string, reason: ProblemReason, description: string): Promise<void> {
+  const { error } = await supabase.rpc('report_session_problem', {
+    p_session_id: sessionId,
+    p_reason: reason,
+    p_description: description.trim(),
+  });
+  if (error) throw error;
+}
+
+// The signed-in user's latest notifications (RLS: "Users view own notifications").
+export async function fetchMyNotifications(profileId: string): Promise<AppNotification[]> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('id, type, title, body, created_at, read_at')
+    .eq('profile_id', profileId)
+    .order('created_at', { ascending: false })
+    .limit(30);
+  if (error) throw error;
+  return (data ?? []).map((n) => ({
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    body: n.body,
+    createdAt: n.created_at,
+    readAt: n.read_at,
+  }));
+}
+
+export async function markNotificationsRead(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .in('id', ids)
+    .is('read_at', null);
+  if (error) throw error;
 }

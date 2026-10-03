@@ -3,6 +3,15 @@ import { X, Search, Building, Check, Loader2, AlertTriangle } from 'lucide-react
 import { Institution } from '../types';
 import { fetchInstitutions } from '../lib/queries';
 
+// schools_institutions.institution_type holds machine codes; show people words.
+const INSTITUTION_TYPE_LABELS: Record<string, string> = {
+  public_school: 'Public school',
+  independent_school: 'Independent school',
+  university: 'University',
+  tvet_college: 'TVET college',
+  private_higher_education: 'Private college',
+};
+
 interface InstitutionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -26,21 +35,26 @@ export const InstitutionModal: React.FC<InstitutionModalProps> = ({
     if (!isOpen) return;
     setIsLoading(true);
     setLoadError(false);
-    fetchInstitutions()
-      .then(setInstitutions)
-      .catch((err) => {
-        console.error('fetchInstitutions failed:', err);
-        setInstitutions([]);
-        setLoadError(true);
-      })
-      .finally(() => setIsLoading(false));
-  }, [isOpen, retryCount]);
+    // Debounced so every keystroke doesn't fire its own query — the search
+    // itself must run server-side (see fetchInstitutions), since the real
+    // table is far too large to fetch in full and filter client-side.
+    const timeout = setTimeout(() => {
+      fetchInstitutions(searchTerm)
+        .then(setInstitutions)
+        .catch((err) => {
+          console.error('fetchInstitutions failed:', err);
+          setInstitutions([]);
+          setLoadError(true);
+        })
+        .finally(() => setIsLoading(false));
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [isOpen, searchTerm, retryCount]);
 
   if (!isOpen) return null;
 
-  const filtered = institutions.filter(inst =>
-    inst.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filtered = institutions;
 
   return (
     <div
@@ -107,9 +121,9 @@ export const InstitutionModal: React.FC<InstitutionModalProps> = ({
               <Building className="w-8 h-8 text-slate-300 mx-auto mb-2" />
               <p className="text-sm font-bold text-[#0F172A]">No institutions found</p>
               <p className="text-xs text-slate-500 mt-1">
-                {institutions.length === 0
-                  ? 'No institutions have been added yet — check back soon.'
-                  : 'Try a different search term.'}
+                {searchTerm.trim()
+                  ? 'Try a different search term.'
+                  : 'No institutions have been added yet — check back soon.'}
               </p>
             </div>
           ) : (
@@ -135,7 +149,7 @@ export const InstitutionModal: React.FC<InstitutionModalProps> = ({
                     <div>
                       <div className="text-sm font-bold text-[#0F172A]">{inst.name}</div>
                       <div className="text-xs text-slate-500 mt-0.5">
-                        <span>{inst.institutionType}</span>
+                        <span>{INSTITUTION_TYPE_LABELS[inst.institutionType] ?? inst.institutionType}</span>
                         <span className="text-slate-400 ml-2">• {inst.curriculum}</span>
                       </div>
                     </div>

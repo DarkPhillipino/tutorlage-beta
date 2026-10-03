@@ -1,18 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, GraduationCap, BookOpen, AlertCircle, MailCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, GraduationCap, BookOpen, AlertCircle, MailCheck, Users } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../lib/AuthContext';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
-
-type Role = 'tutor' | 'student';
+import { fetchCurrentPolicyVersions, PolicyVersions } from '../lib/queries';
+import { ADULT_AGE, COPY, ROLE_LABELS, ageFromIsoDate, isPlausibleDateOfBirth, parseSignupRole } from '../lib/accountRules';
 
 const inputClass = 'w-full bg-slate-100 text-[#0F172A] placeholder-slate-400 text-sm font-semibold px-4 py-3.5 rounded-xl border border-transparent focus:outline-none focus:border-[#15803D] focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 transition-all';
 const labelClass = 'block text-xs font-bold text-slate-500 mb-1.5';
 
+const BUTTON_LABELS = { student: 'Student', tutor: 'Tutor', parent: 'Parent' } as const;
+
 export default function CreateAccount() {
   const { role: rawRole } = useParams<{ role: string }>();
-  const role: Role = rawRole === 'tutor' ? 'tutor' : 'student';
+  const role = parseSignupRole(rawRole);
+  const roleLabel = ROLE_LABELS[role];
   const navigate = useNavigate();
   const { session, loading: authLoading } = useAuth();
 
@@ -20,8 +23,11 @@ export default function CreateAccount() {
   const [surname, setSurname] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [accepted, setAccepted] = useState(false);
+  const [versions, setVersions] = useState<PolicyVersions | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
@@ -30,10 +36,34 @@ export default function CreateAccount() {
     if (!authLoading && session) navigate('/', { replace: true });
   }, [authLoading, session, navigate]);
 
+  // The versions the checkbox accepts are recorded with the account (ECTA).
+  useEffect(() => {
+    fetchCurrentPolicyVersions()
+      .then(setVersions)
+      .catch((e) => console.error('fetchCurrentPolicyVersions failed:', e));
+  }, []);
+
+  const age = isPlausibleDateOfBirth(dateOfBirth) ? ageFromIsoDate(dateOfBirth) : null;
+  // Legal spec §3: a learner under 18 can't finish on their own.
+  const isUnder18Learner = role === 'student' && age !== null && age < ADULT_AGE;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
+    if (age === null) {
+      setError('Enter your real date of birth.');
+      return;
+    }
+    if (isUnder18Learner) return;
+    if (age < ADULT_AGE && role === 'tutor') {
+      setError(COPY.tutorUnder18);
+      return;
+    }
+    if (age < ADULT_AGE && role === 'parent') {
+      setError(COPY.parentUnder18);
+      return;
+    }
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
@@ -42,12 +72,18 @@ export default function CreateAccount() {
       setError('Password must be at least 8 characters.');
       return;
     }
+    if (!accepted) {
+      setError('Please accept the Terms of Service and the Privacy Policy to create an account.');
+      return;
+    }
 
     setIsSubmitting(true);
 
     // The on_auth_user_created DB trigger reads this metadata and creates
-    // the matching profiles + tutor_profiles/student_profiles rows
-    // automatically — no separate insert needed on our end.
+    // the matching profiles + tutor/student/parent rows, and records the
+    // Terms/Privacy acceptance, automatically — no separate insert needed on
+    // our end. If the versions couldn't be loaded, acceptance is simply asked
+    // for again on first sign-in (AccountGate).
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -57,6 +93,11 @@ export default function CreateAccount() {
           surname,
           phone_number: phoneNumber,
           role,
+          date_of_birth: dateOfBirth,
+          ...(versions && {
+            accepted_terms_version: versions.termsVersion,
+            accepted_privacy_version: versions.privacyVersion,
+          }),
         },
       },
     });
@@ -64,7 +105,13 @@ export default function CreateAccount() {
     setIsSubmitting(false);
 
     if (signUpError) {
-      setError(signUpError.message);
+      // The database refuses sign-ups that break the age rules; Supabase
+      // reports that as a generic database error, so name the likely reason.
+      setError(
+        /database error/i.test(signUpError.message)
+          ? 'We could not create this account. Check your date of birth — tutors and parents must be 18 or older.'
+          : signUpError.message,
+      );
       return;
     }
 
@@ -76,7 +123,7 @@ export default function CreateAccount() {
     }
   };
 
-  const RoleIcon = role === 'tutor' ? GraduationCap : BookOpen;
+  const RoleIcon = role === 'tutor' ? GraduationCap : role === 'parent' ? Users : BookOpen;
 
   if (needsEmailConfirmation) {
     return (
@@ -118,7 +165,7 @@ export default function CreateAccount() {
               <RoleIcon className="w-5 h-5" />
             </div>
             <span className="text-xs font-bold text-[#15803D] uppercase tracking-wider">
-              Creating a {role} account
+              Creating a {roleLabel} account
             </span>
           </div>
 
@@ -156,23 +203,57 @@ export default function CreateAccount() {
             </div>
 
             <div>
-              <label className={labelClass} htmlFor="password">Password</label>
-              <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" className={inputClass} />
+              <label className={labelClass} htmlFor="dateOfBirth">Date of birth</label>
+              <input id="dateOfBirth" type="date" required value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className={inputClass} />
+              <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">{COPY.dateOfBirthWhy}</p>
             </div>
 
-            <div>
-              <label className={labelClass} htmlFor="confirmPassword">Confirm password</label>
-              <input id="confirmPassword" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" className={inputClass} />
-            </div>
+            {isUnder18Learner ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-4">
+                <p className="text-sm font-bold text-[#0F172A] mb-1">{COPY.learnerUnder18Title}</p>
+                <p className="text-xs text-slate-600 leading-relaxed mb-3">{COPY.learnerUnder18Body}</p>
+                <Link to="/signup/parent" className="text-xs font-bold text-[#15803D] hover:underline">
+                  Create a parent or guardian account →
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className={labelClass} htmlFor="password">Password</label>
+                  <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" className={inputClass} />
+                </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-[0.99] flex items-center justify-center space-x-2 text-sm cursor-pointer mt-2"
-            >
-              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              <span>Create {role === 'tutor' ? 'Tutor' : 'Student'} Account</span>
-            </button>
+                <div>
+                  <label className={labelClass} htmlFor="confirmPassword">Confirm password</label>
+                  <input id="confirmPassword" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" className={inputClass} />
+                </div>
+
+                {/* Legal spec §1: never pre-ticked; the account can't be created without it. */}
+                <label className="flex items-start space-x-2.5 text-sm text-slate-600 cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={accepted}
+                    onChange={(e) => setAccepted(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-[#15803D] shrink-0"
+                  />
+                  <span>
+                    {COPY.acceptTermsLead}{' '}
+                    <Link to="/terms" target="_blank" className="font-bold text-[#15803D] hover:underline">Terms of Service</Link>
+                    {' '}and the{' '}
+                    <Link to="/privacy" target="_blank" className="font-bold text-[#15803D] hover:underline">Privacy Policy</Link>.
+                  </span>
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-[0.99] flex items-center justify-center space-x-2 text-sm cursor-pointer mt-2"
+                >
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>Create {BUTTON_LABELS[role]} Account</span>
+                </button>
+              </>
+            )}
           </form>
 
           {role === 'tutor' && (
@@ -188,6 +269,9 @@ export default function CreateAccount() {
           </div>
 
           <GoogleSignInButton role={role} label={`Sign up with Google`} onError={setError} />
+          <p className="text-[11px] text-slate-400 mt-2 text-center">
+            With Google, we'll ask for your date of birth and your acceptance of our terms right after.
+          </p>
 
           <p className="text-center text-xs text-slate-500 mt-6">
             Already have an account?{' '}

@@ -30,6 +30,8 @@ jobs:
           # Publishable key: RLS-enforced, safe to expose in a client build.
           VITE_SUPABASE_URL: "https://wfpjoxetbprmllqqarwp.supabase.co"
           VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_uYCOWKWJoWh4hlXH22H_cQ_gKHZ5n3l"
+          # The payments API on Cloudflare Workers (server/worker.ts, wrangler.jsonc). Pages has no /api.
+          VITE_API_BASE_URL: "https://tutorlage-api.pakisosetunku.workers.dev"
       # GitHub Pages has no server-side routing: copying index.html to 404.html
       # lets deep links (e.g. /login) resolve to the app instead of a hard 404,
       # so React Router can take over client-side.

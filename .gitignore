@@ -7,9 +7,25 @@ coverage/
 .env*
 !.env.example
 
-# Separate admin app: private-network-only, not part of the public deploy.
-/admin/
+# admin/ is tracked in git (CEO decision 2026-09-30) so it has a backup — it is still never
+# deployed publicly: the GitHub Pages build only builds the root app. admin/.env stays ignored
+# via the .env* rule above.
 
-# Local tooling state (Claude Code worktrees, Vite dep cache) — not project source.
+# CEO-private notes — kept out of git so they can never reach GitHub by accident.
+/Drake/ceo's eyes only/
+
+# Never pushed to GitHub (CEO, 2026-10-02: "add drake, the context.mds and the claude.md to a gitignore,
+# never push those"). The repository is public. The local working branch still tracks the files already
+# committed, to keep their history: add new ones there with `git add -f`. Publish the app with
+# `node scripts/publish-app.mjs`, never by pushing the working branch. A pre-push hook refuses any push
+# that would carry these paths.
+/Drake/
+/CLAUDE.md
+CONTEXT.md
+
+# Local tooling state (Claude Code worktrees, Vite dep cache, wrangler's local cache) — not project source.
 /.claude/
 .vite/
+.wrangler/
+# Wrangler's local secrets file, if anyone makes one.
+.dev.vars*

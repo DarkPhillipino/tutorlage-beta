@@ -3,14 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { takePendingOAuthRole } from '../lib/oauth';
-import { convertProfileToTutor } from '../lib/queries';
+import { convertNewAccountRole } from '../lib/queries';
 
 // Where Google sends the browser back after OAuth (see signInWithGoogle in
 // src/lib/oauth.ts). Supabase's client library exchanges the auth code for
 // a session automatically on load (detectSessionInUrl, on by default) — this
-// page just waits for that session to land, then fixes up the role if the
-// person had picked "tutor" before starting the Google flow (see
-// convertProfileToTutor in queries.ts for why that fixup is needed at all).
+// page just waits for that session to land, then switches the role if the
+// person had picked "tutor" or "parent" before starting the Google flow (see
+// convertNewAccountRole in queries.ts for why that switch is needed at all).
+// Date of birth and Terms acceptance are collected next, by AccountGate.
 export default function AuthCallback() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
@@ -47,13 +48,13 @@ export default function AuthCallback() {
       }
 
       const pendingRole = takePendingOAuthRole();
-      if (pendingRole === 'tutor') {
+      if (pendingRole === 'tutor' || pendingRole === 'parent') {
         try {
-          const displayName =
-            (session.user.user_metadata?.full_name as string | undefined) ?? session.user.email ?? 'Tutor';
-          await convertProfileToTutor(session.user.id, displayName);
+          await convertNewAccountRole(pendingRole);
         } catch (e) {
-          console.error('convertProfileToTutor failed:', e);
+          // Refused for an account that already has learner activity — they
+          // carry on as the account they already have.
+          console.error('convertNewAccountRole failed:', e);
         }
       }
 

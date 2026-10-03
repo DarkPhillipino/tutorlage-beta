@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, GraduationCap, BookOpen, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, GraduationCap, BookOpen, AlertCircle, Users } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../lib/AuthContext';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
-
-type Role = 'tutor' | 'student';
+import { ROLE_LABELS, parseSignupRole, toSignInEmail } from '../lib/accountRules';
 
 export default function SignIn() {
   const { role: rawRole } = useParams<{ role: string }>();
-  const role: Role = rawRole === 'tutor' ? 'tutor' : 'student';
+  const role = parseSignupRole(rawRole);
+  const roleLabel = ROLE_LABELS[role];
   const navigate = useNavigate();
   const { session, loading: authLoading } = useAuth();
 
@@ -27,7 +27,8 @@ export default function SignIn() {
     setError(null);
     setIsSubmitting(true);
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    // Learners a guardian added may sign in with a sign-in name instead of an email.
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email: toSignInEmail(email), password });
 
     setIsSubmitting(false);
     if (signInError) {
@@ -37,7 +38,7 @@ export default function SignIn() {
     navigate('/', { replace: true });
   };
 
-  const RoleIcon = role === 'tutor' ? GraduationCap : BookOpen;
+  const RoleIcon = role === 'tutor' ? GraduationCap : role === 'parent' ? Users : BookOpen;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#FAF7F2] px-6">
@@ -57,7 +58,7 @@ export default function SignIn() {
               <RoleIcon className="w-5 h-5" />
             </div>
             <span className="text-xs font-bold text-[#15803D] uppercase tracking-wider">
-              Signing in as {role}
+              Signing in as {roleLabel}
             </span>
           </div>
 
@@ -74,14 +75,18 @@ export default function SignIn() {
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1.5" htmlFor="email">Email</label>
+              <label className="block text-xs font-bold text-slate-500 mb-1.5" htmlFor="email">
+                {role === 'student' ? 'Email or sign-in name' : 'Email'}
+              </label>
               <input
                 id="email"
-                type="email"
+                type={role === 'student' ? 'text' : 'email'}
+                inputMode="email"
+                autoCapitalize="none"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder={role === 'student' ? 'you@example.com, or the name your parent gave you' : 'you@example.com'}
                 className="w-full bg-slate-100 text-[#0F172A] placeholder-slate-400 text-sm font-semibold px-4 py-3.5 rounded-xl border border-transparent focus:outline-none focus:border-[#15803D] focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 transition-all"
               />
             </div>
@@ -120,13 +125,13 @@ export default function SignIn() {
           <p className="text-center text-xs text-slate-500 mt-6">
             New to Tutorlage?{' '}
             <Link to={`/signup/${role}`} className="font-bold text-[#15803D] hover:underline">
-              Create a {role} account
+              Create a {roleLabel} account
             </Link>
           </p>
         </div>
 
         <p className="text-center text-xs text-slate-400 mt-6">
-          Not a {role === 'tutor' ? 'tutor' : 'student'}?{' '}
+          Not a {roleLabel}?{' '}
           <Link to="/login" className="font-bold text-slate-600 hover:underline">
             Choose a different role
           </Link>

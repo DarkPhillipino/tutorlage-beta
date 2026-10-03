@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, BookOpen, ChevronRight } from 'lucide-react';
+import { GraduationCap, BookOpen, ChevronRight, Users } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
+import { SignupRole } from '../lib/accountRules';
 
 /**
  * Login.tsx
@@ -22,7 +23,7 @@ export default function Login() {
     if (!loading && session) navigate('/', { replace: true });
   }, [loading, session, navigate]);
 
-  const goToSignIn = (role: 'tutor' | 'student') => {
+  const goToSignIn = (role: SignupRole) => {
     navigate(`/signin/${role}`);
   };
 
@@ -86,6 +87,24 @@ export default function Login() {
               </span>
               <span className="block text-sm text-slate-500 mt-1">
                 I'm learning — take me to my sign in
+              </span>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-[#15803D] transition-colors shrink-0" />
+          </button>
+
+          {/* Learners under 18 are booked for by a parent or guardian (7k). */}
+          <button
+            type="button"
+            onClick={() => goToSignIn('parent')}
+            className="group w-full rounded-2xl border border-slate-200 bg-white px-6 py-4 text-left transition-all hover:border-[#15803D] hover:bg-emerald-50/40 hover:shadow-md cursor-pointer flex items-center justify-between"
+          >
+            <div>
+              <span className="flex items-center gap-2 font-serif text-xl text-[#0F172A]">
+                <Users className="w-5 h-5 text-[#15803D]" />
+                Parent or guardian
+              </span>
+              <span className="block text-sm text-slate-500 mt-1">
+                I book sessions for a learner under 18
               </span>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-[#15803D] transition-colors shrink-0" />

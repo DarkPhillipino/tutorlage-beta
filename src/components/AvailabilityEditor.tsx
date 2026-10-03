@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Trash2, Clock, AlertCircle } from 'lucide-react';
 import { TutorAvailabilitySlot } from '../types';
 import { addTutorAvailabilitySlot, deleteTutorAvailabilitySlot } from '../lib/queries';
+import { getErrorMessage } from '../lib/errors';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -36,7 +37,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId,
       const slot = await addTutorAvailabilitySlot(tutorId, dayOfWeek, startTime, endTime);
       onChange(sortSlots([...availability, slot]));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not add that slot.');
+      setError(getErrorMessage(e, 'Could not add that slot.'));
     } finally {
       setIsSaving(false);
     }
@@ -49,7 +50,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId,
       await deleteTutorAvailabilitySlot(slotId);
       onChange(availability.filter((s) => s.id !== slotId));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not remove that slot.');
+      setError(getErrorMessage(e, 'Could not remove that slot.'));
     } finally {
       setDeletingId(null);
     }

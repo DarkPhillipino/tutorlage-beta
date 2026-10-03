@@ -1,38 +1,50 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, MapPin, Clock, ChevronDown, ShieldCheck, Search, Loader2, UserX, Tag, X, AlertTriangle, Users, CreditCard } from 'lucide-react';
-import { BookingFormState, TierDefinition, SuggestionItem } from '../types';
+import { ArrowLeft, MapPin, Clock, ChevronDown, ShieldCheck, Search, Loader2, UserX, Tag, X, AlertTriangle, Users, CreditCard, GraduationCap } from 'lucide-react';
+import { BookingFormState, PriceLevel, SuggestionItem } from '../types';
 import { fetchTutors, createSessionRequest } from '../lib/queries';
 import { initializePayment } from '../lib/payments';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate, describeDate } from '../lib/format';
 import { useAuth } from '../lib/AuthContext';
+import { getErrorMessage } from '../lib/errors';
+import { useAccountStatus } from './AccountGate';
+import { COPY } from '../lib/accountRules';
 
 interface PricesPageProps {
+  // Set when a parent/guardian is booking for one of their learners (7k).
+  learner?: { id: string; firstName: string } | null;
   formState: BookingFormState;
   setFormState: React.Dispatch<React.SetStateAction<BookingFormState>>;
+  gradeLevel: string; // account-level — see onChangeGradeLevel
+  onChangeGradeLevel: () => void;
   onBack: () => void;
   onChangeInstitution: () => void;
   onOpenScheduleModal: () => void;
   onSearch: () => void;
-  selectedTier: TierDefinition | null;
-  onClearTier: () => void;
+  selectedLevel: PriceLevel | null;
+  onClearLevel: () => void;
   selectedFormat: SuggestionItem | null;
   onClearFormat: () => void;
 }
 
 export const PricesPage: React.FC<PricesPageProps> = ({
+  learner = null,
   formState,
   setFormState,
+  gradeLevel,
+  onChangeGradeLevel,
   onBack,
   onChangeInstitution,
   onOpenScheduleModal,
   onSearch,
-  selectedTier,
-  onClearTier,
+  selectedLevel,
+  onClearLevel,
   selectedFormat,
   onClearFormat,
 }) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const { isViewOnlyLearner } = useAccountStatus();
+  const isGuardian = profile?.role === 'parent';
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [tutorCount, setTutorCount] = useState(0);
@@ -40,54 +52,43 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   const [loadError, setLoadError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [gradeLevelUnrecognized, setGradeLevelUnrecognized] = useState(false);
-  const [rateBounds, setRateBounds] = useState<{ min: number; max: number } | null>(null);
-  const [rateCurrency, setRateCurrency] = useState('ZAR');
 
   // What the search is actually run against — separate from formState so
-  // editing the subject/grade fields below doesn't re-query on every
-  // keystroke. Only updates when the student re-runs the search (button
-  // below) or a tier is picked/cleared.
-  const [appliedSearch, setAppliedSearch] = useState({
-    subject: formState.subject,
-    gradeLevel: formState.gradeLevel,
-  });
+  // editing the subject field below doesn't re-query on every keystroke.
+  // Only updates when the student re-runs the search (button below), a
+  // tier is picked/cleared, or their account-level grade level changes.
+  const [appliedSubject, setAppliedSubject] = useState(formState.subject);
 
   useEffect(() => {
     setIsLoading(true);
     setLoadError(false);
     fetchTutors({
-      subject: appliedSearch.subject,
-      gradeLevel: appliedSearch.gradeLevel,
-      tierId: selectedTier?.id,
+      subject: appliedSubject,
+      gradeLevel,
       institutionId: formState.institutionId ?? undefined,
     })
       .then(({ tutors, gradeLevelRecognized }) => {
         setTutorCount(tutors.length);
         setGradeLevelUnrecognized(!gradeLevelRecognized);
-        const rates = tutors.map((t) => t.hourlyRate);
-        setRateBounds(rates.length ? { min: Math.min(...rates), max: Math.max(...rates) } : null);
-        if (tutors[0]) setRateCurrency(tutors[0].currencyCode);
       })
       .catch((err) => {
         console.error('fetchTutors failed:', err);
         setTutorCount(0);
-        setRateBounds(null);
         setLoadError(true);
       })
       .finally(() => setIsLoading(false));
-  }, [appliedSearch, selectedTier, retryCount, formState.institutionId]);
+  }, [appliedSubject, gradeLevel, retryCount, formState.institutionId]);
 
-  const searchIsStale = formState.subject !== appliedSearch.subject || formState.gradeLevel !== appliedSearch.gradeLevel;
+  const searchIsStale = formState.subject !== appliedSubject;
 
   const handleApplySearch = () => {
-    setAppliedSearch({ subject: formState.subject, gradeLevel: formState.gradeLevel });
+    setAppliedSubject(formState.subject);
   };
 
   // A pricing tier can't be reached before the search itself is filled out —
   // clicking Search with something missing jumps to the first unfilled
   // field (subject → grade level → institution) instead of proceeding.
   const subjectInputRef = useRef<HTMLInputElement>(null);
-  const gradeLevelInputRef = useRef<HTMLInputElement>(null);
   const [missingField, setMissingField] = useState<'subject' | 'gradeLevel' | 'institution' | null>(null);
 
   const handleSearchClick = () => {
@@ -96,9 +97,9 @@ export const PricesPage: React.FC<PricesPageProps> = ({
       subjectInputRef.current?.focus();
       return;
     }
-    if (!formState.gradeLevel.trim()) {
+    if (!gradeLevel.trim()) {
       setMissingField('gradeLevel');
-      gradeLevelInputRef.current?.focus();
+      onChangeGradeLevel();
       return;
     }
     if (!formState.institution.trim()) {
@@ -110,80 +111,71 @@ export const PricesPage: React.FC<PricesPageProps> = ({
     onSearch();
   };
 
-  // Institution is set via a modal (InstitutionModal), not typed here directly —
-  // clear the missing-field flag once it's filled, same as the onChange handlers
-  // above do for subject/grade level.
+  // Institution and grade level are both set elsewhere (a modal, and
+  // account settings, respectively), not typed here directly — clear the
+  // missing-field flag once either is filled, same as the subject input's
+  // onChange does for itself above.
   useEffect(() => {
     if (missingField === 'institution' && formState.institution.trim()) {
       setMissingField(null);
     }
-  }, [formState.institution, missingField]);
+    if (missingField === 'gradeLevel' && gradeLevel.trim()) {
+      setMissingField(null);
+    }
+  }, [formState.institution, gradeLevel, missingField]);
 
-  // A tier is required before Send Request can charge anything real — it's
-  // the only firm number available before a specific tutor is known (see
-  // the note on acceptAvailableRequest in queries.ts: whatever gets charged
-  // here becomes the session's gross_amount verbatim once a tutor accepts).
+  // A tier is required before Send Request can charge anything real. The
+  // amount shown here is for display only — the database sets the real
+  // price on insert (guard_session_request_insert), and the payments server
+  // charges that stored amount, never a number sent from the browser.
   const durationHours = 1;
-  const chargedAmount = selectedTier ? selectedTier.minRate * durationHours : null;
+  const chargedAmount = selectedLevel ? selectedLevel.price * durationHours : null;
 
-  // Charges the student via Paystack *before* the anonymous request becomes
-  // visible to any tutor (see createSessionRequest/confirmSessionRequestPayment
-  // in queries.ts — payment_status starts at 'initiated' and only the
-  // Paystack redirect + PaymentCallback.tsx flips it to 'paid'), then sends
-  // the browser to Paystack's own hosted checkout. This function's own
-  // "success" is just handing off to Paystack — the actual confirmation
-  // happens on /payment/callback after the student pays (or doesn't).
+  // Creates the request (payment_status 'initiated', invisible to tutors),
+  // then hands off to Paystack's hosted checkout for the R1 card check that
+  // saves the card (backlog 7a). The server, not this page, confirms it with
+  // Paystack on /payment/callback and the database makes the request visible
+  // to tutors. The price is charged only when a tutor accepts.
   const handleSendRequest = async () => {
-    if (!user?.email || !selectedTier || chargedAmount === null) return;
+    if (!user?.email || !selectedLevel || chargedAmount === null) return;
+    if (isGuardian && !learner) return;
     setSendError(null);
     setIsSending(true);
     try {
       const reference = crypto.randomUUID();
 
       await createSessionRequest({
-        studentId: user.id,
-        subjectName: appliedSearch.subject,
-        gradeLevel: appliedSearch.gradeLevel,
-        tierId: selectedTier.id,
+        // A guardian books for their learner and pays with their own email.
+        studentId: learner?.id ?? user.id,
+        requestedById: user.id,
+        subjectName: appliedSubject,
+        gradeLevel,
+        minSubTierId: selectedLevel.id,
         institutionId: formState.institutionId,
         scheduleType: formState.scheduleType,
         scheduledDate: formState.scheduledDate,
         scheduledTime: formState.scheduledTime,
         durationHours,
         paystackReference: reference,
-        chargedAmount,
-        currencyCode: selectedTier.currencyCode,
       });
 
-      const { authorizationUrl } = await initializePayment({
-        email: user.email,
-        amountRands: chargedAmount,
-        reference,
-        currency: selectedTier.currencyCode,
-        metadata: { subject: appliedSearch.subject, gradeLevel: appliedSearch.gradeLevel },
-      });
+      const { authorizationUrl } = await initializePayment(reference);
 
       window.location.href = authorizationUrl;
     } catch (e) {
-      setSendError(e instanceof Error ? e.message : 'Could not start payment.');
+      setSendError(getErrorMessage(e, 'Could not start the card check.'));
       setIsSending(false);
     }
   };
-
-  const rateRangeText = rateBounds
-    ? `${getCurrencySymbol(rateCurrency)}${formatRate(rateBounds.min)} - ${getCurrencySymbol(rateCurrency)}${formatRate(rateBounds.max)} / hr`
-    : '—';
 
   // What to tell the student when the search came back empty — distinguishes
   // "the platform genuinely has no tutors yet" from "your subject/grade
   // level/tier just didn't match anyone," which used to collapse into the
   // same misleading "no tutors have registered" message regardless of cause.
-  const hasSearchFilter = !!appliedSearch.subject.trim() || !!appliedSearch.gradeLevel.trim();
+  const hasSearchFilter = !!appliedSubject.trim() || !!gradeLevel.trim();
   const noTutorsMessage = hasSearchFilter
-    ? `No tutors match "${appliedSearch.subject || 'any subject'}" (${appliedSearch.gradeLevel || 'any grade level'})${selectedTier ? ` in the ${selectedTier.publicName} tier` : ''} yet — try a different subject, grade level, or tier.`
-    : selectedTier
-      ? `No tutors are currently in the ${selectedTier.publicName} tier — try another tier.`
-      : 'No tutors have registered on Tutorlage yet — check back soon.';
+    ? `No tutors match "${appliedSubject || 'any subject'}" (${gradeLevel || 'any grade level'}) yet — try a different subject or check back soon.`
+    : 'No tutors have registered on Tutorlage yet — check back soon.';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -202,26 +194,28 @@ export const PricesPage: React.FC<PricesPageProps> = ({
 
           <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-xs font-bold text-[#15803D] flex items-center space-x-2">
             <ShieldCheck className="w-4 h-4 shrink-0" />
-            <span>Zero platform markup on every tutor rate shown</span>
+            <span>One clear price for the level you choose — nothing added at checkout</span>
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight mb-6">
             Find a tutor
           </h1>
 
-          {selectedTier && (
+          {selectedLevel && (
             <div className="mb-6 flex items-center justify-between gap-2 px-4 py-3 rounded-xl bg-[#0F172A] text-white">
               <div className="flex items-center space-x-2 min-w-0">
                 <Tag className="w-4 h-4 text-emerald-400 shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-xs font-bold truncate">{selectedTier.publicName}</div>
+                  <div className="text-xs font-bold truncate">
+                    {getCurrencySymbol(selectedLevel.currencyCode)}{formatRate(selectedLevel.price)} / hr · {selectedLevel.tierName}
+                  </div>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={onClearTier}
+                onClick={onClearLevel}
                 className="p-1 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer shrink-0"
-                aria-label="Clear pricing tier"
+                aria-label="Clear price level"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -268,23 +262,22 @@ export const PricesPage: React.FC<PricesPageProps> = ({
               <p className="text-xs font-semibold text-rose-600 -mt-2">Enter a subject to start searching.</p>
             )}
 
-            {/* Grade level field */}
-            <div className={`relative flex items-center bg-slate-100 rounded-xl px-4 py-3.5 border transition-all focus-within:border-[#15803D] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#15803D]/20 ${missingField === 'gradeLevel' ? 'border-rose-400 ring-2 ring-rose-200' : 'border-transparent'}`}>
-              <div className="mr-3 w-2.5 h-2.5 bg-[#0F172A] shrink-0" />
-              <input
-                ref={gradeLevelInputRef}
-                type="text"
-                value={formState.gradeLevel}
-                onChange={(e) => {
-                  setFormState(prev => ({ ...prev, gradeLevel: e.target.value }));
-                  if (missingField === 'gradeLevel') setMissingField(null);
-                }}
-                placeholder="Grade level or topic"
-                className="w-full bg-transparent text-[#0F172A] placeholder-slate-500 text-sm font-semibold focus:outline-none"
-              />
+            {/* Grade level — account-level info, not re-entered per search */}
+            <div className={`flex items-center bg-slate-100 rounded-xl px-4 py-3.5 border ${missingField === 'gradeLevel' ? 'border-rose-400 ring-2 ring-rose-200' : 'border-transparent'}`}>
+              <GraduationCap className="w-4 h-4 mr-2 text-[#0F172A] shrink-0" />
+              <span className="flex-1 text-[#0F172A] text-sm font-semibold truncate">
+                {gradeLevel || 'Grade level not set'}
+              </span>
+              <button
+                type="button"
+                onClick={onChangeGradeLevel}
+                className="text-xs font-bold text-[#15803D] hover:underline shrink-0 ml-2 cursor-pointer"
+              >
+                {gradeLevel ? 'Change' : 'Set in account'}
+              </button>
             </div>
             {missingField === 'gradeLevel' && (
-              <p className="text-xs font-semibold text-rose-600 -mt-2">Enter a grade level to start searching.</p>
+              <p className="text-xs font-semibold text-rose-600 -mt-2">Set your grade level in account settings to start searching.</p>
             )}
 
             {searchIsStale && (
@@ -327,7 +320,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
               <Clock className="w-4 h-4 text-[#0F172A]" />
               <span>
                 {formState.scheduleType === 'now'
-                  ? 'Pickup now — instant matching'
+                  ? 'As soon as possible'
                   : `Scheduled: ${describeDate(formState.scheduledDate)}, ${formState.scheduledTime || '14:00'}`}
               </span>
             </span>
@@ -356,17 +349,13 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                 {tutorCount} tutor{tutorCount === 1 ? '' : 's'} available
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Matching for <span className="font-semibold text-[#0F172A]">{appliedSearch.subject || 'any subject'}</span> ({appliedSearch.gradeLevel || 'any grade level'})
-                {selectedTier && <> · <span className="font-semibold text-[#0F172A]">{selectedTier.publicName}</span> tier</>}
+                Matching for <span className="font-semibold text-[#0F172A]">{appliedSubject || 'any subject'}</span> ({gradeLevel || 'any grade level'})
               </p>
               {gradeLevelUnrecognized && (
                 <p className="text-xs text-amber-600 font-semibold mt-1">
-                  We don't recognize "{appliedSearch.gradeLevel}" as a grade level — showing results for any grade level instead.
+                  We don't recognize "{gradeLevel}" as a grade level — showing results for any grade level instead.
                 </p>
               )}
-            </div>
-            <div className="text-xs font-medium text-slate-500">
-              Avg Rate: <span className="font-bold text-[#0F172A]">{rateRangeText}</span>
             </div>
           </div>
 
@@ -403,23 +392,22 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   {noTutorsMessage}
                 </p>
               </div>
-            ) : !selectedTier ? (
+            ) : !selectedLevel ? (
               <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-xs flex flex-col items-center text-center">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 shadow-xs flex items-center justify-center text-[#15803D] mb-3">
                   <Users className="w-7 h-7" />
                 </div>
                 <p className="text-sm font-bold text-[#0F172A] mb-1">
-                  {tutorCount} qualifying tutor{tutorCount === 1 ? '' : 's'} in range ({rateRangeText})
+                  {tutorCount} tutor{tutorCount === 1 ? '' : 's'} teach{tutorCount === 1 ? 'es' : ''} this subject
                 </p>
                 <p className="text-xs text-slate-500 mb-5 max-w-sm">
-                  Choose a pricing tier so we know the exact amount to charge — payment happens before your
-                  request goes out to tutors, so the price has to be firm first.
+                  Choose a price level so you know exactly what you'll pay before you send your request.
                 </p>
                 <button
                   onClick={onSearch}
                   className="px-6 py-3 bg-[#0F172A] hover:bg-slate-800 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
                 >
-                  Choose a pricing tier
+                  Choose a price
                 </button>
               </div>
             ) : (
@@ -428,20 +416,45 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   <CreditCard className="w-7 h-7" />
                 </div>
                 <p className="text-sm font-bold text-[#0F172A] mb-1">
-                  {tutorCount} qualifying tutor{tutorCount === 1 ? '' : 's'} ready to take this request
+                  {selectedLevel.tutors} tutor{selectedLevel.tutors === 1 ? '' : 's'} at this level or above can take this request
                 </p>
-                <p className="text-xs text-slate-500 mb-5 max-w-sm">
-                  You'll be charged <span className="font-bold text-[#0F172A]">{getCurrencySymbol(selectedTier.currencyCode)}{formatRate(chargedAmount ?? 0)}</span> now
-                  via Paystack ({selectedTier.publicName} tier). The first qualifying tutor to accept is matched with
-                  you — no need to pick one yourself.
-                </p>
-                <button
-                  onClick={handleSendRequest}
-                  disabled={isSending}
-                  className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
-                >
-                  {isSending ? 'Redirecting to secure payment…' : `Pay ${getCurrencySymbol(selectedTier.currencyCode)}${formatRate(chargedAmount ?? 0)} & Send Request`}
-                </button>
+                {isViewOnlyLearner ? (
+                  <p className="text-xs text-slate-600 max-w-sm bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                    {COPY.viewOnlyLearner}
+                  </p>
+                ) : isGuardian && !learner ? (
+                  <>
+                    <p className="text-xs text-slate-500 mb-5 max-w-sm">
+                      Choose which of your learners this session is for on the home page, then come back to send the request.
+                    </p>
+                    <button
+                      onClick={onBack}
+                      className="px-6 py-3 bg-[#0F172A] hover:bg-slate-800 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+                    >
+                      Choose a learner
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-slate-500 mb-5 max-w-sm">
+                      You'll pay <span className="font-bold text-[#0F172A]">{getCurrencySymbol(selectedLevel.currencyCode)}{formatRate(chargedAmount ?? 0)}</span>,
+                      charged to your card only when a tutor at this level or above accepts. The first to accept is matched with{' '}
+                      {learner ? learner.firstName : 'you'}, and you'll see who they are before the session. If nobody accepts in time, you're never charged.
+                    </p>
+                    <p className="text-[11px] text-slate-500 mb-5 max-w-sm">
+                      To save your card, Paystack makes a {getCurrencySymbol(selectedLevel.currencyCode)}1 check now and refunds it straight away.
+                    </p>
+                    <button
+                      onClick={handleSendRequest}
+                      disabled={isSending}
+                      className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+                    >
+                      {isSending
+                        ? 'Redirecting to secure checkout…'
+                        : `Save card & send request${learner ? ` for ${learner.firstName}` : ''}`}
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>

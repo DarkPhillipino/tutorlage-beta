@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Inbox, Check, X, Loader2, AlertCircle } from 'lucide-react';
-import { AvailableSessionRequest } from '../types';
-import { fetchAvailableRequests, acceptAvailableRequest } from '../lib/queries';
+import { Inbox, Check, X, Loader2, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { AvailableSessionRequest, PayoutAccount } from '../types';
+import { fetchAvailableRequests, fetchMyPayoutAccount } from '../lib/queries';
+import { acceptRequest } from '../lib/payments';
+import { getErrorMessage } from '../lib/errors';
+import { getCurrencySymbol } from '../lib/currencies';
+import { formatRate } from '../lib/format';
+import { PayoutAccountPanel } from './PayoutAccountPanel';
 
 interface AvailableRequestsQueueProps {
   tutorId: string;
@@ -15,6 +20,10 @@ interface AvailableRequestsQueueProps {
 // stuck looking at a request they can't help with for the rest of this
 // session — it stays visible to every other tutor and reappears for this
 // one on next reload.
+//
+// Accepting charges the learner's saved card (backlog 7a), split so the
+// tutor's share goes straight to their payout account — so a tutor needs one
+// before they can accept a paid request.
 export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ tutorId }) => {
   const [requests, setRequests] = useState<AvailableSessionRequest[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
@@ -23,6 +32,8 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
   const [retryCount, setRetryCount] = useState(0);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'booked' | 'confirming'; text: string } | null>(null);
+  const [payoutAccount, setPayoutAccount] = useState<PayoutAccount | null | undefined>(undefined);
 
   useEffect(() => {
     setIsLoading(true);
@@ -37,18 +48,34 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
       .finally(() => setIsLoading(false));
   }, [tutorId, retryCount]);
 
+  useEffect(() => {
+    fetchMyPayoutAccount(tutorId)
+      .then(setPayoutAccount)
+      .catch((err) => {
+        console.error('fetchMyPayoutAccount failed:', err);
+        setPayoutAccount(null);
+      });
+  }, [tutorId]);
+
   const visibleRequests = requests.filter((r) => !dismissedIds.has(r.id));
+  const needsPayoutAccount = payoutAccount === null || (payoutAccount !== undefined && !payoutAccount.canReceivePayments);
 
   const handleAccept = async (request: AvailableSessionRequest) => {
     setError(null);
+    setNotice(null);
     setAcceptingId(request.id);
     try {
-      await acceptAvailableRequest(request, tutorId);
+      const result = await acceptRequest(request.id);
       setRequests((prev) => prev.filter((r) => r.id !== request.id));
+      setNotice(
+        result.status === 'booked'
+          ? { kind: 'booked', text: 'Booked. The session is in Your Sessions — add the meeting link there before it starts.' }
+          : { kind: 'confirming', text: result.message },
+      );
     } catch (e) {
       // Someone else may have just claimed it — refresh so this tutor
       // isn't left staring at a request that's no longer really available.
-      setError(e instanceof Error ? e.message : 'Could not accept that request.');
+      setError(getErrorMessage(e, 'Could not accept that request.'));
       setRetryCount((c) => c + 1);
     } finally {
       setAcceptingId(null);
@@ -66,6 +93,12 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
           <span className="text-[10px] font-bold bg-[#15803D] text-white px-2 py-0.5 rounded-full">{visibleRequests.length}</span>
         )}
       </div>
+
+      {needsPayoutAccount && visibleRequests.length > 0 && (
+        <div className="mb-2">
+          <PayoutAccountPanel tutorId={tutorId} onSaved={setPayoutAccount} />
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-6 text-slate-400">
@@ -98,8 +131,13 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
                     </div>
                     <div className="text-[10px] text-slate-500 mt-0.5">
                       {requestedDate.toLocaleDateString()} {requestedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {r.durationHours}h
-                      {r.tierName ? ` · ${r.tierName}` : ''}
+                      {r.levelId ? ` · Level ${r.levelId}` : r.tierName ? ` · ${r.tierName}` : ''}
                     </div>
+                    {r.tutorPayout != null && (
+                      <div className="text-[10px] font-bold text-[#15803D] mt-0.5">
+                        You earn {getCurrencySymbol(r.currencyCode)}{formatRate(r.tutorPayout)}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
@@ -126,9 +164,15 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
         </div>
       )}
 
+      {notice && (
+        <div className={`flex items-start gap-1.5 mt-2 text-[11px] font-semibold ${notice.kind === 'booked' ? 'text-[#15803D]' : 'text-amber-700'}`}>
+          {notice.kind === 'booked' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" /> : <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" />}
+          <span>{notice.text}</span>
+        </div>
+      )}
       {error && (
-        <div className="flex items-center gap-1.5 mt-2 text-[11px] text-rose-600 font-semibold">
-          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+        <div className="flex items-start gap-1.5 mt-2 text-[11px] text-rose-600 font-semibold">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>
       )}

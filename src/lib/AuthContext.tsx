@@ -37,8 +37,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProfile(null);
       return;
     }
-    fetchProfile(session.user.id)
-      .then(setProfile)
+    fetchProfile(session.user.id, session.user.email ?? '')
+      .then((fetchedProfile) => {
+        if (!fetchedProfile) {
+          // A valid session with no matching profiles row (e.g. the account
+          // was deleted after the session was issued) previously left the
+          // app stuck treating the user as signed in with nothing behind
+          // it — RequireAuth only checks for a session, so it let them
+          // through, and every profile-dependent screen just hung showing
+          // "Loading…" forever. Treat a missing profile as an invalid
+          // session instead: sign out, which flips `session` to null and
+          // lets RequireAuth redirect to /login normally.
+          supabase.auth.signOut();
+          return;
+        }
+        setProfile(fetchedProfile);
+      })
       .catch(() => setProfile(null));
   }, [session?.user?.id]);
 

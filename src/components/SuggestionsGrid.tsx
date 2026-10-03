@@ -3,44 +3,39 @@ import { UserCheck, Calendar, FileText, GraduationCap, Users, UserPlus, ArrowUpR
 import { SuggestionItem } from '../types';
 
 // Static learning-format copy — there's no database table for this, it's
-// presentational content the UI owns, not tutor/institution data.
+// presentational content the UI owns, not tutor/institution data. Wording
+// from Drake/marketing-gtm/site-copy-v1.md. The "Group Classes" card was
+// removed: group sessions don't exist yet (game-plan P1 item 33). The
+// "Popular"/"High Impact" badges were dropped too — no data backs either.
 const SUGGESTIONS_LIST: SuggestionItem[] = [
   {
     id: '1-on-1',
     title: '1-on-1 Tutoring',
-    description: 'Personalized live instruction tailored to your specific pace & syllabus.',
-    iconName: '1-on-1',
-    badge: 'Popular'
+    description: "Live, one-to-one help with the work you're stuck on.",
+    iconName: '1-on-1'
   },
   {
     id: 'scheduled',
     title: 'Scheduled Sessions',
-    description: 'Book ahead for weekly recurring study blocks with top verified mentors.',
+    description: 'Book a session for a day and time that suits you.',
     iconName: 'scheduled'
   },
   {
     id: 'homework',
     title: 'Homework Help',
-    description: 'Get step-by-step guidance on assignments, code reviews, and labs.',
+    description: 'Work through a specific assignment or problem set with a tutor.',
     iconName: 'homework'
   },
   {
     id: 'examprep',
     title: 'Exam Prep',
-    description: 'Targeted past-paper drills, crash courses, and exam strategy reviews.',
-    iconName: 'examprep',
-    badge: 'High Impact'
-  },
-  {
-    id: 'group',
-    title: 'Group Classes',
-    description: 'Collaborative peer workshops with max 6 students per session.',
-    iconName: 'group'
+    description: 'Focused sessions before a test or exam.',
+    iconName: 'examprep'
   },
   {
     id: 'teens',
-    title: 'Kids & Teens',
-    description: 'Engaging, safe foundational tutoring for secondary school learners.',
+    title: 'High School Learners',
+    description: "Help for Grades 8-12 with the CAPS subjects they're taking.",
     iconName: 'teens'
   }
 ];
@@ -145,7 +140,7 @@ export const SuggestionsGrid: React.FC<SuggestionsGridProps> = ({ onSelectSugges
       <div className="mt-6 pt-5 border-t border-slate-100 flex items-center text-xs text-slate-500">
         <div className="flex items-center space-x-1.5">
           <Sparkles className="w-4 h-4 text-[#15803D]" />
-          <span className="font-medium">100% Academic Vetted Mentors</span>
+          <span className="font-medium">One request, one clear price, and you see who your tutor is before you start</span>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, CheckCircle, ArrowRight, Star, ShieldCheck, Sparkles, BookOpen } from 'lucide-react';
+import { X, CheckCircle, ArrowRight, ShieldCheck, Sparkles, BookOpen } from 'lucide-react';
 import { SuggestionItem } from '../types';
 
 interface SuggestionDetailModalProps {
@@ -15,51 +15,45 @@ export const SuggestionDetailModal: React.FC<SuggestionDetailModalProps> = ({
 }) => {
   if (!item) return null;
 
+  // Wording from Drake/marketing-gtm/site-copy-v1.md — each line must be true
+  // today (no document-review, "excelled" or group-session claims until those
+  // are real; see backlog item 3).
   const getFormatFeatures = (id: string) => {
     switch (id) {
       case '1-on-1':
         return [
-          'Direct live video or on-campus meeting with top-ranked campus tutors',
-          'Custom syllabus alignment according to your course module codes',
-          'Instant session recordings & whiteboards stored in your account',
-          'Flexibility to switch tutors with zero cancellation fee'
+          'One-to-one online sessions with a matched tutor',
+          'A single price for the level you choose',
+          'Send one request — no back-and-forth to find someone free'
         ];
       case 'scheduled':
         return [
-          'Lock in weekly fixed study slots before exam periods fill up',
-          'Discounted recurring package rates (up to 20% off standard hourly)',
-          'Automated Google Calendar integration & reminder notifications',
-          'Progress tracking reports shared after every milestone'
+          'Pick a future date and time',
+          'Same price for the level you choose',
+          'A tutor who fits accepts your request'
         ];
       case 'homework':
         return [
-          'Upload assignment rubrics, Python notebooks, or math problem sets',
-          'Step-by-step conceptual guidance (not just direct answers)',
-          'Code review & debugging for computer science labs',
-          'Turnaround times as fast as 30 minutes'
+          "Bring the assignment you're stuck on",
+          'Step-by-step help, not answers handed over',
+          'Same booking and pricing as any session'
         ];
       case 'examprep':
         return [
-          'Curated vault of past exam papers & memorandum walkthroughs',
-          'High-yield formula cheat sheets & exam technique drills',
-          'Time management strategies for midterms & finals'
-        ];
-      case 'group':
-        return [
-          'Collaborative workshops with max 6 students per classroom',
-          'Peer discussion groups moderated by senior tutors',
-          'Cost-effective option starting at R120 / hr per student',
-          'Interactive Q&A sessions before major assignment deadlines'
+          'Sessions focused on an upcoming test or exam',
+          'Matched with a tutor who teaches that subject',
+          'Same booking and pricing as any session'
         ];
       case 'teens':
         return [
-          'Vetted, background-checked tutors trained in secondary pedagogy',
-          'Curriculum support for CAPS, IEB, Cambridge & IB syllabi',
-          'Weekly parent updates and study habit monitoring',
-          'Gamified learning modules for STEM & languages'
+          'For learners in Grades 8-12',
+          // "A parent or guardian holds the account and books" goes here once the
+          // guardian account flow ships (backlog 7k) — not true before then.
+          "Help with the CAPS subjects they're taking",
+          'You see who the tutor is before the session'
         ];
       default:
-        return ['Verified academic mentorship', 'Personalized learning plans'];
+        return ['One request, one matched tutor', 'One clear price'];
     }
   };
 
@@ -119,7 +113,7 @@ export const SuggestionDetailModal: React.FC<SuggestionDetailModalProps> = ({
           <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center text-xs">
             <div className="flex items-center space-x-2 text-[#15803D] font-bold">
               <ShieldCheck className="w-4 h-4" />
-              <span>Verified Institution Mentors</span>
+              <span>You see who your tutor is before you start</span>
             </div>
           </div>
         </div>
@@ -139,7 +133,7 @@ export const SuggestionDetailModal: React.FC<SuggestionDetailModalProps> = ({
             }}
             className="px-5 py-2.5 bg-[#15803D] hover:bg-[#166534] text-white font-bold text-xs rounded-xl transition-all shadow-xs cursor-pointer flex items-center space-x-1.5"
           >
-            <span>Find {item.title} Tutors</span>
+            <span>Find a tutor</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

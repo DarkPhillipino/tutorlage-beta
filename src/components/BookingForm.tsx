@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Clock, ChevronDown, ArrowRight, Circle, Square, Search, Sparkles } from 'lucide-react';
+import { MapPin, Clock, ChevronDown, ArrowRight, Circle, Square, Search, Sparkles, GraduationCap } from 'lucide-react';
 import { BookingFormState } from '../types';
-import { fetchSubjectSuggestions, fetchGradeLevelSuggestions } from '../lib/queries';
+import { fetchSubjectSuggestions } from '../lib/queries';
 import { describeDate } from '../lib/format';
 
 interface BookingFormProps {
   formState: BookingFormState;
   setFormState: React.Dispatch<React.SetStateAction<BookingFormState>>;
+  gradeLevel: string; // account-level, read-only here — see onChangeGradeLevel
+  onChangeGradeLevel: () => void;
   onChangeInstitution: () => void;
   onOpenScheduleModal: () => void;
   onSeePrices: () => void;
@@ -15,14 +17,14 @@ interface BookingFormProps {
 export const BookingForm: React.FC<BookingFormProps> = ({
   formState,
   setFormState,
+  gradeLevel,
+  onChangeGradeLevel,
   onChangeInstitution,
   onOpenScheduleModal,
   onSeePrices,
 }) => {
   const [showSubjectSuggestions, setShowSubjectSuggestions] = useState(false);
-  const [showGradeSuggestions, setShowGradeSuggestions] = useState(false);
   const [subjectOptions, setSubjectOptions] = useState<string[]>([]);
-  const [gradeLevelOptions, setGradeLevelOptions] = useState<string[]>([]);
 
   useEffect(() => {
     fetchSubjectSuggestions()
@@ -31,20 +33,10 @@ export const BookingForm: React.FC<BookingFormProps> = ({
         console.error('fetchSubjectSuggestions failed:', err);
         setSubjectOptions([]);
       });
-    fetchGradeLevelSuggestions()
-      .then(setGradeLevelOptions)
-      .catch((err) => {
-        console.error('fetchGradeLevelSuggestions failed:', err);
-        setGradeLevelOptions([]);
-      });
   }, []);
 
   const filteredSubjects = subjectOptions.filter(s =>
     s.toLowerCase().includes(formState.subject.toLowerCase())
-  );
-
-  const filteredGradeLevels = gradeLevelOptions.filter(g =>
-    g.toLowerCase().includes(formState.gradeLevel.toLowerCase())
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -145,47 +137,22 @@ export const BookingForm: React.FC<BookingFormProps> = ({
         </div>
 
         
-        {/* Input 2: Grade Level or Topic */}
-        <div className="relative">
-          <div className="relative flex items-center bg-slate-100 rounded-xl px-4 py-3.5 border border-transparent focus-within:border-[#15803D] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#15803D]/20 transition-all">
-            {/* Square Indicator */}
-            <div className="mr-3 flex flex-col items-center justify-center">
-              <div className="w-2.5 h-2.5 bg-[#0F172A]"></div>
-            </div>
-
-            <input
-              type="text"
-              value={formState.gradeLevel}
-              onChange={(e) => setFormState(prev => ({ ...prev, gradeLevel: e.target.value }))}
-              onFocus={() => setShowGradeSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowGradeSuggestions(false), 200)}
-              placeholder="Enter grade level or topic"
-              className="w-full bg-transparent text-[#0F172A] placeholder-slate-500 text-sm sm:text-base font-semibold focus:outline-none"
-            />
+        {/* Grade level — account-level info, not re-entered per search (set
+            once in account settings; see BookingForm's onChangeGradeLevel) */}
+        <div className="flex items-center bg-slate-100 rounded-xl px-4 py-3.5">
+          <div className="mr-3 flex flex-col items-center justify-center shrink-0">
+            <GraduationCap className="w-4 h-4 text-[#0F172A]" />
           </div>
-
-          {/* Grade Level Autocomplete Dropdown */}
-          {showGradeSuggestions && filteredGradeLevels.length > 0 && (
-            <div className="absolute left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-30 max-h-52 overflow-y-auto">
-              <div className="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Select Academic Level
-              </div>
-              {filteredGradeLevels.map((lvl, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onMouseDown={() => {
-                    setFormState(prev => ({ ...prev, gradeLevel: lvl }));
-                    setShowGradeSuggestions(false);
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm text-[#0F172A] font-medium hover:bg-slate-50 flex items-center justify-between"
-                >
-                  <span>{lvl}</span>
-                  <span className="text-xs text-slate-400 font-normal">Select</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <span className="flex-1 text-[#0F172A] text-sm sm:text-base font-semibold truncate">
+            {gradeLevel || 'Grade level not set'}
+          </span>
+          <button
+            type="button"
+            onClick={onChangeGradeLevel}
+            className="text-xs font-bold text-[#15803D] hover:underline shrink-0 ml-2 cursor-pointer"
+          >
+            {gradeLevel ? 'Change' : 'Set in account'}
+          </button>
         </div>
 
         {/* Main CTA Button strictly titled "See prices" */}

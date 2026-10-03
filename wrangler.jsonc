@@ -1,0 +1,26 @@
+// Cloudflare Workers config for the payments API (server/worker.ts). Master backlog item 1.
+// Deploy: `npx wrangler deploy`. Secrets are never in this file; the CEO sets them once with
+//   npx wrangler secret put PAYSTACK_SECRET_KEY
+//   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+// The service-role key must belong to the project in SUPABASE_URL below.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tutorlage-api",
+  "main": "server/worker.ts",
+  "compatibility_date": "2026-09-15",
+  "compatibility_flags": ["nodejs_compat"],
+  // Express 4 loads iconv-lite on start-up, and the real package crashes on Workers; see the shim's header.
+  "alias": { "iconv-lite": "./server/shims/iconv-lite.cjs" },
+  // Served only on its own workers.dev address, not under tutorlage.com: the domain is on Cloudflare's
+  // free plan, and the agreement's 2.2.1(h) bars card information on anything receiving Free Services.
+  "workers_dev": true,
+  "vars": {
+    // Dev for now: the public site and every test account use it. Switch with the site (master item 6).
+    "SUPABASE_URL": "https://wfpjoxetbprmllqqarwp.supabase.co",
+    // The GitHub Pages site. Add the real domain here when the site moves to it.
+    "ALLOWED_ORIGINS": "https://darkphillipino.github.io",
+    // Cloudflare sets this header to the visitor's address; see rateLimit() in server/index.ts.
+    "RATE_LIMIT_IP_HEADER": "cf-connecting-ip"
+  },
+  "observability": { "enabled": true }
+}

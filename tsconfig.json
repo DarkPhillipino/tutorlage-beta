@@ -23,5 +23,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["node_modules", "admin", "server", "dist", "build"]
+  "exclude": ["node_modules", "admin", "dist", "build"]
 }

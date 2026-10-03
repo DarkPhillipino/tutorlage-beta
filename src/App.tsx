@@ -6,7 +6,7 @@ import { SubHeaderBanner } from './components/SubHeaderBanner';
 import { BookingForm } from './components/BookingForm';
 import { SuggestionsGrid } from './components/SuggestionsGrid';
 import { PricesPage } from './components/PricesPage';
-import { TierSelectionPage } from './components/TierSelectionPage';
+import { LevelSelectionPage } from './components/LevelSelectionPage';
 import { TeachGoScreen } from './components/TeachGoScreen';
 import { AboutPage } from './components/AboutPage';
 import { InstitutionModal } from './components/InstitutionModal';
@@ -14,10 +14,12 @@ import { ScheduleModal } from './components/ScheduleModal';
 import { SuggestionDetailModal } from './components/SuggestionDetailModal';
 import { ManageAccountModal } from './components/ManageAccountModal';
 import { Footer } from './components/Footer';
+import { LearnersPanel } from './components/LearnersPanel';
+import { LinkedLearner, fetchMyLearners } from './lib/guardian';
 
-import { BookingFormState, SuggestionItem, UserAccount, TierDefinition, Institution } from './types';
+import { BookingFormState, SuggestionItem, UserAccount, PriceLevel, Institution } from './types';
 import { toIsoDate } from './lib/format';
-import { fetchUpcomingStudentSessions } from './lib/queries';
+import { fetchUpcomingStudentSessions, fetchStudentGradeLevel } from './lib/queries';
 
 export default function App() {
   const navigate = useNavigate();
@@ -31,20 +33,20 @@ export default function App() {
     institution: '',
     institutionId: null,
     subject: '',
-    gradeLevel: '',
     scheduleType: 'now',
     scheduledDate: toIsoDate(new Date()),
     scheduledTime: '14:00',
   });
 
   // User Account State. Name/email come from the real signed-in profile;
-  // upcomingSessions is now real too (see below) — completedSessions/
+  // upcomingSessions/gradeLevel are now real too (see below) — completedSessions/
   // savedTutorsCount aren't backed by real queries yet, so they stay
   // placeholder zeros rather than fabricated numbers.
   const [userAccount, setUserAccount] = useState<UserAccount>({
     name: '',
     email: '',
     institution: '',
+    gradeLevel: '',
     upcomingSessions: 0,
     completedSessions: 0,
     savedTutorsCount: 0,
@@ -55,16 +57,31 @@ export default function App() {
     setUserAccount(prev => ({ ...prev, name: profile.fullName, email: profile.email }));
   }, [profile]);
 
+  // A guardian's upcoming count is their learners' sessions (backlog 7k).
+  const role = profile?.role;
   useEffect(() => {
-    if (!user) return;
-    fetchUpcomingStudentSessions(user.id)
+    if (!user || !role) return;
+    const learnerIds = role === 'parent'
+      ? fetchMyLearners(user.id).then((learners) => learners.map((l) => l.id))
+      : Promise.resolve([user.id]);
+    learnerIds
+      .then(fetchUpcomingStudentSessions)
       .then((sessions) => setUserAccount(prev => ({ ...prev, upcomingSessions: sessions.length })))
       .catch((err) => console.error('fetchUpcomingStudentSessions failed:', err));
-  }, [user]);
+    fetchStudentGradeLevel(user.id)
+      .then((gradeLevel) => setUserAccount(prev => ({ ...prev, gradeLevel: gradeLevel ?? '' })))
+      .catch((err) => console.error('fetchStudentGradeLevel failed:', err));
+  }, [user, role]);
+
+  // Parents/guardians book for one of their learners (backlog 7k): the search
+  // uses that learner's grade, and the request is made for them.
+  const isGuardian = profile?.role === 'parent';
+  const [bookingFor, setBookingFor] = useState<LinkedLearner | null>(null);
+  const searchGradeLevel = isGuardian ? (bookingFor?.gradeLevel ?? '') : userAccount.gradeLevel;
 
   // Page / view state
   const [view, setView] = useState<'home' | 'prices' | 'tiers' | 'teach' | 'about'>('home');
-  const [selectedTier, setSelectedTier] = useState<TierDefinition | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<PriceLevel | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<SuggestionItem | null>(null);
 
   // Left-nav clicks (Learn/Teach/About, and Schools/Resources while they're
@@ -88,6 +105,16 @@ export default function App() {
     setIsManageAccountOpen(true);
   };
 
+  // A learner's grade is set when their guardian adds them, so a guardian
+  // "changes grade" by choosing the learner on the home page.
+  const handleChangeGradeLevel = () => {
+    if (isGuardian) {
+      setView('home');
+    } else {
+      openManageAccount('profile');
+    }
+  };
+
   // Notification / Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -102,6 +129,14 @@ export default function App() {
     setFormState(prev => ({ ...prev, institution: institution.name, institutionId: institution.id }));
     setUserAccount(prev => ({ ...prev, institution: institution.name }));
     showToast(`Institution updated to "${institution.name}"`);
+  };
+
+  // ManageAccountModal.tsx persists the actual write (updateStudentGradeLevel)
+  // and only calls this once that succeeds — mirrors how institution changes
+  // flow back up to keep a single source of truth in this component's state.
+  const handleGradeLevelChange = (gradeLevel: string) => {
+    setUserAccount(prev => ({ ...prev, gradeLevel }));
+    showToast(`Grade level updated to "${gradeLevel}"`);
   };
 
   const handleUpdateSchedule = (scheduleType: 'now' | 'scheduled', date?: string, time?: string) => {
@@ -141,7 +176,6 @@ export default function App() {
       <SubHeaderBanner
         upcomingSessionsCount={userAccount.upcomingSessions}
         onOpenActivity={() => showToast(`Activity log: ${userAccount.completedSessions} completed tutoring session${userAccount.completedSessions === 1 ? '' : 's'}.`)}
-        onOpenPromotions={() => showToast('Promotions: Use code CAMPUS2026 for 15% off exam prep!')}
         onOpenAccount={() => openManageAccount('profile')}
       />
 
@@ -157,24 +191,28 @@ export default function App() {
             onViewTeachingProfile={() => openManageAccount('teaching')}
           />
         ) : view === 'tiers' ? (
-          <TierSelectionPage
+          <LevelSelectionPage
             formState={formState}
+            gradeLevel={searchGradeLevel}
             onBack={() => setView('prices')}
-            onSelectTier={(tier) => {
-              setSelectedTier(tier);
+            onSelectLevel={(level) => {
+              setSelectedLevel(level);
               setView('prices');
             }}
           />
         ) : view === 'prices' ? (
           <PricesPage
+            learner={isGuardian && bookingFor ? { id: bookingFor.id, firstName: bookingFor.firstName } : null}
             formState={formState}
             setFormState={setFormState}
+            gradeLevel={searchGradeLevel}
+            onChangeGradeLevel={handleChangeGradeLevel}
             onBack={() => setView('home')}
             onChangeInstitution={() => setIsInstitutionModalOpen(true)}
             onOpenScheduleModal={() => setIsScheduleModalOpen(true)}
             onSearch={() => setView('tiers')}
-            selectedTier={selectedTier}
-            onClearTier={() => setSelectedTier(null)}
+            selectedLevel={selectedLevel}
+            onClearLevel={() => setSelectedLevel(null)}
             selectedFormat={selectedFormat}
             onClearFormat={() => setSelectedFormat(null)}
           />
@@ -195,6 +233,14 @@ export default function App() {
               </div>
             )}
 
+            {isGuardian && user && (
+              <LearnersPanel
+                guardianId={user.id}
+                selectedLearnerId={bookingFor?.id ?? null}
+                onSelectLearner={setBookingFor}
+              />
+            )}
+
             {/* 3 & 4. Main Section Grid: Left Column (Booking Form) + Right Column (Suggestions Grid) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
@@ -203,6 +249,8 @@ export default function App() {
                 <BookingForm
                   formState={formState}
                   setFormState={setFormState}
+                  gradeLevel={searchGradeLevel}
+                  onChangeGradeLevel={handleChangeGradeLevel}
                   onChangeInstitution={() => setIsInstitutionModalOpen(true)}
                   onOpenScheduleModal={() => setIsScheduleModalOpen(true)}
                   onSeePrices={() => setView('prices')}
@@ -251,8 +299,10 @@ export default function App() {
         onClose={() => setIsManageAccountOpen(false)}
         userAccount={userAccount}
         onUpdateInstitution={() => setIsInstitutionModalOpen(true)}
+        onUpdateGradeLevel={handleGradeLevelChange}
         initialTab={manageAccountTab}
         tutorId={user!.id}
+        isGuardian={isGuardian}
         onSignOut={handleSignOut}
       />
 

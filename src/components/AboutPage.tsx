@@ -1,26 +1,30 @@
 import React from 'react';
-import { GraduationCap, MapPin, ShieldCheck, Repeat } from 'lucide-react';
+import { Send, Calendar, Tag, Repeat } from 'lucide-react';
 
+// Copy from Drake/marketing-gtm/site-copy-v1.md — every line must be true
+// today. The old "Strict verification" pillar claimed document review that
+// no part of the app performs yet; it returns once verification is real
+// (backlog items 7i/7/7h), with the wording site-copy-v1.md gives for then.
 const PILLARS = [
   {
-    icon: MapPin,
-    title: 'Hyper-local matching',
-    body: 'Geospatial matching connects students with tutors close to their own institution, for both in-person and online sessions.',
+    icon: Send,
+    title: 'Matched, not browsed',
+    body: "Send one request and a tutor who teaches your subject at your level accepts it. No scrolling through profiles or messaging five tutors to find one who's free.",
   },
   {
-    icon: GraduationCap,
-    title: 'Structured scheduling',
-    body: 'Book a session now or schedule ahead, at a subject, grade level, and pricing tier that fits.',
+    icon: Calendar,
+    title: 'Book now or later',
+    body: 'Ask for a session straight away or pick a day and time that suits you.',
   },
   {
-    icon: ShieldCheck,
-    title: 'Strict verification',
-    body: 'Every tutor goes through document verification before they can accept sessions — safety first, not an afterthought.',
+    icon: Tag,
+    title: 'One clear price',
+    body: 'You choose a level and pay that price. If no tutor accepts in time, you get your money back automatically.',
   },
   {
     icon: Repeat,
-    title: 'A circular academic economy',
-    body: 'Recent high school graduates and top students monetize their own academic success, while families get affordable, relatable peer mentoring.',
+    title: 'Learning pays',
+    body: "Recent matriculants and trainee teachers earn from what they're good at, and families get affordable help from people who know the work.",
   },
 ];
 
@@ -32,10 +36,12 @@ export const AboutPage: React.FC = () => {
           About Tutorlage
         </h1>
         <p className="text-sm sm:text-base text-slate-600 leading-relaxed mb-8">
-          Tutorlage is an on-demand academic tutoring platform designed to connect parents and students
-          with top-performing matriculants and local tutors, for both in-person and online sessions.
-          It creates a circular academic economy: recent high school graduates and top students earn
-          from their own academic success, while families get affordable, relatable peer mentoring.
+          Tutorlage connects learners with tutors who know their subject. You send a request with your
+          subject, grade and budget, a tutor who fits accepts it, and you see exactly who you've been
+          matched with before the session. Tutorlage is built for two kinds of tutor: recent
+          matriculants who did well in the subjects they teach, and student and qualified teachers —
+          so learners get help from people who know the work, and good students and new teachers get
+          paid for what they're good at.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

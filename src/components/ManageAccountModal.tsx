@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { X, User, BookOpen, ShieldCheck, Settings, LogOut, Award, CreditCard, ChevronRight } from 'lucide-react';
+import { X, User, BookOpen, ShieldCheck, Settings, LogOut, Award, CreditCard, ChevronRight, Check, AlertCircle } from 'lucide-react';
 import { UserAccount } from '../types';
+import { fetchGradeLevelSuggestions, updateStudentGradeLevel } from '../lib/queries';
+import { getErrorMessage } from '../lib/errors';
 import { TeachingProfilePanel } from './TeachingProfilePanel';
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel';
 
@@ -9,8 +11,11 @@ interface ManageAccountModalProps {
   onClose: () => void;
   userAccount: UserAccount;
   onUpdateInstitution: () => void;
+  onUpdateGradeLevel: (gradeLevel: string) => void;
   initialTab?: 'profile' | 'sessions' | 'billing' | 'teaching';
   tutorId: string;
+  // Parents/guardians see their learners' sessions on the Sessions tab.
+  isGuardian?: boolean;
   onSignOut: () => void;
 }
 
@@ -19,11 +24,53 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
   onClose,
   userAccount,
   onUpdateInstitution,
+  onUpdateGradeLevel,
   initialTab = 'profile',
   tutorId,
+  isGuardian = false,
   onSignOut,
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'sessions' | 'billing' | 'teaching'>(initialTab);
+
+  // Grade level lives on the account (student_profiles.grade_level), set
+  // here rather than re-entered per search — see PricesPage.tsx/
+  // BookingForm.tsx, which both just read userAccount.gradeLevel now.
+  // "tutorId" above is really just the signed-in user's id regardless of
+  // role (same as TeachingProfilePanel's use of it) — fine to reuse here.
+  const [isEditingGradeLevel, setIsEditingGradeLevel] = useState(false);
+  const [gradeLevelOptions, setGradeLevelOptions] = useState<string[]>([]);
+  const [gradeLevelDraft, setGradeLevelDraft] = useState('');
+  const [isSavingGradeLevel, setIsSavingGradeLevel] = useState(false);
+  const [gradeLevelError, setGradeLevelError] = useState<string | null>(null);
+
+  const handleStartEditGradeLevel = () => {
+    setGradeLevelError(null);
+    setGradeLevelDraft(userAccount.gradeLevel);
+    setIsEditingGradeLevel(true);
+    if (gradeLevelOptions.length === 0) {
+      fetchGradeLevelSuggestions()
+        .then(setGradeLevelOptions)
+        .catch((err) => console.error('fetchGradeLevelSuggestions failed:', err));
+    }
+  };
+
+  const handleSaveGradeLevel = async () => {
+    if (!gradeLevelDraft) {
+      setGradeLevelError('Choose a grade level.');
+      return;
+    }
+    setIsSavingGradeLevel(true);
+    setGradeLevelError(null);
+    try {
+      await updateStudentGradeLevel(tutorId, gradeLevelDraft);
+      onUpdateGradeLevel(gradeLevelDraft);
+      setIsEditingGradeLevel(false);
+    } catch (e) {
+      setGradeLevelError(getErrorMessage(e, 'Could not save your grade level.'));
+    } finally {
+      setIsSavingGradeLevel(false);
+    }
+  };
 
   // The modal stays mounted (it just returns null below) so state survives
   // between opens — reset to whichever tab the caller asked for each time
@@ -134,6 +181,68 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
                 </button>
               </div>
 
+              {/* Grade Level Card */}
+              <div className="bg-white rounded-2xl p-4 border border-slate-200">
+                {isEditingGradeLevel ? (
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      Grade Level
+                    </div>
+                    <select
+                      value={gradeLevelDraft}
+                      onChange={(e) => setGradeLevelDraft(e.target.value)}
+                      className="w-full bg-slate-100 text-sm font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20 cursor-pointer"
+                    >
+                      <option value="" disabled>Select a grade level</option>
+                      {gradeLevelOptions.map((g) => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
+                    {gradeLevelError && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-rose-600 font-semibold">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>{gradeLevelError}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={handleSaveGradeLevel}
+                        disabled={isSavingGradeLevel}
+                        className="flex items-center gap-1 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        Save
+                      </button>
+                      <button
+                        onClick={() => { setIsEditingGradeLevel(false); setGradeLevelError(null); }}
+                        disabled={isSavingGradeLevel}
+                        className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold px-3 py-2 rounded-lg transition-all cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        Grade Level
+                      </div>
+                      <div className="text-sm font-bold text-[#0F172A] mt-0.5">
+                        {userAccount.gradeLevel || 'Not set'}
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleStartEditGradeLevel}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-[#0F172A] font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                    >
+                      {userAccount.gradeLevel ? 'Change' : 'Set'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Stats Grid — real (currently zero, no bookings backend yet) */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-white p-3.5 rounded-2xl border border-slate-200 text-center">
@@ -179,7 +288,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
             </div>
           )}
 
-          {activeTab === 'sessions' && <UpcomingSessionsPanel studentId={tutorId} />}
+          {activeTab === 'sessions' && <UpcomingSessionsPanel studentId={tutorId} isGuardian={isGuardian} />}
 
           {activeTab === 'billing' && (
             <div className="space-y-3">

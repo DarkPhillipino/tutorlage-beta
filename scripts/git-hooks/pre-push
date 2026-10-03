@@ -1,0 +1,17 @@
+#!/bin/sh
+# Refuses any push that would put Drake/, CLAUDE.md or a CONTEXT.md on GitHub (the CEO's rule,
+# 2026-10-02; the repository is public). Checks every commit the push would add to the remote, not just
+# the last one. Installed into the repository's hooks folder by `node scripts/publish-app.mjs`.
+remote="$1"
+zero=0000000000000000000000000000000000000000
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  for commit in $(git rev-list "$local_sha" --not --remotes="$remote"); do
+    if git ls-tree -r --name-only "$commit" | grep -q -E '^Drake/|^CLAUDE\.md$|(^|/)CONTEXT\.md$'; then
+      echo "Push refused: commit $commit contains Drake/, CLAUDE.md or a CONTEXT.md, which must never go to GitHub." >&2
+      echo "Publish the app with: node scripts/publish-app.mjs, then push the public-main branch." >&2
+      exit 1
+    fi
+  done
+done
+exit 0
