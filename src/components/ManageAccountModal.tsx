@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { X, User, BookOpen, ShieldCheck, Settings, LogOut, Award, CreditCard, ChevronRight, Check, AlertCircle } from 'lucide-react';
+import { X, LogOut, CreditCard, Check, AlertCircle } from 'lucide-react';
 import { UserAccount } from '../types';
-import { fetchGradeLevelSuggestions, updateStudentGradeLevel } from '../lib/queries';
+import { fetchGradeLevelSuggestions, fetchMySavedCards, updateStudentGradeLevel, type SavedCard } from '../lib/queries';
 import { getErrorMessage } from '../lib/errors';
 import { TeachingProfilePanel } from './TeachingProfilePanel';
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel';
@@ -78,6 +78,22 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
   useEffect(() => {
     if (isOpen) setActiveTab(initialTab);
   }, [isOpen, initialTab]);
+
+  // Billing shows the person's real saved cards (7a), loaded each time the
+  // tab opens so a card saved by a new request shows up.
+  const [savedCards, setSavedCards] = useState<SavedCard[] | null>(null);
+  const [cardsError, setCardsError] = useState(false);
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'billing') return;
+    setCardsError(false);
+    setSavedCards(null);
+    fetchMySavedCards(tutorId)
+      .then(setSavedCards)
+      .catch((err) => {
+        console.error('fetchMySavedCards failed:', err);
+        setCardsError(true);
+      });
+  }, [isOpen, activeTab, tutorId]);
 
   if (!isOpen) return null;
 
@@ -243,46 +259,16 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
                 )}
               </div>
 
-              {/* Stats Grid — real (currently zero, no bookings backend yet) */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white p-3.5 rounded-2xl border border-slate-200 text-center">
-                  <div className="text-xl font-extrabold text-[#0F172A]">{userAccount.upcomingSessions}</div>
-                  <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">
-                    Upcoming
-                  </div>
+              {/* Only the upcoming count is backed by real data. "Completed",
+                  "Saved Tutors" (no such feature), a "Notification
+                  Preferences" link that went nowhere and an "Academic
+                  Verification Badge" shown to everyone were removed
+                  2026-10-03 (backlog 7aw). */}
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200 text-center">
+                <div className="text-xl font-extrabold text-[#0F172A]">{userAccount.upcomingSessions}</div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">
+                  Upcoming sessions
                 </div>
-                <div className="bg-white p-3.5 rounded-2xl border border-slate-200 text-center">
-                  <div className="text-xl font-extrabold text-[#0F172A]">{userAccount.completedSessions}</div>
-                  <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">
-                    Completed
-                  </div>
-                </div>
-                <div className="bg-white p-3.5 rounded-2xl border border-slate-200 text-center">
-                  <div className="text-xl font-extrabold text-[#15803D]">{userAccount.savedTutorsCount}</div>
-                  <div className="text-[10px] text-slate-500 font-bold uppercase mt-1">
-                    Saved Tutors
-                  </div>
-                </div>
-              </div>
-
-              {/* Settings list */}
-              <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
-                <a href="#settings" onClick={(e) => e.preventDefault()} className="p-3.5 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                  <div className="flex items-center space-x-3 text-xs font-bold text-[#0F172A]">
-                    <Settings className="w-4 h-4 text-slate-500" />
-                    <span>Notification Preferences</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
-                </a>
-                <a href="#security" onClick={(e) => e.preventDefault()} className="p-3.5 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                  <div className="flex items-center space-x-3 text-xs font-bold text-[#0F172A]">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    <span>Academic Verification Badge</span>
-                  </div>
-                  <span className="text-[10px] font-bold bg-emerald-100 text-[#15803D] px-2 py-0.5 rounded-full">
-                    Active
-                  </span>
-                </a>
               </div>
 
             </div>
@@ -292,16 +278,33 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
 
           {activeTab === 'billing' && (
             <div className="space-y-3">
-              <div className="bg-white rounded-2xl p-4 border border-slate-200 flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <CreditCard className="w-5 h-5 text-[#0F172A]" />
-                  <div>
-                    <div className="text-xs font-bold text-[#0F172A]">Visa ending in 4022</div>
-                    <div className="text-[10px] text-slate-400 font-medium">Default Payment Method</div>
-                  </div>
+              {cardsError ? (
+                <p className="text-xs font-semibold text-rose-600">Couldn't load your saved cards. Try again later.</p>
+              ) : savedCards === null ? (
+                <p className="text-xs text-slate-500">Loading…</p>
+              ) : savedCards.length === 0 ? (
+                <div className="bg-white rounded-2xl p-4 border border-slate-200 text-xs text-slate-600 leading-relaxed">
+                  No saved card yet. When you send a request, Paystack saves your card with a R1 check
+                  (refunded straight away), so it can be charged when a tutor accepts.
                 </div>
-                <span className="text-xs text-[#15803D] font-bold">Verified</span>
-              </div>
+              ) : (
+                savedCards.map((card) => (
+                  <div key={card.id} className="bg-white rounded-2xl p-4 border border-slate-200 flex items-center space-x-3">
+                    <CreditCard className="w-5 h-5 text-[#0F172A]" />
+                    <div>
+                      <div className="text-xs font-bold text-[#0F172A]">
+                        {card.cardType ? card.cardType.trim().replace(/^\w/, (c) => c.toUpperCase()) : 'Card'}
+                        {card.last4 ? ` ending in ${card.last4}` : ''}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-medium">
+                        {[card.bank, card.expMonth && card.expYear ? `expires ${card.expMonth}/${card.expYear}` : null]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
 

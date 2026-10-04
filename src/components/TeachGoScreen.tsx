@@ -11,10 +11,12 @@ interface TeachGoScreenProps {
   onViewTeachingProfile: () => void;
 }
 
+// Each tip must be true of the app as built (backlog 7aw replaced three that
+// weren't: no 15-minute rule exists, and subjects have no descriptions).
 const TIPS = [
-  'Respond to session requests within 15 minutes to stay dispatch-active.',
-  'Detailed subject descriptions help students find the right fit faster.',
-  'Consistent weekly availability tends to earn more repeat students.',
+  'Add your meeting link as soon as you accept. The learner sees it with the session.',
+  'Mark the session complete when it ends. Otherwise it completes by itself 48 hours later, unless a problem was reported.',
+  'Only add subjects and grades you could teach confidently.',
 ];
 
 interface ProgressCriterion {
@@ -105,9 +107,8 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
           >
             <Menu className="w-5 h-5 text-[#0F172A]" />
           </button>
-          <div className="px-4 py-2 rounded-full bg-[#0F172A] text-white text-sm font-bold">
-            R0.00 <span className="text-slate-400 font-medium">today</span>
-          </div>
+          {/* A hard-coded "R0.00 today" earnings pill sat here; removed
+              2026-10-03 (backlog 7aw) until earnings are real. */}
           <div className="w-10 h-10" />
         </div>
 
@@ -179,8 +180,14 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
           )}
 
           {/* Anonymous requests this tutor can browse and claim — accepting
-              one turns it into an actual public.sessions row. */}
-          <AvailableRequestsQueue tutorId={tutor.id} />
+              one turns it into an actual public.sessions row. Shown only
+              while online, so GO does what the screen says (backlog 7aw:
+              until 2026-10-03 the list showed whether online or not). */}
+          {tutor.isDispatchActive ? (
+            <AvailableRequestsQueue tutorId={tutor.id} />
+          ) : (
+            <p className="text-xs text-slate-500 text-center">Tap GO to see and accept waiting requests.</p>
+          )}
 
           {/* Tips (illustrative, not data-driven) */}
           <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-slate-200">

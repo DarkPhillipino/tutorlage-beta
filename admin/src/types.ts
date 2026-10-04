@@ -151,3 +151,26 @@ export interface AuditLogEntry {
   metadata: Record<string, unknown> | null;
   createdAt: string;
 }
+
+// Test phase 1 numbers (backlog 7ad), computed in the browser from tables
+// admins can already read — see fetchPhase1Metrics.
+export interface Phase1Metrics {
+  requestsSent: number;          // reached tutors (card checked) or further
+  requestsWaiting: number;       // sent, not yet accepted or expired
+  requestsAccepted: number;
+  requestsExpired: number;       // nobody accepted in time (never charged)
+  requestsCancelled: number;
+  acceptanceRatePct: number | null;   // accepted ÷ (accepted + expired)
+  medianMinutesToAccept: number | null;
+  slowestMinutesToAccept: number | null;
+  chargeFailures: number;
+  sessionsScheduled: number;
+  sessionsCompletedByTutor: number;
+  sessionsCompletedAutomatically: number; // estimated: completed 48h+ after the end
+  sessionsCancelledByLearner: number;   // the learner or their guardian
+  sessionsCancelledByTutor: number;
+  problemReportsOpen: number;
+  problemReportsTotal: number;
+  ratingsCount: number;
+  averageRating: number | null;
+}

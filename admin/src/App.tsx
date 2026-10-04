@@ -10,6 +10,7 @@ import { Users } from './pages/Users';
 import { Payouts } from './pages/Payouts';
 import { SystemSettingsPage } from './pages/SystemSettings';
 import { AuditLog } from './pages/AuditLog';
+import { Phase1Numbers } from './pages/Phase1Numbers';
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="payouts" element={<Payouts />} />
         <Route path="settings" element={<SystemSettingsPage />} />
         <Route path="audit-log" element={<AuditLog />} />
+        <Route path="phase-1" element={<Phase1Numbers />} />
       </Route>
     </Routes>
   );

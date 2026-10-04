@@ -51,7 +51,7 @@ export const Footer: React.FC = () => {
         )}
 
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3">
-          <span>© {new Date().getFullYear()} Tutorlage</span>
+          <span>© {new Date().getFullYear()} {showBusinessInfo ? BUSINESS_INFO.legalName : 'Tutorlage'}</span>
           <div className="flex items-center space-x-4">
             <Link to="/terms" className="hover:text-slate-300">Terms of Service</Link>
             <Link to="/privacy" className="hover:text-slate-300">Privacy Policy</Link>

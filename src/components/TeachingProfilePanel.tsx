@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Star, ShieldCheck, Loader2, MessageSquare, Clock, UserX, Pencil, Check, X, AlertCircle, MapPin } from 'lucide-react';
 import { TutorDashboardData, TutorReview, TutorAvailabilitySlot, TutorSession, Institution } from '../types';
 import { fetchTutorDashboard, fetchTutorReviews, fetchTutorAvailability, fetchUpcomingTutorSessions, updateTutorProfile } from '../lib/queries';
-import { formatRate } from '../lib/format';
-import { getCurrencySymbol } from '../lib/currencies';
 import { getErrorMessage } from '../lib/errors';
 import { TutorCalendar } from './TutorCalendar';
 import { TutorSessionsPanel } from './TutorSessionsPanel';
@@ -31,7 +29,6 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [headlineDraft, setHeadlineDraft] = useState('');
-  const [hourlyRateDraft, setHourlyRateDraft] = useState('');
   const [institutionDraft, setInstitutionDraft] = useState<Institution | null>(null);
   const [isInstitutionModalOpen, setIsInstitutionModalOpen] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -59,7 +56,6 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
   const handleStartEditProfile = () => {
     if (!tutor) return;
     setHeadlineDraft(tutor.headline ?? '');
-    setHourlyRateDraft(String(tutor.hourlyRate));
     setInstitutionDraft(tutor.institutionId ? { id: tutor.institutionId, name: tutor.institutionName ?? '', curriculum: '', institutionType: '' } : null);
     setProfileError(null);
     setIsEditingProfile(true);
@@ -69,23 +65,15 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
     if (!tutor) return;
     setProfileError(null);
 
-    const parsedRate = Number(hourlyRateDraft);
-    if (!hourlyRateDraft.trim() || Number.isNaN(parsedRate) || parsedRate <= 0) {
-      setProfileError('Enter a valid hourly rate greater than 0.');
-      return;
-    }
-
     setIsSavingProfile(true);
     try {
       await updateTutorProfile(tutor.id, {
         headline: headlineDraft.trim(),
-        hourlyRate: parsedRate,
         institutionId: institutionDraft?.id ?? null,
       });
       setTutor({
         ...tutor,
         headline: headlineDraft.trim(),
-        hourlyRate: parsedRate,
         institutionId: institutionDraft?.id ?? null,
         institutionName: institutionDraft?.name ?? null,
       });
@@ -144,8 +132,12 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
             {!isEditingProfile && (
               <>
                 <div className="text-xs text-slate-500 truncate">{tutor.headline || 'Tutorlage Tutor'}</div>
+                {/* The price comes from the level (Model 3, 12a); the old
+                    self-set hourly rate is no longer used anywhere, so it
+                    isn't shown or editable (backlog 7aw). Each request shows
+                    what the tutor earns from it. */}
                 <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
-                  {tutor.tier ? `${tutor.tier.publicName} · ` : ''}{getCurrencySymbol(tutor.currencyCode)}{formatRate(tutor.hourlyRate)} / hr
+                  {tutor.tier ? `${tutor.tier.publicName} · ` : ''}Level {tutor.currentSubTierId}
                 </div>
               </>
             )}
@@ -170,17 +162,6 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
                 value={headlineDraft}
                 onChange={(e) => setHeadlineDraft(e.target.value)}
                 placeholder="e.g. Maths & Physics Tutor — UCT Engineering"
-                className="w-full bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Hourly rate (R)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={hourlyRateDraft}
-                onChange={(e) => setHourlyRateDraft(e.target.value)}
                 className="w-full bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
               />
             </div>

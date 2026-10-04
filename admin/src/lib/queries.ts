@@ -3,6 +3,7 @@ import {
   TutorForVerification, TutorVerificationDetail, VerificationDocument,
   Dispute, AdminUserRow, PayoutBatch, SystemSetting, AuditLogEntry, AuditAction,
   OnboardingStatus, DisputeStatus, DocumentStatus, PaymentAttentionItem, TutorPayoutAccountRow,
+  Phase1Metrics,
 } from '../types';
 
 // Every admin mutation below calls this alongside its main write — the
@@ -440,4 +441,77 @@ export async function fetchAuditLog(limit = 100): Promise<AuditLogEntry[]> {
     metadata: row.metadata,
     createdAt: row.created_at,
   }));
+}
+
+// ---- Test phase 1 numbers (backlog 7ad) ----
+// Read straight from session_requests, sessions, platform_disputes and reviews
+// (admins can read all four); no migration. Phase 1 volumes are small, so the
+// arithmetic happens here rather than in a database function.
+export async function fetchPhase1Metrics(): Promise<Phase1Metrics> {
+  const [requests, sessions, disputes, reviews, autoHours] = await Promise.all([
+    supabase.from('session_requests').select('status, payment_status, created_at, responded_at, claimed_at, charged_at'),
+    supabase.from('sessions').select('status, scheduled_start, duration_hours, completed_at'),
+    supabase.from('platform_disputes').select('status'),
+    supabase.from('reviews').select('rating'),
+    supabase.from('system_settings').select('setting_value').eq('setting_key', 'session_auto_complete_hours').maybeSingle(),
+  ]);
+  for (const result of [requests, sessions, disputes, reviews, autoHours]) {
+    if (result.error) throw result.error;
+  }
+
+  // A request reaches tutors once its card check succeeds; before that it's
+  // only a started checkout.
+  const notSent = new Set(['unpaid', 'initiated', 'failed']);
+  const allRequests: any[] = requests.data ?? [];
+  const sent = allRequests.filter((r) => r.status === 'accepted' || !notSent.has(r.payment_status));
+  const accepted = sent.filter((r) => r.status === 'accepted');
+  const expired = sent.filter((r) => r.status === 'expired');
+  const minutesToAccept = accepted
+    .map((r) => {
+      const at = r.responded_at ?? r.charged_at ?? r.claimed_at;
+      return at ? (new Date(at).getTime() - new Date(r.created_at).getTime()) / 60_000 : null;
+    })
+    .filter((m): m is number => m !== null)
+    .sort((a, b) => a - b);
+  const median = (values: number[]) => {
+    if (values.length === 0) return null;
+    const mid = Math.floor(values.length / 2);
+    return values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
+  };
+
+  // A session the job completed has completed_at at least the configured
+  // delay after its end; one the tutor marked is earlier. The job runs every
+  // 15 minutes, hence the small allowance.
+  const delayHours = Number(autoHours.data?.setting_value ?? 48);
+  const allSessions: any[] = sessions.data ?? [];
+  const completed = allSessions.filter((s) => s.status === 'completed' && s.completed_at);
+  const isAuto = (s: any) => {
+    const end = new Date(s.scheduled_start).getTime() + Number(s.duration_hours) * 3_600_000;
+    return new Date(s.completed_at).getTime() >= end + delayHours * 3_600_000 - 15 * 60_000;
+  };
+  const ratings = (reviews.data ?? []).map((r: any) => Number(r.rating)).filter((n) => Number.isFinite(n));
+  const allDisputes: any[] = disputes.data ?? [];
+
+  return {
+    requestsSent: sent.length,
+    requestsWaiting: sent.filter((r) => r.status === 'pending').length,
+    requestsAccepted: accepted.length,
+    requestsExpired: expired.length,
+    requestsCancelled: sent.filter((r) => r.status === 'cancelled').length,
+    acceptanceRatePct: accepted.length + expired.length > 0
+      ? Math.round((accepted.length / (accepted.length + expired.length)) * 100)
+      : null,
+    medianMinutesToAccept: median(minutesToAccept),
+    slowestMinutesToAccept: minutesToAccept.length ? minutesToAccept[minutesToAccept.length - 1] : null,
+    chargeFailures: allRequests.filter((r) => r.payment_status === 'charge_failed').length,
+    sessionsScheduled: allSessions.filter((s) => s.status === 'scheduled').length,
+    sessionsCompletedByTutor: completed.filter((s) => !isAuto(s)).length,
+    sessionsCompletedAutomatically: completed.filter(isAuto).length,
+    sessionsCancelledByLearner: allSessions.filter((s) => s.status === 'cancelled_by_student').length,
+    sessionsCancelledByTutor: allSessions.filter((s) => s.status === 'cancelled_by_tutor').length,
+    problemReportsOpen: allDisputes.filter((d) => d.status === 'open' || d.status === 'under_investigation').length,
+    problemReportsTotal: allDisputes.length,
+    ratingsCount: ratings.length,
+    averageRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null,
+  };
 }

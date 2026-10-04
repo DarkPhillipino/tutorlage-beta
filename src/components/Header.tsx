@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Globe, ChevronDown, User, HelpCircle } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../lib/i18n';
+import { SUPPORT_EMAIL } from '../lib/businessInfo';
 import { NotificationsBell } from './NotificationsBell';
 
 interface HeaderProps {
@@ -136,19 +137,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
             </div>
             )}
 
-            {/* Help Button — hidden 2026-09-09 per CEO request (not deleted; a
-                reinstatement suggestion was logged to the PM's game plan under app
-                features). Restore by uncommenting this block. */}
-            {false && (
+            {/* Help Button — hidden 2026-09-09 per CEO request until a real
+                support address existed (it was a dead-end alert()). Restored
+                2026-10-03 as an email link now that support@ forwards (7v). */}
             <a
-              href="#help"
-              onClick={(e) => { e.preventDefault(); alert("Tutorlage Support: How can we assist you today?"); }}
+              href={`mailto:${SUPPORT_EMAIL}`}
               className="px-3 py-1.5 rounded-full text-sm font-semibold text-[#0F172A] hover:bg-slate-100 flex items-center space-x-1.5 transition-colors shrink-0"
             >
               <HelpCircle className="w-4 h-4 text-[#0F172A] sm:hidden" />
               <span className="hidden sm:inline">{t('help')}</span>
             </a>
-            )}
 
             <NotificationsBell />
 

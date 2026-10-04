@@ -130,6 +130,37 @@ export async function fetchAccountGateState(userId: string): Promise<AccountGate
   };
 }
 
+// ---- Saved cards (7a): shown on the account's Billing tab ----
+
+export interface SavedCard {
+  id: string;
+  cardType: string | null;
+  last4: string | null;
+  expMonth: string | null;
+  expYear: string | null;
+  bank: string | null;
+}
+
+// RLS: "Payers view own cards" (profile_id = auth.uid()); browsers can read
+// these columns but never the Paystack authorization code.
+export async function fetchMySavedCards(profileId: string): Promise<SavedCard[]> {
+  const { data, error } = await supabase
+    .from('payment_cards')
+    .select('id, card_type, last4, exp_month, exp_year, bank')
+    .eq('profile_id', profileId)
+    .is('revoked_at', null)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    cardType: row.card_type,
+    last4: row.last4,
+    expMonth: row.exp_month,
+    expYear: row.exp_year,
+    bank: row.bank,
+  }));
+}
+
 // Once only — correcting a recorded date of birth takes an admin.
 export async function setMyDateOfBirth(isoDate: string): Promise<void> {
   const { error } = await supabase.rpc('set_my_date_of_birth', { p_dob: isoDate });
