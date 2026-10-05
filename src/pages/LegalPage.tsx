@@ -19,7 +19,9 @@ import { BUSINESS_INFO, SAFETY_EMAIL, SUPPORT_EMAIL, isBusinessInfoComplete } fr
 // current_terms_version / current_privacy_version on the database to
 // TESTER_NOTICE_VERSION so acceptances point at this text.
 const TEST_PHASE_1 = true;
-export const TESTER_NOTICE_VERSION = '2026-10-phase1';
+// '-b' (2026-10-05): names GitHub (site hosting) and Google Forms (feedback), and adds browser storage.
+// Publishing it needs current_terms_version / current_privacy_version on dev set to the same value.
+export const TESTER_NOTICE_VERSION = '2026-10-phase1-b';
 // How long after the phase ends its data is deleted (CEO, 2026-10-03: 30 days).
 const PHASE_1_RETENTION_DAYS = 30;
 
@@ -140,9 +142,14 @@ function TesterNotice() {
           </li>
           <li className={li}>
             <strong>Who else handles it:</strong> Supabase (our database and sign-in; stored in Ireland),
-            Cloudflare (runs our server), Paystack (test-mode payments), Resend (account emails) and Google (only
-            if you choose "Sign in with Google"). Some of these are based outside South Africa, mainly in the EU
-            and the US. By accepting, you agree to your information being handled there for the test.
+            Cloudflare (runs our server), GitHub (hosts this website, so it sees visitors' IP addresses), Paystack
+            (test-mode payments), Resend (account emails) and Google (our feedback forms, and "Sign in with
+            Google" if you choose it). Some of these are based outside South Africa, mainly in the EU and the US.
+            By accepting, you agree to your information being handled there for the test.
+          </li>
+          <li className={li}>
+            <strong>On your device:</strong> the site keeps your sign-in and language choice in your browser's
+            storage. It uses no advertising or tracking cookies.
           </li>
           <li className={li}>
             <strong>How long:</strong> test phase 1 data is deleted within {PHASE_1_RETENTION_DAYS} days after
