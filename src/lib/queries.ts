@@ -910,7 +910,10 @@ export async function fetchAvailableRequests(tutorId: string): Promise<Available
         row.institution_id === null || tutorProfile.institution_id === null || row.institution_id === tutorProfile.institution_id;
       const subjectMatches =
         !row.student_subject_enrollments || mySubjects.has(row.student_subject_enrollments.subject_name.toLowerCase());
-      return levelMatches && institutionMatches && subjectMatches;
+      // A tutor account can book for itself from the Learn tab; never offer that request back to
+      // it (claim_session_request refuses it too, 20261005200000).
+      const notMine = row.student_id !== tutorId;
+      return levelMatches && institutionMatches && subjectMatches && notMine;
     })
     .map((row) => {
       const chargedAmount = Number(row.charged_amount);

@@ -37,14 +37,18 @@ export const SubHeaderBanner: React.FC<SubHeaderBannerProps> = ({
         {/* Right Side: Activity, Promotions, Account (Strictly NO pill button like Uber One) */}
         <div className="flex items-center space-x-6 text-sm font-semibold text-slate-200">
           
-          {/* Activity */}
-          <button
-            onClick={onOpenActivity}
-            className="flex items-center space-x-2 hover:text-white hover:underline transition-all cursor-pointer py-1"
-          >
-            <FileText className="w-4 h-4 text-emerald-400" />
-            <span>Activity</span>
-          </button>
+          {/* Activity — only rendered when there's a real activity view to open. Until
+              2026-10-05 it showed a toast with a completed-session count that was never
+              loaded, so it always said 0 (same kind of made-up content as 7aw). */}
+          {onOpenActivity && (
+            <button
+              onClick={onOpenActivity}
+              className="flex items-center space-x-2 hover:text-white hover:underline transition-all cursor-pointer py-1"
+            >
+              <FileText className="w-4 h-4 text-emerald-400" />
+              <span>Activity</span>
+            </button>
+          )}
 
           {/* Promotions — only rendered when there's a real promotion to show.
               The old CAMPUS2026 "15% off" toast advertised a discount that never

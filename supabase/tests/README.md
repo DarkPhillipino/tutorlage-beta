@@ -29,6 +29,7 @@ Run them in this order after applying migrations `20260930190000`–`20260930239
 | `7z_refund_status.sql` | 16 | A refund is `refund_queued` until Paystack says *processed*; failed / needs-attention / no-reply states reach admins; the learner and booking guardian are told when it's processed; the status-check job asks `GET /refund/:id`; learners can read their refund status but can't run the jobs (`20260930238000`, re-run after `239500`) |
 | `7u_auto_complete_and_reports.sql` | 20 | Sessions complete 48 hours after their end (a setting) unless a report is open; learner, booking guardian and tutor can report a problem, strangers and signed-out callers can't, and nobody can insert a dispute directly (`20260930239000`) |
 | `7a_split_payments.sql` | 38 | The R1 card check saves a card (authorization code unreadable by browsers); tutors can't write their own payout row or accept from the browser; the server's claim → charge → finalize / release path, commission and fee bearer, legacy paid requests, cancellations refunding the charge, unmatched requests expiring uncharged, the recovery job for stuck charges, and the refund webhook (`20260930239500`) |
+| `7a_no_self_match.sql` | 4 | A tutor account can insert a request for itself (API, no enrolment), but the server's claim refuses that tutor ("You can't accept your own request.") and still lets another tutor accept (`20261005200000`) |
 
 Paystack's replies are faked inside the transaction for `7z` and `7a` (rows in `net._http_response` with
 ids far above anything pg_net has issued); anything those suites enqueue with pg_net is rolled back
@@ -66,6 +67,10 @@ Results:
   server yet", so there's no refund to re-check or match). `7a_split_payments.sql` now catches that
   refusal so the suite still reports. Re-run those two suites on production once the key is in the
   Vault. Production still had 0 accounts afterwards.
+
+- **Dev, 2026-10-05/06 (eighth session)**: `20261005200000_no_self_matching` applied with the CEO's go-ahead
+  ("Fix and publish"); `7a_no_self_match.sql` 4/4. **Production: not yet** (at the cutover, with the CEO's
+  go-ahead; then run this suite there and `compare_dev_prod.sql` on both).
 
 ## Comparing dev and production
 
