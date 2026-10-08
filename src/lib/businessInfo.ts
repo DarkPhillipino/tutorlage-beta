@@ -15,10 +15,11 @@ export interface BusinessInfo {
 }
 
 // Supplied by the CEO on 2026-10-04: CIPC enterprise number and name
-// (registered 2026-10-02 as a private company), address and phone.
+// (registered 2026-10-02 as a private company), address and phone. The CEO,
+// 2026-10-07: "use the registration number that begins with 2026" (was K2026791986).
 export const BUSINESS_INFO: BusinessInfo = {
   legalName: 'Tutorlage (Pty) Ltd',
-  registrationNumber: 'K2026791986',
+  registrationNumber: '2026/791986/07',
   physicalAddress: '1 Aventino Lane, Glen Erasmia, Kempton Park, South Africa',
   email: 'support@tutorlage.com',
   phone: '+27 76 388 5333',

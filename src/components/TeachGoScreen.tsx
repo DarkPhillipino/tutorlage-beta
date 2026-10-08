@@ -81,15 +81,18 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
     );
   }
 
+  // A requirement of zero isn't a step, so it's left out (e.g. 1D has no grade uplift since 2026-10-07).
   const criteria: ProgressCriterion[] = nextSubTier
     ? [
-        { label: `${nextSubTier.minHours} hrs completed`, met: tutor.totalCompletedHours >= nextSubTier.minHours },
-        { label: `${nextSubTier.minRating.toFixed(2)} avg rating`, met: tutor.rating >= nextSubTier.minRating },
-        { label: `${nextSubTier.minWrittenReviews} written reviews`, met: tutor.reviewsCount >= nextSubTier.minWrittenReviews },
-        { label: `${nextSubTier.minRepeatRatePct}% repeat rate`, met: tutor.repeatStudentRatePct >= nextSubTier.minRepeatRatePct },
-        { label: `${nextSubTier.minDistinctStudentsUplift} students uplifted`, met: tutor.qualifiedUpliftStudentsCount >= nextSubTier.minDistinctStudentsUplift },
-        { label: `${nextSubTier.requiredGradeUpliftPct}% grade uplift`, met: tutor.avgGradeUpliftPct >= nextSubTier.requiredGradeUpliftPct },
+        { threshold: nextSubTier.minHours, label: `${nextSubTier.minHours} hrs completed`, met: tutor.totalCompletedHours >= nextSubTier.minHours },
+        { threshold: nextSubTier.minRating, label: `${nextSubTier.minRating.toFixed(2)} avg rating`, met: tutor.rating >= nextSubTier.minRating },
+        { threshold: nextSubTier.minWrittenReviews, label: `${nextSubTier.minWrittenReviews} written reviews`, met: tutor.reviewsCount >= nextSubTier.minWrittenReviews },
+        { threshold: nextSubTier.minRepeatRatePct, label: `${nextSubTier.minRepeatRatePct}% repeat rate`, met: tutor.repeatStudentRatePct >= nextSubTier.minRepeatRatePct },
+        { threshold: nextSubTier.minDistinctStudentsUplift, label: `${nextSubTier.minDistinctStudentsUplift} students uplifted`, met: tutor.qualifiedUpliftStudentsCount >= nextSubTier.minDistinctStudentsUplift },
+        { threshold: nextSubTier.requiredGradeUpliftPct, label: `${nextSubTier.requiredGradeUpliftPct}% grade uplift`, met: tutor.avgGradeUpliftPct >= nextSubTier.requiredGradeUpliftPct },
       ]
+        .filter((c) => c.threshold !== 0)
+        .map(({ label, met }) => ({ label, met }))
     : [];
   const metCount = criteria.filter((c) => c.met).length;
   const progressPct = criteria.length ? Math.round((metCount / criteria.length) * 100) : 100;
