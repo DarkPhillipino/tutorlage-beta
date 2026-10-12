@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { signInWithGoogle } from '../lib/oauth';
 import { getErrorMessage } from '../lib/errors';
 import { SignupRole } from '../lib/accountRules';
+import { FEATURES } from '../lib/features';
 
 interface GoogleSignInButtonProps {
   role: SignupRole;
@@ -24,6 +25,10 @@ const GoogleMark: React.FC = () => (
 
 export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ role, label, onError }) => {
   const [isSigningIn, setIsSigningIn] = useState(false);
+
+  // FEATURES.googleSignIn (src/lib/features.ts) hides Google everywhere in one word. The pages that render this
+  // button also hide the "or" line and the note around it, so this check is the second lock, not the only one.
+  if (!FEATURES.googleSignIn) return null;
 
   const handleClick = async () => {
     setIsSigningIn(true);

@@ -5,6 +5,9 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../lib/AuthContext';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
 import { ROLE_LABELS, parseSignupRole, toSignInEmail } from '../lib/accountRules';
+import { FEATURES } from '../lib/features';
+import { describeSignInError } from '../lib/authHelpers';
+import { ResendConfirmation } from '../lib/ResendConfirmation';
 
 export default function SignIn() {
   const { role: rawRole } = useParams<{ role: string }>();
@@ -17,22 +20,35 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set when the password was right but the email address was never confirmed (master 7cl): the address that was
+  // submitted, so "send the link again" goes to it even if the box is edited afterwards.
+  const [unconfirmedAddress, setUnconfirmedAddress] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && session) navigate('/', { replace: true });
   }, [authLoading, session, navigate]);
 
+  // Errors from the Google button: not a sign-in answer, so there is nothing to confirm.
+  const showError = (message: string) => {
+    setUnconfirmedAddress(null);
+    setError(message);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setUnconfirmedAddress(null);
     setIsSubmitting(true);
 
     // Learners a guardian added may sign in with a sign-in name instead of an email.
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email: toSignInEmail(email), password });
+    const address = toSignInEmail(email);
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email: address, password });
 
     setIsSubmitting(false);
     if (signInError) {
-      setError(signInError.message);
+      const problem = describeSignInError(signInError, role === 'student' ? 'email or sign-in name' : 'email', address);
+      setError(problem.text);
+      if (problem.needsConfirmation) setUnconfirmedAddress(address);
       return;
     }
     navigate('/', { replace: true });
@@ -73,6 +89,10 @@ export default function SignIn() {
             </div>
           )}
 
+          {unconfirmedAddress && (
+            <ResendConfirmation key={unconfirmedAddress} email={unconfirmedAddress} className="mb-4" />
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1.5" htmlFor="email">
@@ -102,6 +122,16 @@ export default function SignIn() {
                 placeholder="••••••••"
                 className="w-full bg-slate-100 text-[#0F172A] placeholder-slate-400 text-sm font-semibold px-4 py-3.5 rounded-xl border border-transparent focus:outline-none focus:border-[#15803D] focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 transition-all"
               />
+              <div className="flex justify-end mt-1.5">
+                {/* What was typed travels in the router's state, not the address bar (no personal data in URLs). */}
+                <Link
+                  to={`/forgot-password/${role}`}
+                  state={{ email }}
+                  className="text-xs font-bold text-[#15803D] hover:underline"
+                >
+                  Forgot your password?
+                </Link>
+              </div>
             </div>
 
             <button
@@ -114,13 +144,18 @@ export default function SignIn() {
             </button>
           </form>
 
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px bg-slate-200" />
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">or</span>
-            <div className="flex-1 h-px bg-slate-200" />
-          </div>
+          {/* FEATURES.googleSignIn (src/lib/features.ts) hides Google, the "or" line included. */}
+          {FEATURES.googleSignIn && (
+            <>
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">or</span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
 
-          <GoogleSignInButton role={role} label="Continue with Google" onError={setError} />
+              <GoogleSignInButton role={role} label="Continue with Google" onError={showError} />
+            </>
+          )}
 
           <p className="text-center text-xs text-slate-500 mt-6">
             New to Tutorlage?{' '}

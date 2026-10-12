@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { ShieldCheck, AlertTriangle, Users, Banknote, Settings, ScrollText, LogOut, BarChart3 } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Users, Banknote, Settings, ScrollText, LogOut, BarChart3, GraduationCap } from 'lucide-react';
 import { useAdminAuth } from '../lib/AuthContext';
 import { AdminRole } from '../types';
 
@@ -16,6 +16,8 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/verification', label: 'Tutor Verification', icon: ShieldCheck, roles: ['verification_officer', 'super_admin'] },
+  { to: '/tier1', label: 'Tier 1 Route', icon: GraduationCap, roles: ['verification_officer', 'super_admin'] },
+  { to: '/school-results', label: 'School Results', icon: GraduationCap, roles: ['verification_officer', 'super_admin'] },
   { to: '/disputes', label: 'Disputes', icon: AlertTriangle, roles: ['support_agent', 'super_admin'] },
   { to: '/users', label: 'Users', icon: Users, roles: ['support_agent', 'verification_officer', 'super_admin'] },
   { to: '/payouts', label: 'Payments', icon: Banknote, roles: ['finance_manager', 'super_admin'] },

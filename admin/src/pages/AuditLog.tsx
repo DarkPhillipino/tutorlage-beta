@@ -14,6 +14,9 @@ const ACTION_LABELS: Record<string, string> = {
   manual_tier_override: 'Manual tier override',
   system_setting_updated: 'System setting updated',
   date_of_birth_recorded: 'Date of birth recorded',
+  school_result_checked: 'School result checked',
+  tier1_record_checked: 'Tier 1 academic record checked',
+  tier1_training_signed_off: 'Tier 1 training signed off',
 };
 
 export const AuditLog: React.FC = () => {

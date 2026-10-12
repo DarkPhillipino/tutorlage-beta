@@ -78,3 +78,67 @@ Results:
 triggers and default privileges. Run it on both projects and compare. Where the hashes match, a test
 that passed on dev proves the same thing on production. It needs no approval. Known, accepted
 differences are listed at the top of the file.
+
+## Phase 2 suites, tested before their migrations are applied (9 Oct 2026)
+
+The CEO said on 9 Oct: no database changes until Mon 12 Oct. So the phase 2 migrations were tested by running
+them **and** their test inside one `do` statement that always fails, so nothing is kept
+(`scripts/run-rolled-back-test.mjs` builds that statement; paste it into `execute_sql`). Dev was checked
+unchanged after each run (the new tables don't exist there).
+
+| File | Checks | Covers | Result (dev, rolled back with its migration) |
+|---|---|---|---|
+| `school_results.sql` | 38 | Consent first; guardians and adult learners only; booked subjects only; file paths in the learner's folder; storage upload rights; pending and rejected results never count; admin-only checks with a reason for rejections; uplift per tutor after 3 sessions (50% → 65% = +15); tutors see the change, never the marks; delete and withdrawal remove results and progress; the 3rd-session prompt; the legacy assessments table closed (`20261012090100`) | 38/38 ok, 9 Oct |
+| `tier1_pipeline.sql` | 41 | Tutors only; items and scenario answers unreadable; the three gates in order; Module 7's check needs 4/4; trainer sign-offs by admins only, "not yet" needs the missing items; the test resumes, hides option orders, grades on the server, verifies the subject on a pass; one retake after 14 days; abandoned and late tests count as attempts; the 7as guard on and off; item analysis admin-only (`20261012090200` with the Mathematics rows of `20261012090300`) | 41/41 ok, 9 Oct (P19's "no keys in the reply" line wasn't printed: a format string had one placeholder too few, fixed since; re-run after applying) |
+
+The audit rows (`school_result_checked`, `tier1_record_checked`, `tier1_training_signed_off`) can't be tested
+before `20261012090000` is committed, because Postgres can't use an enum value in the transaction that added it.
+The runner swaps `log_admin_event` for a counter; both suites counted the right number of calls. After applying,
+run both files on their own and expect the "written" count instead.
+
+**Apply order on or after 12 Oct (with the CEO's yes), dev first, then production at the cutover**:
+`20261012090000` (alone) → `20261012090100` → `20261012090200` → `20261012090300`. Then run `school_results.sql`
+and `tier1_pipeline.sql` on their own.
+
+## 7br: a parent adding a learner (9 Oct 2026, tested rolled back; not applied)
+
+`7k_signup_trigger.sql` passed because it inserts `auth.users` rows with the guardian already in
+`raw_app_meta_data`. Supabase Auth's admin `createUser` doesn't: it inserts the row with only `{provider, providers}`
+and writes the caller's app_metadata in a later UPDATE (supabase/auth `internal/api/admin.go`, `adminUserCreate`). So
+every real "add a learner" was refused by the AFTER INSERT trigger. A rolled-back probe on dev showed it: Auth's
+order refused ("Learners under 18 are added by a parent or guardian…"), the 7k order accepted.
+
+| File | Checks | Covers | Result (dev, rolled back with `20261009133000`) |
+|---|---|---|---|
+| `7br_guardian_intents.sql` | 13 | Auth's order with the server's record (written as `service_role`): linked, consent and acceptances by the guardian, record deleted; a minor's self-signup still refused; expired record, another id, a parent without a date of birth, a tutor as guardian, a record creating a tutor: all refused; the guardian in app_metadata still works; an adult self-signup unchanged; Auth's insert-then-UPDATE gives one link; only `service_role` can read or write the table | 11/11 on the first run except G10 (the service role had no rights: dev grants it nothing by default; grant added), then G1, G10, G12, G13 re-run: all ok, 9 Oct |
+| `7k_signup_trigger.sql` | 12 | Re-run against the new function | 12/12 ok, 9 Oct |
+
+**Apply on Mon 12 Oct with the CEO's yes, before the parents sign up, and before or apart from the phase 2
+migrations** (it doesn't depend on them): `20261009133000`, then deploy the Worker (`server/index.ts` now records the
+guardian and passes the learner's id to `createUser`), then run `7br_guardian_intents.sql` on its own. Production
+needs the same migration and Worker at the cutover (its trigger is the same).
+
+## 7bm: video rooms on our own WebRTC (9 Oct 2026, tested rolled back; not applied)
+
+Migration `20261009200000_video_rooms.sql` (two tables closed to clients, server-only rules, and the policies that
+let only admitted people use a room's Realtime channel). Design: `Drake/programmer/video-rooms-design-v2.md`.
+
+| File | Checks | Covers | Result (dev, rolled back with `20261009200000`) |
+|---|---|---|---|
+| `7bm_video_rooms.sql` | 13 groups | A tutor opens a room (a student can't; bad and duplicate codes refused); the lobby (adult student and parent wait, a learner under 18 is refused, the code is case-insensitive); only admitted people can signal; what each person may see; room size (a room of 2 says full); removing (can't return, host stays); leaving and returning; a session's room (tutor, learner and the learner's guardian admitted, unrelated parent or student refused, a code alone never admits; too early and completed sessions have no room); ending a room; clients can't touch the tables or call the rules; the Realtime policies (member sends, lobby person, stranger, unknown room, other topic and other extension refused; reading); clean-up | All groups ok in one run, 9 Oct (two earlier runs found a typo in my test data and showed the Realtime part inconclusive, below) |
+
+**What the Realtime part really covers.** `realtime.messages` has no daily partition on dev yet (Realtime has never been
+used there) and belongs to another role, so a direct insert fails with "no partition of relation messages found" before
+any policy is tried. The test therefore copies the **deployed** policy text from `pg_policies` onto a stand-in table with
+the same two columns and tries sends and reads as the `authenticated` role; every refusal must be the row-level-security
+error itself. It does **not** prove the policies work on the real `realtime.messages` table. Check that once the
+migration is applied and Realtime has been used (open a room with two accounts).
+
+**Call logic, not database**: `scripts/dev/room-loopback.html` (run `npx vite --port=3002`, open
+`/scripts/dev/room-loopback.html`). Three fake participants in one page with an in-memory channel, in a real browser's
+WebRTC engine: all pairs connect when two arrive at once, decoded video arrives, low-data mode, leaving, rejoining, and
+relay-only with no relay must not connect directly. **9 of 9 ok, 9 Oct** (Chromium in the Claude desktop app's browser
+pane). It does not test real networks, phones or mobile data.
+
+**Apply only with the CEO's yes** (and after the tester notice is updated). Then set the server switches
+(`VIDEO_ROOMS_ENABLED=1`; see `server/CONTEXT.md`), flip `FEATURES.videoRooms`, and test with two real accounts.

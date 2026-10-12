@@ -3,6 +3,8 @@ import crypto from 'node:crypto';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { hasRelay, iceConfigFromEnv, iceServersFor, relayConfigured } from './iceServers';
+import type { IceServer } from './iceServers';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PORT = Number(process.env.PORT) || 8787;
@@ -861,7 +863,26 @@ app.post('/api/guardian/learners', rateLimit(5, 60_000), async (req, res) => {
   const signInName = learnerEmail ? null : learnerSignInName(firstName);
   const email = learnerEmail || `${signInName}@${LEARNER_LOGIN_DOMAIN}`;
 
+  // 7br: Auth inserts the new user before it writes app_metadata, so the signup trigger can't see the
+  // guardian there. Record the guardian against an id we choose, and give Auth that id; the trigger reads
+  // and deletes this row (migration 20261009133000). Clients can't write the table, and a public sign-up
+  // can't pick its id.
+  const learnerId = crypto.randomUUID();
+  await db.from('guardian_learner_intents').delete().lt('expires_at', new Date().toISOString());
+  const { error: intentError } = await db.from('guardian_learner_intents').insert({
+    learner_id: learnerId,
+    guardian_id: guardianId,
+    relationship: body.relationship,
+    consent_version: body.consentVersion,
+  });
+  if (intentError) {
+    console.error('Recording the guardian failed:', intentError);
+    res.status(500).json({ error: 'Could not create the learner account — try again.' });
+    return;
+  }
+
   const { data: created, error: createError } = await db.auth.admin.createUser({
+    id: learnerId,
     email,
     password: body.password,
     email_confirm: true,
@@ -884,6 +905,7 @@ app.post('/api/guardian/learners', rateLimit(5, 60_000), async (req, res) => {
 
   if (createError || !created.user) {
     console.error('Learner account creation failed:', createError);
+    await db.from('guardian_learner_intents').delete().eq('learner_id', learnerId);
     const alreadyUsed = /already|registered|exists/i.test(createError?.message ?? '');
     res.status(alreadyUsed ? 409 : 500).json({
       error: alreadyUsed ? 'That email already has a Tutorlage account.' : 'Could not create the learner account — try again.',
@@ -893,6 +915,320 @@ app.post('/api/guardian/learners', rateLimit(5, 60_000), async (req, res) => {
 
   res.status(201).json({ learnerId: created.user.id, signIn: signInName ?? email });
 });
+
+// --- Video rooms on our own WebRTC (backlog 7bm; design: Drake/programmer/video-rooms-design-v2.md) ---
+//
+// The browsers carry the audio and video between themselves; this API only decides who may be in a room and
+// hands out the connection settings. The rules live in the database's functions (migration 20261009200000):
+// who may enter, the lobby, the room size. The introductions between browsers travel over a private Supabase
+// Realtime channel ("room:<id>") that the database also guards. Off unless VIDEO_ROOMS_ENABLED=1 (set only
+// after the migration is applied and the CEO says yes).
+
+const VIDEO_ROOMS_ENABLED = process.env.VIDEO_ROOMS_ENABLED === '1';
+// 32 letters and digits with no I, O, 0 or 1. Must match the database's video_rooms_code_shape check.
+const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ROOM_CODE_SHAPE = /^[A-HJ-NP-Z2-9]{8}$/;
+// Connection settings (server/iceServers.ts): Cloudflare's relay (CF_TURN_KEY_ID and CF_TURN_API_TOKEN), our own relay
+// (TURN_URLS and TURN_SECRET), or both; a public STUN server (STUN_URLS) only when Cloudflare's isn't set. A STUN
+// server and a relay both see callers' addresses.
+const ICE_CONFIG = iceConfigFromEnv(process.env);
+// 1 = every new room hides participants' addresses (all calls through a relay). Refused while no relay exists.
+const VIDEO_RELAY_ONLY = process.env.VIDEO_RELAY_ONLY === '1';
+
+function newRoomCode(): string {
+  const bytes = crypto.randomBytes(8);
+  let code = '';
+  for (const b of bytes) code += ROOM_CODE_ALPHABET[b & 31];
+  return code;
+}
+
+// The database's short error tokens, as plain answers.
+const ROOM_ERRORS: Record<string, [number, string]> = {
+  room_closed: [410, 'This room has ended or does not exist.'],
+  removed: [403, 'You were removed from this room.'],
+  not_allowed: [403, "You can't join this room."],
+  adults_only: [403, 'This room is for adults. A learner under 18 joins their booked session instead.'],
+  room_full: [409, 'This room is full.'],
+  only_tutors_create_rooms: [403, 'Only tutors can open a room.'],
+  too_many_open_rooms: [429, 'You already have 5 open rooms. End one first.'],
+  not_host: [403, 'Only the person who opened the room can do that.'],
+  not_waiting: [409, 'That person is not waiting to join.'],
+};
+
+function sendRoomError(res: Response, error: { message?: string } | null, what: string) {
+  const token = (error?.message ?? '').trim();
+  const known = ROOM_ERRORS[token];
+  if (known) {
+    res.status(known[0]).json({ error: known[1] });
+    return;
+  }
+  console.error(`Video rooms: ${what} failed:`, error);
+  res.status(500).json({ error: 'Something went wrong with the room — try again.' });
+}
+
+function roomsAvailable(res: Response): boolean {
+  if (!VIDEO_ROOMS_ENABLED) {
+    res.status(404).json({ error: 'Video rooms are not switched on yet.' });
+    return false;
+  }
+  return true;
+}
+
+// A room that hides addresses can't work without a relay: say so instead of quietly leaking.
+function relayMissing(res: Response, relayOnly: boolean): boolean {
+  if (relayOnly && !relayConfigured(ICE_CONFIG)) {
+    res.status(503).json({ error: 'Calls that hide your address are not available yet.' });
+    return true;
+  }
+  return false;
+}
+
+// Connection settings for someone in the call. null (after answering 503) if the room hides addresses and no relay
+// answered (for example Cloudflare was unreachable and we have no relay of our own): never fall back to a direct call.
+async function iceOrFail(res: Response, relayOnly: boolean): Promise<IceServer[] | null> {
+  const servers = await iceServersFor(ICE_CONFIG, relayOnly);
+  if (relayOnly && !hasRelay(servers)) {
+    res.status(503).json({ error: 'Calls that hide your address are not available right now. Try again in a moment.' });
+    return null;
+  }
+  // These carry short-lived relay passwords: never cache them.
+  res.setHeader('Cache-Control', 'no-store');
+  return servers;
+}
+
+interface JoinedRow {
+  room_id: string;
+  code: string;
+  member_status: 'waiting' | 'admitted';
+  is_host: boolean;
+  max_participants: number;
+  relay_only: boolean;
+  session_id: string | null;
+}
+
+function joinAnswer(row: JoinedRow, iceServers: IceServer[]) {
+  return {
+    roomId: row.room_id,
+    code: row.code,
+    status: row.member_status,
+    isHost: row.is_host,
+    maxParticipants: row.max_participants,
+    relayOnly: row.relay_only,
+    sessionId: row.session_id,
+    channel: `room:${row.room_id}`,
+    // Only people who are in the call get connection settings.
+    iceServers,
+  };
+}
+
+async function roomIdForCode(code: string): Promise<string | null> {
+  const { data } = await db.from('video_rooms').select('id').eq('code', code).maybeSingle();
+  return (data?.id as string | undefined) ?? null;
+}
+
+function cleanCode(raw: unknown): string | null {
+  const code = typeof raw === 'string' ? raw.trim().toUpperCase() : '';
+  return ROOM_CODE_SHAPE.test(code) ? code : null;
+}
+
+// A tutor opens a room and gets its code; the page turns it into a link to share.
+app.post('/api/rooms', rateLimit(10, 60_000), async (req, res) => {
+  if (!roomsAvailable(res)) return;
+  const user = await signedInUser(req, res);
+  if (!user) return;
+  const asked = Number((req.body as { maxParticipants?: unknown }).maxParticipants ?? 4);
+  if (!Number.isInteger(asked) || asked < 2 || asked > 4) {
+    res.status(400).json({ error: 'A room holds 2 to 4 people.' });
+    return;
+  }
+  if (relayMissing(res, VIDEO_RELAY_ONLY)) return;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = newRoomCode();
+    const { error } = await db.rpc('create_video_room', {
+      p_host: user.id,
+      p_code: code,
+      p_max: asked,
+      p_relay_only: VIDEO_RELAY_ONLY,
+    });
+    if (!error) {
+      res.status(201).json({ code });
+      return;
+    }
+    // A code already in use: try another.
+    if (error.code === '23505') continue;
+    sendRoomError(res, error, 'create');
+    return;
+  }
+  res.status(500).json({ error: 'Something went wrong with the room — try again.' });
+});
+
+// Open the room for a booked session (made on first use). Only the session's tutor, learner or the learner's
+// guardian; from 15 minutes before the start until an hour after it should have ended.
+app.post('/api/rooms/session/:sessionId/join', rateLimit(30, 60_000), async (req, res) => {
+  if (!roomsAvailable(res)) return;
+  const user = await signedInUser(req, res);
+  if (!user) return;
+  const sessionId = req.params.sessionId;
+  if (!UUID_SHAPE.test(sessionId)) {
+    res.status(400).json({ error: 'That session link is not valid.' });
+    return;
+  }
+  if (relayMissing(res, VIDEO_RELAY_ONLY)) return;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const { data, error } = await db.rpc('join_video_session_room', {
+      p_session: sessionId,
+      p_profile: user.id,
+      p_code: newRoomCode(),
+      p_relay_only: VIDEO_RELAY_ONLY,
+    });
+    if (error) {
+      if (error.code === '23505' && /video_rooms_code_key/.test(error.message ?? '')) continue;
+      sendRoomError(res, error, 'session join');
+      return;
+    }
+    const row = (Array.isArray(data) ? data[0] : data) as JoinedRow | undefined;
+    if (!row) {
+      res.status(500).json({ error: 'Something went wrong with the room — try again.' });
+      return;
+    }
+    const ice = row.member_status === 'admitted' ? await iceOrFail(res, row.relay_only) : [];
+    if (ice === null) return;
+    res.json(joinAnswer(row, ice));
+    return;
+  }
+  res.status(500).json({ error: 'Something went wrong with the room — try again.' });
+});
+
+// Enter a room from its link. Everyone but the host waits in the lobby until the host lets them in.
+app.post('/api/rooms/:code/join', rateLimit(30, 60_000), async (req, res) => {
+  if (!roomsAvailable(res)) return;
+  const user = await signedInUser(req, res);
+  if (!user) return;
+  const code = cleanCode(req.params.code);
+  if (!code) {
+    res.status(400).json({ error: 'That room link is not valid.' });
+    return;
+  }
+  const { data, error } = await db.rpc('join_video_room', { p_code: code, p_profile: user.id });
+  if (error) {
+    sendRoomError(res, error, 'join');
+    return;
+  }
+  const row = (Array.isArray(data) ? data[0] : data) as JoinedRow | undefined;
+  if (!row) {
+    res.status(500).json({ error: 'Something went wrong with the room — try again.' });
+    return;
+  }
+  const ice = row.member_status === 'admitted' ? await iceOrFail(res, row.relay_only) : [];
+  if (ice === null) return;
+  res.json(joinAnswer(row, ice));
+});
+
+// Who is in the room, as this person may see it, plus fresh connection settings if they are in the call.
+// The page polls this while waiting in the lobby and, for the host, to see who is waiting.
+app.get('/api/rooms/:code/state', rateLimit(120, 60_000), async (req, res) => {
+  if (!roomsAvailable(res)) return;
+  const user = await signedInUser(req, res);
+  if (!user) return;
+  const code = cleanCode(req.params.code);
+  if (!code) {
+    res.status(400).json({ error: 'That room link is not valid.' });
+    return;
+  }
+  const { data: room } = await db
+    .from('video_rooms')
+    .select('id, relay_only, max_participants')
+    .eq('code', code)
+    .maybeSingle();
+  if (!room) {
+    sendRoomError(res, { message: 'room_closed' }, 'state');
+    return;
+  }
+  const { data, error } = await db.rpc('video_room_state', { p_room: room.id, p_profile: user.id });
+  if (error) {
+    sendRoomError(res, error, 'state');
+    return;
+  }
+  const people = (Array.isArray(data) ? data : []) as {
+    profile_id: string;
+    full_name: string;
+    status: string;
+    is_host: boolean;
+  }[];
+  const mine = people.find((p) => p.profile_id === user.id);
+  // Connection settings only when asked for (?ice=1: the page asks when it enters the call and every 20 minutes to refresh
+  // them) and only for someone who is in the call, so polling doesn't mint a relay password every few seconds.
+  const wantIce = req.query.ice === '1' && mine?.status === 'admitted';
+  const ice = wantIce ? await iceOrFail(res, room.relay_only) : [];
+  if (ice === null) return;
+  res.json({
+    roomId: room.id,
+    status: mine?.status ?? 'waiting',
+    isHost: mine?.is_host ?? false,
+    maxParticipants: room.max_participants,
+    relayOnly: room.relay_only,
+    participants: people.map((p) => ({ id: p.profile_id, name: p.full_name, status: p.status, isHost: p.is_host })),
+    iceServers: ice,
+  });
+});
+
+// The host lets someone in from the lobby, or removes someone.
+for (const action of ['admit', 'remove'] as const) {
+  app.post(`/api/rooms/:code/${action}`, rateLimit(60, 60_000), async (req, res) => {
+    if (!roomsAvailable(res)) return;
+    const user = await signedInUser(req, res);
+    if (!user) return;
+    const code = cleanCode(req.params.code);
+    const profileId = (req.body as { profileId?: unknown }).profileId;
+    if (!code || typeof profileId !== 'string' || !UUID_SHAPE.test(profileId)) {
+      res.status(400).json({ error: 'That request is not valid.' });
+      return;
+    }
+    const roomId = await roomIdForCode(code);
+    if (!roomId) {
+      sendRoomError(res, { message: 'room_closed' }, action);
+      return;
+    }
+    const { error } = await db.rpc(action === 'admit' ? 'admit_video_room_member' : 'remove_video_room_member', {
+      p_room: roomId,
+      p_host: user.id,
+      p_profile: profileId,
+    });
+    if (error) {
+      sendRoomError(res, error, action);
+      return;
+    }
+    res.json({ ok: true });
+  });
+}
+
+// Someone leaves, or the host ends the room for everyone.
+for (const action of ['leave', 'end'] as const) {
+  app.post(`/api/rooms/:code/${action}`, rateLimit(60, 60_000), async (req, res) => {
+    if (!roomsAvailable(res)) return;
+    const user = await signedInUser(req, res);
+    if (!user) return;
+    const code = cleanCode(req.params.code);
+    if (!code) {
+      res.status(400).json({ error: 'That room link is not valid.' });
+      return;
+    }
+    const roomId = await roomIdForCode(code);
+    if (!roomId) {
+      sendRoomError(res, { message: 'room_closed' }, action);
+      return;
+    }
+    const { error } =
+      action === 'leave'
+        ? await db.rpc('leave_video_room', { p_room: roomId, p_profile: user.id })
+        : await db.rpc('end_video_room', { p_room: roomId, p_host: user.id });
+    if (error) {
+      sendRoomError(res, error, action);
+      return;
+    }
+    res.json({ ok: true });
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`Payments API listening on http://localhost:${PORT}`);

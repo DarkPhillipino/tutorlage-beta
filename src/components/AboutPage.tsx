@@ -19,7 +19,7 @@ const PILLARS = [
   {
     icon: Tag,
     title: 'One clear price',
-    body: 'You choose a level and pay that price. If no tutor accepts in time, you get your money back automatically.',
+    body: "You choose a level and pay that price, and you're charged only when a tutor accepts. If no tutor accepts in time, you aren't charged (the R1 card check is refunded).",
   },
   {
     icon: Repeat,

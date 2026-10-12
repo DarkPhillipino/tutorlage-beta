@@ -7,6 +7,8 @@ import { TutorCalendar } from './TutorCalendar';
 import { TutorSessionsPanel } from './TutorSessionsPanel';
 import { PayoutAccountPanel } from './PayoutAccountPanel';
 import { VerificationDocumentsPanel } from './VerificationDocumentsPanel';
+import { Tier1Panel } from './Tier1Panel';
+import { FEATURES } from '../lib/features';
 import { AvailabilityEditor } from './AvailabilityEditor';
 import { SubjectCompetencyEditor } from './SubjectCompetencyEditor';
 import { InstitutionModal } from './InstitutionModal';
@@ -296,8 +298,11 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
         )}
       </div>
 
-      {/* Documents Tutorlage checks before verifying the tutor (7h) */}
-      <VerificationDocumentsPanel tutorId={tutor.id} />
+      {/* Documents Tutorlage checks before verifying the tutor (7h); off in test phase 1 (7bq) */}
+      {FEATURES.verificationDocuments && <VerificationDocumentsPanel tutorId={tutor.id} />}
+
+      {/* Phase 2: the Tier 1 route (item 7), switched on with FEATURES.tier1Pipeline */}
+      {FEATURES.tier1Pipeline && <Tier1Panel tutorId={tutor.id} />}
 
       {/* Accepted sessions: add the meeting link, mark complete */}
       <TutorSessionsPanel tutorId={tutor.id} />

@@ -11,6 +11,8 @@ import { Payouts } from './pages/Payouts';
 import { SystemSettingsPage } from './pages/SystemSettings';
 import { AuditLog } from './pages/AuditLog';
 import { Phase1Numbers } from './pages/Phase1Numbers';
+import { SchoolResults } from './pages/SchoolResults';
+import { Tier1 } from './pages/Tier1';
 
 export default function App() {
   return (
@@ -33,6 +35,8 @@ export default function App() {
         <Route path="settings" element={<SystemSettingsPage />} />
         <Route path="audit-log" element={<AuditLog />} />
         <Route path="phase-1" element={<Phase1Numbers />} />
+        <Route path="school-results" element={<SchoolResults />} />
+        <Route path="tier1" element={<Tier1 />} />
       </Route>
     </Routes>
   );

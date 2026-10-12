@@ -6,7 +6,10 @@ import { useAuth } from '../lib/AuthContext';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
 import { fetchCurrentPolicyVersions, PolicyVersions } from '../lib/queries';
 import { ADULT_AGE, COPY, ROLE_LABELS, ageFromIsoDate, isPlausibleDateOfBirth, parseSignupRole } from '../lib/accountRules';
-import { siteUrl } from '../lib/siteUrl';
+import { FEATURES } from '../lib/features';
+import { signupConfirmationRedirect } from '../lib/authRedirects';
+import { MIN_PASSWORD_LENGTH, noteSendStarted, signupResendKey, validateNewPassword } from '../lib/authHelpers';
+import { ResendConfirmation } from '../lib/ResendConfirmation';
 
 const inputClass = 'w-full bg-slate-100 text-[#0F172A] placeholder-slate-400 text-sm font-semibold px-4 py-3.5 rounded-xl border border-transparent focus:outline-none focus:border-[#15803D] focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 transition-all';
 const labelClass = 'block text-xs font-bold text-slate-500 mb-1.5';
@@ -65,12 +68,10 @@ export default function CreateAccount() {
       setError(COPY.parentUnder18);
       return;
     }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    // Same rule as the "set a new password" page (src/lib/authHelpers.ts): the two boxes match, then the length.
+    const passwordProblem = validateNewPassword(password, confirmPassword);
+    if (passwordProblem) {
+      setError(passwordProblem);
       return;
     }
     if (!accepted) {
@@ -91,8 +92,8 @@ export default function CreateAccount() {
       options: {
         // Where the confirmation email's link returns to: this same site (local or GitHub Pages), whose
         // login page signs the person straight in. Supabase uses its Site URL instead if this address
-        // isn't on its allow list.
-        emailRedirectTo: siteUrl('/login'),
+        // isn't on its allow list. "Send the link again" uses the same function (ResendConfirmation).
+        emailRedirectTo: signupConfirmationRedirect(),
         data: {
           first_name: firstName,
           surname,
@@ -123,7 +124,10 @@ export default function CreateAccount() {
     if (data.session) {
       navigate('/', { replace: true });
     } else {
-      // Email confirmation is required before a session is issued.
+      // Email confirmation is required before a session is issued. The sign-up has just made Supabase send the first
+      // email, and it refuses another to this address for a minute, so the "send again" button starts that minute
+      // already counted down (master 7cl). It also keeps the page from being used to test who has an account.
+      noteSendStarted(signupResendKey(email), Date.now());
       setNeedsEmailConfirmation(true);
     }
   };
@@ -140,6 +144,20 @@ export default function CreateAccount() {
           <h1 className="font-serif text-2xl text-[#0F172A] mb-2">Check your email</h1>
           <p className="text-sm text-slate-500 mb-6">
             We've sent a confirmation link to <span className="font-semibold text-[#0F172A]">{email}</span>. Confirm your account, then sign in below.
+          </p>
+          {/* Master 7cl: nothing used to happen if the email never came. */}
+          <ResendConfirmation key={email.trim()} email={email} className="mb-4" />
+          {/* The "send again" answer is deliberately neutral, so say where to go if an account was already there. */}
+          <p className="text-xs text-slate-500 leading-relaxed mb-6">
+            Already have an account with this address?{' '}
+            <Link to={`/signin/${role}`} className="font-bold text-[#15803D] hover:underline">
+              Sign in
+            </Link>
+            , or{' '}
+            <Link to={`/forgot-password/${role}`} state={{ email }} className="font-bold text-[#15803D] hover:underline">
+              reset your password
+            </Link>
+            .
           </p>
           <Link
             to={`/signin/${role}`}
@@ -225,7 +243,7 @@ export default function CreateAccount() {
               <>
                 <div>
                   <label className={labelClass} htmlFor="password">Password</label>
-                  <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" className={inputClass} />
+                  <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`} className={inputClass} />
                 </div>
 
                 <div>
@@ -267,16 +285,21 @@ export default function CreateAccount() {
             </p>
           )}
 
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px bg-slate-200" />
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">or</span>
-            <div className="flex-1 h-px bg-slate-200" />
-          </div>
+          {/* FEATURES.googleSignIn (src/lib/features.ts) hides Google, the "or" line and the note included. */}
+          {FEATURES.googleSignIn && (
+            <>
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">or</span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
 
-          <GoogleSignInButton role={role} label={`Sign up with Google`} onError={setError} />
-          <p className="text-[11px] text-slate-400 mt-2 text-center">
-            With Google, we'll ask for your date of birth and your acceptance of our terms right after.
-          </p>
+              <GoogleSignInButton role={role} label={`Sign up with Google`} onError={setError} />
+              <p className="text-[11px] text-slate-400 mt-2 text-center">
+                With Google, we'll ask for your date of birth and your acceptance of our terms right after.
+              </p>
+            </>
+          )}
 
           <p className="text-center text-xs text-slate-500 mt-6">
             Already have an account?{' '}

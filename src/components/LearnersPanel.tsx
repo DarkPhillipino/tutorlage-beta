@@ -15,6 +15,8 @@ import {
 import { fetchCurrentPolicyVersions, fetchGradeLevelSuggestions } from '../lib/queries';
 import { ADULT_AGE, COPY, ageFromIsoDate, guardianConsentText, isPlausibleDateOfBirth } from '../lib/accountRules';
 import { getErrorMessage } from '../lib/errors';
+import { FEATURES } from '../lib/features';
+import { SchoolResultsPanel } from './SchoolResultsPanel';
 
 // The parent/guardian home (backlog 7k): the learners they're responsible
 // for, adding one, choosing who a booking is for, and withdrawing consent.
@@ -34,6 +36,8 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
   const [isAdding, setIsAdding] = useState(false);
   const [justAdded, setJustAdded] = useState<{ name: string; signIn: string } | null>(null);
   const [confirmWithdrawId, setConfirmWithdrawId] = useState<string | null>(null);
+  // Phase 2: one learner's school results open at a time (FEATURES.schoolResults).
+  const [resultsOpenId, setResultsOpenId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   // null while loading. Booking waits for a usable number (legal spec §5).
   const [phone, setPhone] = useState<string | null>(null);
@@ -145,8 +149,8 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
           {(learners ?? []).map((learner) => {
             const isSelected = learner.id === selectedLearnerId;
             return (
+              <div key={learner.id}>
               <div
-                key={learner.id}
                 className={`rounded-xl border px-4 py-3 flex flex-wrap items-center justify-between gap-3 ${isSelected ? 'border-[#15803D] bg-emerald-50/50' : 'border-slate-200'}`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -185,7 +189,19 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
                       <button onClick={() => setConfirmWithdrawId(null)} className="font-bold text-slate-500 hover:underline cursor-pointer">Keep</button>
                     </span>
                   )}
+                  {FEATURES.schoolResults && learner.canBook && (
+                    <button
+                      onClick={() => setResultsOpenId(resultsOpenId === learner.id ? null : learner.id)}
+                      className="text-[11px] font-bold text-[#15803D] hover:underline cursor-pointer"
+                    >
+                      {resultsOpenId === learner.id ? 'Hide school results' : 'School results'}
+                    </button>
+                  )}
                 </div>
+              </div>
+              {FEATURES.schoolResults && resultsOpenId === learner.id && (
+                <SchoolResultsPanel learnerId={learner.id} learnerName={learner.firstName} />
+              )}
               </div>
             );
           })}

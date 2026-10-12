@@ -140,7 +140,11 @@ export type AuditAction =
   | 'dispute_resolved' | 'refund_issued' | 'payout_batch_executed'
   | 'manual_tier_override' | 'system_setting_updated'
   // Written by the database itself (admin_set_date_of_birth), not logAdminAction.
-  | 'date_of_birth_recorded';
+  | 'date_of_birth_recorded'
+  // Phase 2 (migration 20261012090000): written by database functions, not by logAdminAction().
+  | 'school_result_checked'
+  | 'tier1_record_checked'
+  | 'tier1_training_signed_off';
 
 export interface AuditLogEntry {
   id: string;

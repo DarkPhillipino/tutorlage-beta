@@ -25,7 +25,11 @@ export const LEVEL_DESCRIPTIONS: Record<string, string> = {
   '1A': 'New to Tutorlage, building their record.',
   '1B': 'Rated 4.8+ across their first 10+ hours here.',
   '1C': '6 in 10 of their students book them again. Rated 4.85+.',
-  '1D': '6 in 10 students return, rated 4.9+, with written reviews you can read.',
+  // 9 Oct (master 7cc): was "...with written reviews you can read". No screen shows a learner a tutor's
+  // reviews, and fn_recalculate_tutor_tier counts every review (with or without a comment) towards
+  // min_written_reviews, so "written" isn't guaranteed either. 2D's "12+ written reviews" has the same
+  // gap: marketing to reword, or the database to count only reviews with a comment.
+  '1D': '6 in 10 students return, rated 4.9+, with 3+ reviews.',
   '2A': 'Rated 4.85+, with 65% of students returning.',
   '2B': 'Nearly 7 in 10 of their students come back. Rated 4.88+.',
   '2C': 'A qualified teacher, or a student teacher who has completed their classroom practicum — or a tutor with 7 in 10 students returning across 110+ hours here.',

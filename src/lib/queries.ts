@@ -75,6 +75,40 @@ export async function updateStudentGradeLevel(studentId: string, gradeLevel: str
   if (error) throw error;
 }
 
+// A learner's institution (student_profiles.school_id) — account-level info like the grade, so it has to
+// survive a reload or a new sign-in (master 7cq: it used to live only in the page's memory and was lost every
+// time). A learner reads and writes their own row; a parent can read a linked learner's row (RLS: "Parents can
+// view linked student profiles") but not change it. school_id points at schools_institutions, which anyone can read.
+export async function fetchStudentInstitution(studentId: string): Promise<Institution | null> {
+  const { data: profile, error } = await supabase
+    .from('student_profiles')
+    .select('school_id')
+    .eq('id', studentId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!profile?.school_id) return null;
+
+  const { data, error: schoolError } = await supabase
+    .from('schools_institutions')
+    .select('id, name, institution_type, curricula ( name )')
+    .eq('id', profile.school_id)
+    .maybeSingle();
+  if (schoolError) throw schoolError;
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    name: data.name,
+    curriculum: (data.curricula as unknown as { name: string } | null)?.name ?? 'Other',
+    institutionType: data.institution_type,
+  };
+}
+
+export async function updateStudentInstitution(studentId: string, institutionId: string): Promise<void> {
+  const { error } = await supabase.from('student_profiles').update({ school_id: institutionId }).eq('id', studentId);
+  if (error) throw error;
+}
+
 // Switches a brand-new Google sign-up to the role the person picked before
 // the Google flow. The on_auth_user_created trigger always makes an OAuth user
 // a learner (Google's identity data has no room for our role field the way

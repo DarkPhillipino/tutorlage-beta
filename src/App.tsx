@@ -15,15 +15,20 @@ import { SuggestionDetailModal } from './components/SuggestionDetailModal';
 import { ManageAccountModal } from './components/ManageAccountModal';
 import { Footer } from './components/Footer';
 import { LearnersPanel } from './components/LearnersPanel';
+import { SchoolResultsPanel } from './components/SchoolResultsPanel';
+import { useAccountStatus } from './components/AccountGate';
+import { FEATURES } from './lib/features';
 import { LinkedLearner, fetchMyLearners } from './lib/guardian';
 
 import { BookingFormState, SuggestionItem, UserAccount, PriceLevel, Institution } from './types';
 import { toIsoDate } from './lib/format';
-import { fetchUpcomingStudentSessions, fetchStudentGradeLevel } from './lib/queries';
+import { fetchUpcomingStudentSessions, fetchStudentGradeLevel, fetchStudentInstitution, updateStudentInstitution } from './lib/queries';
+import { rememberInstitution, recallInstitution } from './lib/institutionMemory';
 
 export default function App() {
   const navigate = useNavigate();
   const { user, profile, signOut } = useAuth();
+  const { isViewOnlyLearner } = useAccountStatus();
   const [activeNav, setActiveNav] = useState<string>('learn');
 
   // Booking Form State. Institution starts empty — there's no seeded
@@ -79,6 +84,34 @@ export default function App() {
   const [bookingFor, setBookingFor] = useState<LinkedLearner | null>(null);
   const searchGradeLevel = isGuardian ? (bookingFor?.gradeLevel ?? '') : userAccount.gradeLevel;
 
+  // 7cq: a learner's institution comes back with them instead of being asked again after every reload or
+  // sign-in. A learner's own is saved on their profile. For a guardian it is the learner they are booking
+  // for: the learner's saved one if it has one, otherwise the last one chosen for that learner on this device
+  // (a guardian can't change a learner's profile). Tutors set theirs under Teaching.
+  // Depends on the ids, not the user object, so a token refresh doesn't clear a choice just made.
+  useEffect(() => {
+    if (!user || !role || role === 'tutor') return;
+    const learnerId = role === 'parent' ? bookingFor?.id ?? null : user.id;
+    // Start empty so switching learner never carries the previous learner's institution over.
+    setFormState(prev => ({ ...prev, institution: '', institutionId: null }));
+    setUserAccount(prev => ({ ...prev, institution: '' }));
+    if (!learnerId) return;
+    let cancelled = false;
+    fetchStudentInstitution(learnerId)
+      .then((saved) => saved ?? (role === 'parent' ? recallInstitution(user.id, learnerId) : null))
+      .then((institution) => {
+        if (cancelled || !institution) return;
+        // Only fill an empty choice: anything picked while this was loading wins.
+        setFormState(prev => (prev.institutionId ? prev : { ...prev, institution: institution.name, institutionId: institution.id }));
+        setUserAccount(prev => (prev.institution ? prev : { ...prev, institution: institution.name }));
+      })
+      .catch((err) => console.error('fetchStudentInstitution failed:', err));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, role, bookingFor?.id]);
+
   // Page / view state
   const [view, setView] = useState<'home' | 'prices' | 'tiers' | 'teach' | 'about'>('home');
   const [selectedLevel, setSelectedLevel] = useState<PriceLevel | null>(null);
@@ -128,6 +161,18 @@ export default function App() {
   const handleSelectInstitution = (institution: Institution) => {
     setFormState(prev => ({ ...prev, institution: institution.name, institutionId: institution.id }));
     setUserAccount(prev => ({ ...prev, institution: institution.name }));
+    // 7cq: keep it. A learner's goes on their own profile; a guardian's is remembered for the learner they are
+    // booking for, on this device; a tutor sets theirs under Teaching.
+    if (user && role === 'student') {
+      updateStudentInstitution(user.id, institution.id)
+        .then(() => showToast(`Institution saved: "${institution.name}"`))
+        .catch((err) => {
+          console.error('updateStudentInstitution failed:', err);
+          showToast(`"${institution.name}" is set for this search but could not be saved. Please try again.`);
+        });
+      return;
+    }
+    if (user && role === 'parent' && bookingFor) rememberInstitution(user.id, bookingFor.id, institution);
     showToast(`Institution updated to "${institution.name}"`);
   };
 
@@ -238,6 +283,13 @@ export default function App() {
                 selectedLearnerId={bookingFor?.id ?? null}
                 onSelectLearner={setBookingFor}
               />
+            )}
+
+            {/* Phase 2: an adult learner's own school results (FEATURES.schoolResults). */}
+            {FEATURES.schoolResults && user && profile?.role === 'student' && !isViewOnlyLearner && (
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs mb-8">
+                <SchoolResultsPanel learnerId={user.id} learnerName={profile.fullName?.split(' ')[0] || 'You'} isSelf />
+              </div>
             )}
 
             {/* 3 & 4. Main Section Grid: Left Column (Booking Form) + Right Column (Suggestions Grid) */}
