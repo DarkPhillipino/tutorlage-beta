@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Menu, MapPin, Loader2, CheckCircle2, Circle, Sparkles, UserX, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Menu, MapPin, Loader2, CheckCircle2, Circle, Sparkles, UserX, AlertCircle, Video } from 'lucide-react';
 import { TutorDashboardData, SubTierDefinition } from '../types';
 import { fetchTutorDashboard, fetchSubTierDefinitions, updateTutorProfile } from '../lib/queries';
 import { AvailableRequestsQueue } from './AvailableRequestsQueue';
 import { getErrorMessage } from '../lib/errors';
+import { FEATURES } from '../lib/features';
 
 interface TeachGoScreenProps {
   tutorId: string;
@@ -190,6 +192,29 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
             <AvailableRequestsQueue tutorId={tutor.id} />
           ) : (
             <p className="text-xs text-slate-500 text-center">Tap GO to see and accept waiting requests.</p>
+          )}
+
+          {/* Video rooms (master 7bm): open a room and share its link, or go back into one still open. Hidden until
+              FEATURES.videoRooms is switched on. The text matters: the database refuses a learner under 18 in a
+              tutor's room, so tutors should not send them the link. */}
+          {FEATURES.videoRooms && (
+            <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-slate-200 space-y-2">
+              <div className="flex items-center space-x-1.5">
+                <Video className="w-3.5 h-3.5 text-[#15803D]" />
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Video room</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Open a room and share its link with adult learners or parents. They wait in a lobby until you let them in.
+                A learner under 18 joins through their booked session instead.
+              </p>
+              <Link
+                to="/room"
+                className="inline-flex items-center gap-1.5 bg-[#15803D] hover:bg-[#166534] text-white text-xs font-bold px-3 py-2 rounded-lg"
+              >
+                <Video className="w-3.5 h-3.5" />
+                Open or find a video room
+              </Link>
+            </div>
           )}
 
           {/* Tips (illustrative, not data-driven) */}

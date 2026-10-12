@@ -169,13 +169,16 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   };
 
   // What to tell the student when the search came back empty — distinguishes
-  // "the platform genuinely has no tutors yet" from "your subject/grade
+  // "the platform genuinely has no approved tutors yet" from "your subject/grade
   // level/tier just didn't match anyone," which used to collapse into the
   // same misleading "no tutors have registered" message regardless of cause.
+  // The wording says how matching really works (master 7co, decision row 32, CEO "only the wording", 12 Oct): a learner
+  // does not pick a tutor; tutors who are approved and teach the subject and grade see the request, and the first to accept
+  // is matched. "Approved" is deliberate: a tutor who has signed up but not been approved is hidden from learners.
   const hasSearchFilter = !!appliedSubject.trim() || !!gradeLevel.trim();
   const noTutorsMessage = hasSearchFilter
-    ? `No tutors match "${appliedSubject || 'any subject'}" (${gradeLevel || 'any grade level'}) yet — try a different subject or check back soon.`
-    : 'No tutors have registered on Tutorlage yet — check back soon.';
+    ? `No approved tutor teaches "${appliedSubject || 'any subject'}" (${gradeLevel || 'any grade level'}) yet, so nobody would answer a request. Tutors see your request when you send it, and the first to accept is matched with you. Try a different subject or check back soon.`
+    : 'No approved tutors are on Tutorlage yet — check back soon.';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -198,7 +201,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight mb-6">
-            Find a tutor
+            Send a tutoring request
           </h1>
 
           {selectedLevel && (
@@ -387,7 +390,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
             ) : tutorCount === 0 ? (
               <div className="text-center py-16 px-4">
                 <UserX className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm font-bold text-[#0F172A]">No tutors match yet</p>
+                <p className="text-sm font-bold text-[#0F172A]">No tutor can take this request yet</p>
                 <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
                   {noTutorsMessage}
                 </p>
@@ -399,6 +402,11 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                 </div>
                 <p className="text-sm font-bold text-[#0F172A] mb-1">
                   {tutorCount} tutor{tutorCount === 1 ? '' : 's'} teach{tutorCount === 1 ? 'es' : ''} this subject
+                </p>
+                <p className="text-xs text-slate-500 mb-3 max-w-sm">
+                  You don't pick the tutor. Tutors at the price level you choose or above get your request, and the first to
+                  accept is matched with you. You'll see who accepted, and you can cancel the session before it starts if you'd
+                  rather not have them.
                 </p>
                 <p className="text-xs text-slate-500 mb-5 max-w-sm">
                   Choose a price level so you know exactly what you'll pay before you send your request.

@@ -7,7 +7,9 @@
   <body style="font-family: sans-serif; padding: 16px">
     <h1 style="font-size: 18px">Video room call logic: loopback test (master 7bm)</h1>
     <p style="font-size: 13px; color: #555">
-      Three fake participants in this page, joined by an in-memory channel. Takes about 40 seconds. Not part of the site.
+      Three fake participants in this page, joined by an in-memory channel (T1 to T8), then the heartbeat, leave and visit-id
+      code of the room page with a fake sender (T9 to T18), then the real room page itself in StrictMode against a pretend
+      API, sign-in and channel (T19 to T30). Takes about 90 seconds. Not part of the site.
     </p>
     <pre id="out" style="font-size: 13px; white-space: pre-wrap">Starting…</pre>
     <script type="module" src="./room-loopback.ts"></script>

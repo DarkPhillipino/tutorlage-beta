@@ -934,6 +934,10 @@ const ROOM_CODE_SHAPE = /^[A-HJ-NP-Z2-9]{8}$/;
 const ICE_CONFIG = iceConfigFromEnv(process.env);
 // 1 = every new room hides participants' addresses (all calls through a relay). Refused while no relay exists.
 const VIDEO_RELAY_ONLY = process.env.VIDEO_RELAY_ONLY === '1';
+// Rooms fail closed: switched on without VIDEO_RELAY_ONLY=1, every route refuses (503) instead of quietly letting the
+// people in a call see each other's network addresses (the CEO's 9 Oct requirement, "always hide"; legal's review of 10 Oct).
+// Set VIDEO_ALLOW_DIRECT_CALLS=1 only for a test where direct calls are wanted on purpose.
+const VIDEO_ALLOW_DIRECT_CALLS = process.env.VIDEO_ALLOW_DIRECT_CALLS === '1';
 
 function newRoomCode(): string {
   const bytes = crypto.randomBytes(8);
@@ -953,6 +957,10 @@ const ROOM_ERRORS: Record<string, [number, string]> = {
   too_many_open_rooms: [429, 'You already have 5 open rooms. End one first.'],
   not_host: [403, 'Only the person who opened the room can do that.'],
   not_waiting: [409, 'That person is not waiting to join.'],
+  session_room: [
+    403,
+    "In a booked session's room nobody can be removed and the room can't be ended by one person. Just leave when you are done.",
+  ],
 };
 
 function sendRoomError(res: Response, error: { message?: string } | null, what: string) {
@@ -969,6 +977,11 @@ function sendRoomError(res: Response, error: { message?: string } | null, what: 
 function roomsAvailable(res: Response): boolean {
   if (!VIDEO_ROOMS_ENABLED) {
     res.status(404).json({ error: 'Video rooms are not switched on yet.' });
+    return false;
+  }
+  if (!VIDEO_RELAY_ONLY && !VIDEO_ALLOW_DIRECT_CALLS) {
+    console.error('Video rooms: switched on without VIDEO_RELAY_ONLY=1, so every route refuses (fail closed).');
+    res.status(503).json({ error: 'Calls that hide your address are not available yet.' });
     return false;
   }
   return true;
@@ -1031,6 +1044,14 @@ function cleanCode(raw: unknown): string | null {
   return ROOM_CODE_SHAPE.test(code) ? code : null;
 }
 
+// The id of the caller's open page visit (a random UUID the page makes when it opens the room). It lets a newer tab
+// or device take over a person's place and makes a late "leave" from an old tab harmless. Anything that is not a
+// UUID is ignored, so it only ever claims nothing.
+function visitOf(req: Request): string | null {
+  const raw = (req.body as { visit?: unknown } | undefined)?.visit;
+  return typeof raw === 'string' && UUID_SHAPE.test(raw) ? raw.toLowerCase() : null;
+}
+
 // A tutor opens a room and gets its code; the page turns it into a link to share.
 app.post('/api/rooms', rateLimit(10, 60_000), async (req, res) => {
   if (!roomsAvailable(res)) return;
@@ -1062,9 +1083,11 @@ app.post('/api/rooms', rateLimit(10, 60_000), async (req, res) => {
   res.status(500).json({ error: 'Something went wrong with the room — try again.' });
 });
 
-// Open the room for a booked session (made on first use). Only the session's tutor, learner or the learner's
-// guardian; from 15 minutes before the start until an hour after it should have ended.
-app.post('/api/rooms/session/:sessionId/join', rateLimit(30, 60_000), async (req, res) => {
+// Find or make the room for a booked session and hand back its code (the page then joins it like any room, and the
+// database admits only the session's tutor, learner and the learner's guardian, with no lobby). Made on first use,
+// from 15 minutes before the start until an hour after it should have ended. Nobody is entered and no relay
+// credentials are made here: that happens when the page joins.
+app.post('/api/rooms/session/:sessionId/open', rateLimit(30, 60_000), async (req, res) => {
   if (!roomsAvailable(res)) return;
   const user = await signedInUser(req, res);
   if (!user) return;
@@ -1075,28 +1098,57 @@ app.post('/api/rooms/session/:sessionId/join', rateLimit(30, 60_000), async (req
   }
   if (relayMissing(res, VIDEO_RELAY_ONLY)) return;
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const { data, error } = await db.rpc('join_video_session_room', {
+    const { data, error } = await db.rpc('open_video_session_room', {
       p_session: sessionId,
       p_profile: user.id,
       p_code: newRoomCode(),
       p_relay_only: VIDEO_RELAY_ONLY,
     });
     if (error) {
+      // A code already in use: try another.
       if (error.code === '23505' && /video_rooms_code_key/.test(error.message ?? '')) continue;
-      sendRoomError(res, error, 'session join');
+      sendRoomError(res, error, 'session open');
       return;
     }
-    const row = (Array.isArray(data) ? data[0] : data) as JoinedRow | undefined;
-    if (!row) {
+    const row = (Array.isArray(data) ? data[0] : data) as { code?: string } | undefined;
+    if (!row?.code) {
       res.status(500).json({ error: 'Something went wrong with the room — try again.' });
       return;
     }
-    const ice = row.member_status === 'admitted' ? await iceOrFail(res, row.relay_only) : [];
-    if (ice === null) return;
-    res.json(joinAnswer(row, ice));
+    res.json({ code: row.code });
     return;
   }
   res.status(500).json({ error: 'Something went wrong with the room — try again.' });
+});
+
+// The tutor's own open rooms (so a lost link can be found again), newest first.
+app.get('/api/rooms/mine', rateLimit(30, 60_000), async (req, res) => {
+  if (!roomsAvailable(res)) return;
+  const user = await signedInUser(req, res);
+  if (!user) return;
+  const { data, error } = await db.rpc('list_my_video_rooms', { p_host: user.id });
+  if (error) {
+    sendRoomError(res, error, 'list');
+    return;
+  }
+  const rows = (Array.isArray(data) ? data : []) as {
+    code: string;
+    max_participants: number;
+    relay_only: boolean;
+    created_at: string;
+    expires_at: string;
+    in_room: number;
+  }[];
+  res.json({
+    rooms: rows.map((r) => ({
+      code: r.code,
+      maxParticipants: r.max_participants,
+      relayOnly: r.relay_only,
+      createdAt: r.created_at,
+      expiresAt: r.expires_at,
+      inRoom: r.in_room,
+    })),
+  });
 });
 
 // Enter a room from its link. Everyone but the host waits in the lobby until the host lets them in.
@@ -1109,7 +1161,7 @@ app.post('/api/rooms/:code/join', rateLimit(30, 60_000), async (req, res) => {
     res.status(400).json({ error: 'That room link is not valid.' });
     return;
   }
-  const { data, error } = await db.rpc('join_video_room', { p_code: code, p_profile: user.id });
+  const { data, error } = await db.rpc('join_video_room', { p_code: code, p_profile: user.id, p_visit: visitOf(req) });
   if (error) {
     sendRoomError(res, error, 'join');
     return;
@@ -1220,7 +1272,7 @@ for (const action of ['leave', 'end'] as const) {
     }
     const { error } =
       action === 'leave'
-        ? await db.rpc('leave_video_room', { p_room: roomId, p_profile: user.id })
+        ? await db.rpc('leave_video_room', { p_room: roomId, p_profile: user.id, p_visit: visitOf(req) })
         : await db.rpc('end_video_room', { p_room: roomId, p_host: user.id });
     if (error) {
       sendRoomError(res, error, action);
@@ -1229,6 +1281,37 @@ for (const action of ['leave', 'end'] as const) {
     res.json({ ok: true });
   });
 }
+
+// The open room page says it is still there (every ~25 seconds, while the page is open, in the lobby or in the
+// call). The database stamps its own clock on the person's place; someone silent for 90 seconds stops counting
+// toward the room's size, which is how a closed tab or a crash frees its seat. Answers with the person's place:
+// 'admitted', 'waiting', 'removed', 'left' (the page joins again) or 'superseded' (a newer tab or device holds the
+// place: this page stops). Someone who was never in the room gets 403, an ended or expired room 410.
+app.post('/api/rooms/:code/heartbeat', rateLimit(60, 60_000), async (req, res) => {
+  if (!roomsAvailable(res)) return;
+  const user = await signedInUser(req, res);
+  if (!user) return;
+  const code = cleanCode(req.params.code);
+  if (!code) {
+    res.status(400).json({ error: 'That room link is not valid.' });
+    return;
+  }
+  const roomId = await roomIdForCode(code);
+  if (!roomId) {
+    sendRoomError(res, { message: 'room_closed' }, 'heartbeat');
+    return;
+  }
+  const { data, error } = await db.rpc('heartbeat_video_room', {
+    p_room: roomId,
+    p_profile: user.id,
+    p_visit: visitOf(req),
+  });
+  if (error) {
+    sendRoomError(res, error, 'heartbeat');
+    return;
+  }
+  res.json({ status: data });
+});
 
 app.listen(PORT, () => {
   console.log(`Payments API listening on http://localhost:${PORT}`);

@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Calendar, Loader2, AlertTriangle, Video, Star, Check, AlertCircle } from 'lucide-react';
 import { StudentSessionDetail, ProblemReason } from '../types';
 import { fetchStudentSessionDetails, fetchLearnerSessionDetails, submitReview, cancelSession, reportSessionProblem } from '../lib/queries';
 import { fetchMyLearners } from '../lib/guardian';
 import { getErrorMessage } from '../lib/errors';
+import { FEATURES } from '../lib/features';
+import { openSessionRoom, sessionRoomWindow } from '../lib/videoRooms';
 
 interface UpcomingSessionsPanelProps {
   // The signed-in user's id: the learner's own, or the guardian's.
@@ -116,6 +119,10 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                 ) : (
                   <p className="text-[11px] text-slate-500">Your tutor will add the link to join before the session starts.</p>
                 )}
+                {/* Tutorlage's own video room for this session (master 7bm); off until FEATURES.videoRooms is switched on. */}
+                {FEATURES.videoRooms && (
+                  <SessionRoomControl sessionId={s.id} scheduledStart={s.scheduledStart} durationHours={s.durationHours} />
+                )}
                 <div className="flex flex-wrap items-start gap-x-4 gap-y-1">
                   <CancelSessionControl sessionId={s.id} onCancelled={() => setRetryCount((c) => c + 1)} />
                   <ReportProblemControl sessionId={s.id} />
@@ -151,6 +158,65 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
               />
             ),
           )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// "Join video room" on a booked session (master 7bm), for the session's learner, the learner's guardian and its tutor
+// (also used by TutorSessionsPanel). Only rendered when FEATURES.videoRooms is on. The button appears 15 minutes before
+// the start and stays until an hour after the session should have ended; the server applies the same rule and also
+// decides who may enter (the session's tutor, its learner and the learner's linked guardian; nobody waits in a lobby).
+// It asks the server to find or make the session's room, then goes to /room/<code>, which joins it.
+export const SessionRoomControl: React.FC<{ sessionId: string; scheduledStart: string; durationHours: number }> = ({
+  sessionId,
+  scheduledStart,
+  durationHours,
+}) => {
+  const navigate = useNavigate();
+  const [now, setNow] = useState(() => Date.now());
+  const [isOpening, setIsOpening] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Look again every 30 seconds, so the button appears by itself when the room opens.
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const roomTiming = sessionRoomWindow(scheduledStart, durationHours, now);
+  if (roomTiming === 'over') return null;
+  if (roomTiming === 'early') {
+    return <p className="text-[11px] text-slate-500">The Tutorlage video room opens 15 minutes before the session starts.</p>;
+  }
+
+  const handleOpen = async () => {
+    setIsOpening(true);
+    setError(null);
+    try {
+      const { code } = await openSessionRoom(sessionId);
+      navigate(`/room/${code}`);
+    } catch (e) {
+      setError(getErrorMessage(e, 'Could not open the video room.'));
+      setIsOpening(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1">
+      <button
+        onClick={handleOpen}
+        disabled={isOpening}
+        className="inline-flex items-center gap-1.5 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer"
+      >
+        {isOpening ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Video className="w-3.5 h-3.5" />}
+        Join video room
+      </button>
+      {error && (
+        <div className="flex items-center gap-1.5 text-[11px] text-rose-600 font-semibold">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{error}</span>
         </div>
       )}
     </div>

@@ -97,8 +97,11 @@ export const LevelSelectionPage: React.FC<LevelSelectionPageProps> = ({
         ) : levels.length === 0 ? (
           <div className="text-center py-16 px-4">
             <UserX className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm font-bold text-[#0F172A]">No tutors available for this search yet</p>
-            <p className="text-xs text-slate-500 mt-1">Try a different subject, or check back soon.</p>
+            <p className="text-sm font-bold text-[#0F172A]">No tutor can take this request yet</p>
+            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+              No approved tutor teaches this subject and grade yet, so nobody would answer. Tutors see your request when you send
+              it, and the first to accept is matched with you. Try a different subject, or check back soon.
+            </p>
           </div>
         ) : levels.length === 1 ? (
           // Launch page: one price, no ladder.

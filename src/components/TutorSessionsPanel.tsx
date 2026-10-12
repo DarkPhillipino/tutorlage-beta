@@ -3,7 +3,8 @@ import { Video, CheckCircle2, Loader2, AlertCircle, Link as LinkIcon, Phone } fr
 import { TutorManagedSession } from '../types';
 import { fetchTutorManagedSessions, setSessionMeetingLink, completeSession } from '../lib/queries';
 import { getErrorMessage } from '../lib/errors';
-import { CancelSessionControl, ReportProblemControl } from './UpcomingSessionsPanel';
+import { FEATURES } from '../lib/features';
+import { CancelSessionControl, ReportProblemControl, SessionRoomControl } from './UpcomingSessionsPanel';
 
 interface TutorSessionsPanelProps {
   tutorId: string;
@@ -146,6 +147,12 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
                   <p className="text-[11px] text-amber-700 font-semibold">
                     Add the link your learner will use to join — they can't reach you without it.
                   </p>
+                )}
+                {/* Tutorlage's own video room for this session (master 7bm); off until FEATURES.videoRooms is switched on.
+                    Shown from 15 minutes before the start until an hour after the session should have ended, which is
+                    also after the "Mark session complete" button replaces the link box. */}
+                {FEATURES.videoRooms && (
+                  <SessionRoomControl sessionId={s.id} scheduledStart={s.scheduledStart} durationHours={s.durationHours} />
                 )}
                 <div className="flex flex-wrap items-start gap-x-4 gap-y-1">
                   {start.getTime() > Date.now() && (

@@ -14,16 +14,32 @@ import {
   endRoom,
   joinRoom,
   leaveRoom,
+  leaveRoomOnClose,
+  myRooms,
+  newVisitId,
   removeMember,
   roomLink,
   roomState,
+  startHeartbeat,
 } from '../lib/videoRooms';
-import type { RoomJoin, RoomPerson, RoomState } from '../lib/videoRooms';
+import type { Heartbeat, HeartbeatStatus, MyRoom, RoomJoin, RoomPerson, RoomState } from '../lib/videoRooms';
 
-type Phase = 'starting' | 'lobby' | 'in-call' | 'ended' | 'error';
+// 'replaced': the same person opened the room in another tab or on another device, which now holds their place.
+type Phase = 'starting' | 'lobby' | 'in-call' | 'ended' | 'error' | 'replaced';
 
 const POLL_MS = 2500;
 const ICE_REFRESH_MS = 20 * 60 * 1000;
+// If our last answer from the room is older than this, the page was away (a sleeping phone, a dropped connection): by now
+// the others may have closed their end of our connections, so we start them afresh. Normal beats come every 25 seconds.
+const AWAY_MS = 60_000;
+
+// The people the room lists as in the call right now, other than us: the only ones our call may connect to.
+const othersInCall = (people: RoomPerson[], selfId: string) =>
+  people.filter((p) => p.status === 'admitted' && p.id !== selfId).map((p) => p.id);
+
+// A hiccup, not an answer from the room: no connection, a busy server (429) or a server error (5xx). While in a room the
+// page keeps going through these, because the next poll or beat usually works; only the room's own refusals end a visit.
+const isHiccup = (e: unknown) => e instanceof RoomError && (e.status === 0 || e.status === 429 || e.status >= 500);
 
 // Camera and microphone. Falls back to audio only, then to nothing, and says why.
 async function getLocalMedia(): Promise<{ stream: MediaStream | null; note: string | null }> {
@@ -120,13 +136,30 @@ const Message: React.FC<{ title: string; body?: string; action?: React.ReactNode
   </Shell>
 );
 
-// /room: a tutor opens a room; anyone else is told to ask for a link.
+// /room: a tutor opens a room (or goes back into one that is still open); anyone else is told to ask for a link.
 const OpenRoom: React.FC = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [size, setSize] = useState(4);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<MyRoom[]>([]);
+
+  const isTutor = profile?.role === 'tutor';
+  // The rooms this tutor already has open, so a lost link can be found again (a tutor may have 5 open at once).
+  useEffect(() => {
+    if (!isTutor) return;
+    let cancelled = false;
+    myRooms().then(
+      (list) => {
+        if (!cancelled) setRooms(list);
+      },
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [isTutor]);
 
   const open = async () => {
     setBusy(true);
@@ -178,6 +211,27 @@ const OpenRoom: React.FC = () => {
           >
             {busy ? 'Opening…' : 'Open a room'}
           </button>
+          {rooms.length > 0 && (
+            <div className="border-t border-slate-200 pt-4 text-left">
+              <p className="mb-2 text-sm font-semibold">Your open rooms</p>
+              <ul className="space-y-2">
+                {rooms.map((room) => (
+                  <li
+                    key={room.code}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  >
+                    <span className="text-slate-600">
+                      {room.inRoom} of {room.maxParticipants} in the room · open until{' '}
+                      {new Date(room.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <Link to={`/room/${room.code}`} className="font-semibold text-[#15803D]">
+                      Go in
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       }
     />
@@ -208,15 +262,13 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
   const enteredRef = useRef(false);
   const startedCallRef = useRef(false);
   const lastIceRef = useRef(0);
-
-  const fail = useCallback((e: unknown) => {
-    if (e instanceof RoomError && e.status === 410) {
-      setPhase('ended');
-      return;
-    }
-    setError(e instanceof Error ? e.message : 'Something went wrong with the room.');
-    setPhase('error');
-  }, []);
+  // This page visit's id (made when the room opens): sent with join, heartbeat and leave.
+  const visitRef = useRef('');
+  // Stops this visit's polling and heartbeat at once. "Leave" and "End for everyone" call it first, so a beat that is
+  // already on its way cannot answer "left" and make the page join the room again while the person is walking out.
+  const stopVisitRef = useRef<(() => void) | null>(null);
+  // Asks for a fresh roster at once (the call uses it when someone it does not know yet sends a set-up message).
+  const askRosterRef = useRef<(() => void) | null>(null);
 
   const teardown = useCallback(async () => {
     const call = callRef.current;
@@ -229,12 +281,38 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
     setRemote({});
   }, []);
 
-  // Get camera and microphone, then join the room's set-up channel.
+  const fail = useCallback(
+    (e: unknown) => {
+      // Whatever ended this visit (the room was ended, we were removed, an error), the camera and microphone must not
+      // keep running behind the message.
+      void teardown();
+      if (e instanceof RoomError && e.status === 410) {
+        setPhase('ended');
+        return;
+      }
+      setError(e instanceof Error ? e.message : 'Something went wrong with the room.');
+      setPhase('error');
+    },
+    [teardown],
+  );
+
+  // Get camera and microphone, then join the room's set-up channel. isCancelled: the visit ended meanwhile (the page
+  // was left or closed while the browser was asking for the camera), so nothing may be started or kept.
   const enterCall = useCallback(
-    async (state: Pick<RoomJoin | RoomState, 'iceServers' | 'relayOnly'> & { channelName: string }) => {
+    async (
+      state: Pick<RoomJoin | RoomState, 'iceServers' | 'relayOnly'> & { channelName: string },
+      isCancelled: () => boolean,
+      // Who the room lists as in the call (without us). [] when we have not heard yet: nobody may connect until we have.
+      roster: string[],
+    ) => {
       if (startedCallRef.current) return;
       startedCallRef.current = true;
       const { stream, note } = await getLocalMedia();
+      if (isCancelled()) {
+        stopStream(stream);
+        startedCallRef.current = false;
+        return;
+      }
       localRef.current = stream;
       setLocalStream(stream);
       setMediaNote(note);
@@ -256,11 +334,18 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
         onConnectionState: (peerId, connection) =>
           setRemote((prev) => (prev[peerId] ? { ...prev, [peerId]: { ...prev[peerId], state: connection } } : prev)),
         onChannelLost: () => setLostChannel(true),
+        onUnknownSender: () => askRosterRef.current?.(),
       });
+      // Before the channel opens, so that nobody the room does not list can start a connection with us.
+      call.setRoster(roster);
       callRef.current = call;
       lastIceRef.current = Date.now();
       try {
         await call.start();
+        if (isCancelled()) {
+          await teardown();
+          return;
+        }
         setPhase('in-call');
       } catch (e) {
         await teardown();
@@ -270,71 +355,205 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
     [selfId, teardown],
   );
 
-  // Join, wait in the lobby if need be, then keep the room's list of people fresh.
+  // Join, wait in the lobby if need be, keep the room's list of people fresh, and keep telling the room we are still
+  // here (the heartbeat): a closed tab or a crash is noticed by the silence and frees the seat. On the way out the page
+  // also sends a best-effort "leave" (when the tab closes, and when the person leaves).
   useEffect(() => {
     if (!selfId) return;
     let cancelled = false;
     let timer: number | undefined;
+    let heartbeat: Heartbeat | null = null;
+    const visit = newVisitId();
+    visitRef.current = visit;
+    const isCancelled = () => cancelled;
 
+    const stopTimers = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = undefined;
+      heartbeat?.stop();
+    };
+    stopVisitRef.current = () => {
+      cancelled = true;
+      stopTimers();
+    };
+    // Something ended this visit for good (the room ended, we were removed, an error): stop everything and say why.
+    const finish = (e: unknown) => {
+      cancelled = true;
+      stopTimers();
+      fail(e);
+    };
+    // The same person opened the room in another tab or device, which now holds their place. That visit's "leave"
+    // is the one that counts, so this page sends none.
+    const replaced = () => {
+      cancelled = true;
+      stopTimers();
+      enteredRef.current = false;
+      void teardown();
+      setPhase('replaced');
+    };
+
+    // What the room says about our place, every ~25 seconds and whenever the page suspects something is off.
+    let lastAnswerAt = Date.now();
+    const onHeartbeat = async (status: HeartbeatStatus) => {
+      if (cancelled) return;
+      const away = Date.now() - lastAnswerAt > AWAY_MS;
+      lastAnswerAt = Date.now();
+      if (away && (status === 'admitted' || status === 'waiting')) {
+        // We were away for a while and are still in: the others will have closed their end, so start afresh.
+        callRef.current?.announce();
+      }
+      if (status === 'superseded') {
+        replaced();
+      } else if (status === 'removed') {
+        finish(new RoomError('You were removed from this room.', 403));
+      } else if (status === 'left') {
+        // No longer in the room (our seat went to someone else while we were offline, or the room dropped us): join
+        // again. That checks the room's size, so a full room says so.
+        try {
+          const again = await joinRoom(code, visit);
+          if (cancelled) return;
+          setJoin(again);
+          // Our place was lost and is given back: the others closed their end while we were out, so start afresh.
+          if (again.status === 'admitted') callRef.current?.announce();
+        } catch (e) {
+          // A hiccup: the next beat finds out we are still out and tries again.
+          if (isHiccup(e)) return;
+          if (!cancelled) finish(e);
+        }
+      }
+    };
+
+    // One poll at a time. A request to poll now (someone unknown sent a set-up message) while one is running makes the next
+    // one follow at once instead of after the usual wait.
+    let ticking = false;
+    let tickAgain = false;
     const tick = async () => {
+      if (cancelled) return;
+      if (ticking) {
+        tickAgain = true;
+        return;
+      }
+      ticking = true;
+      tickAgain = false;
+      if (timer) window.clearTimeout(timer);
+      timer = undefined;
       try {
         // Relay passwords only when entering the call and every 20 minutes after: not on every poll.
         const needIce = !startedCallRef.current || Date.now() - lastIceRef.current > ICE_REFRESH_MS;
         const state = await roomState(code, needIce);
         if (cancelled) return;
         setPeople(state.participants);
+        const roster = othersInCall(state.participants, selfId);
         if (state.status === 'left') {
-          // We left (a second tab, or a dropped connection): come back in.
-          const again = await joinRoom(code);
-          if (cancelled) return;
-          setJoin(again);
+          // Not in the room any more. The heartbeat's answer tells whether another tab of ours took over (stop) or the
+          // place was lost (join again), so it decides.
+          void heartbeat?.beatNow();
         } else if (state.status === 'admitted') {
           if (!startedCallRef.current) {
-            await enterCall({ iceServers: state.iceServers, relayOnly: state.relayOnly, channelName: `room:${state.roomId}` });
-          } else if (callRef.current && needIce && state.iceServers.length > 0) {
-            // Never replace working settings with an empty answer.
-            callRef.current.updateIceServers(state.iceServers);
-            lastIceRef.current = Date.now();
+            await enterCall(
+              { iceServers: state.iceServers, relayOnly: state.relayOnly, channelName: `room:${state.roomId}` },
+              isCancelled,
+              roster,
+            );
+          } else if (callRef.current) {
+            // Only the people the room lists may stay connected to us; anyone removed or gone is cut off from our side.
+            callRef.current.setRoster(roster);
+            if (needIce && state.iceServers.length > 0) {
+              // Never replace working settings with an empty answer.
+              callRef.current.updateIceServers(state.iceServers);
+              lastIceRef.current = Date.now();
+            }
           }
         }
       } catch (e) {
-        // A hiccup in the connection: keep trying. Anything else ends the visit.
-        if (e instanceof RoomError && e.status === 0) return;
-        if (!cancelled) fail(e);
-        return;
-      }
-      if (!cancelled) timer = window.setTimeout(tick, POLL_MS);
-    };
-
-    (async () => {
-      try {
-        const joined = await joinRoom(code);
-        if (cancelled) return;
-        enteredRef.current = true;
-        setJoin(joined);
-        setPhase(joined.status === 'admitted' ? 'starting' : 'lobby');
-        if (joined.status === 'admitted') {
-          await enterCall({ iceServers: joined.iceServers, relayOnly: joined.relayOnly, channelName: joined.channel });
-          if (cancelled) return;
+        // A hiccup (no connection, a busy server, a rate limit): keep trying. Anything else ends the visit.
+        if (!isHiccup(e)) {
+          if (!cancelled) finish(e);
+          return;
         }
-        timer = window.setTimeout(tick, POLL_MS);
-      } catch (e) {
-        if (!cancelled) fail(e);
+      } finally {
+        ticking = false;
       }
-    })();
+      if (!cancelled) timer = window.setTimeout(tick, tickAgain ? 0 : POLL_MS);
+    };
+    askRosterRef.current = () => void tick();
+
+    // The tab is closing: the browser lets one small request out. If it never arrives the heartbeat's silence does the job.
+    const onPageHide = () => {
+      if (enteredRef.current) leaveRoomOnClose(code, visit);
+    };
+    window.addEventListener('pagehide', onPageHide);
+
+    // The page is back on screen or the connection is back (a phone woken from sleep, a laptop lid opened): say we are
+    // here now rather than waiting for the next beat, so the seat is not lost to a slow timer.
+    const onVisible = () => {
+      if (!document.hidden) void heartbeat?.beatNow();
+    };
+    const onOnline = () => void heartbeat?.beatNow();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onOnline);
+
+    // Start on the next tick, not at once. In development React mounts the page, unmounts it and mounts it again straight
+    // away; starting at once would send two joins with two different visit ids, and if the older one landed last it
+    // would hold the place and this visit would be told it was replaced. The cleanup below cancels the first start.
+    const startTimer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const joined = await joinRoom(code, visit);
+          if (cancelled) {
+            // The page was left while the answer was on its way: give the place back at once.
+            void leaveRoom(code, visit).catch(() => undefined);
+            return;
+          }
+          enteredRef.current = true;
+          setJoin(joined);
+          setPhase(joined.status === 'admitted' ? 'starting' : 'lobby');
+          heartbeat = startHeartbeat({
+            code,
+            visit,
+            onStatus: (status) => void onHeartbeat(status),
+            onFatal: finish,
+          });
+          if (joined.status === 'admitted') {
+            // The roster is not known yet: the call lets nobody connect until the first poll below has given it.
+            await enterCall(
+              { iceServers: joined.iceServers, relayOnly: joined.relayOnly, channelName: joined.channel },
+              isCancelled,
+              [],
+            );
+            if (cancelled) return;
+            timer = window.setTimeout(tick, 0);
+            return;
+          }
+          timer = window.setTimeout(tick, POLL_MS);
+        } catch (e) {
+          if (!cancelled) finish(e);
+        }
+      })();
+    }, 0);
 
     return () => {
       cancelled = true;
-      if (timer) window.clearTimeout(timer);
+      window.clearTimeout(startTimer);
+      stopTimers();
+      stopVisitRef.current = null;
+      askRosterRef.current = null;
+      window.removeEventListener('pagehide', onPageHide);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onOnline);
       const entered = enteredRef.current;
       enteredRef.current = false;
       void teardown().then(() => {
-        if (entered) void leaveRoom(code).catch(() => undefined);
+        if (entered) void leaveRoom(code, visit).catch(() => undefined);
       });
     };
   }, [code, selfId, enterCall, fail, teardown]);
 
   const isHost = join?.isHost ?? false;
+  // A booked session's own room admits only its tutor, its learner and the learner's guardian, so there is nobody to let
+  // in or remove, and the tutor cannot send the learner or guardian away or end the room: the database refuses both.
+  const isSessionRoom = Boolean(join?.sessionId);
+  const canManage = isHost && !isSessionRoom;
   const waiting = people.filter((p) => p.status === 'waiting' && p.id !== selfId);
   const inRoom = people.filter((p) => p.status === 'admitted');
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? 'Guest';
@@ -377,13 +596,18 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
     }
   };
   const leave = async () => {
+    stopVisitRef.current?.();
     enteredRef.current = false;
+    // Sent but not waited for: a slow connection must not keep someone on this page after they pressed Leave. The page
+    // stays alive while the app navigates, so the request still goes out; if it never arrives, the room notices the
+    // silence (90 seconds) and frees the seat anyway.
+    void leaveRoom(code, visitRef.current).catch(() => undefined);
     await teardown();
-    await leaveRoom(code).catch(() => undefined);
     navigate('/', { replace: true });
   };
   const endForEveryone = async () => {
     if (!window.confirm('End this room for everyone?')) return;
+    stopVisitRef.current?.();
     enteredRef.current = false;
     await endRoom(code).catch(() => undefined);
     await teardown();
@@ -405,6 +629,26 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
         title="This room has ended"
         body="The tutor ended it, or it has expired."
         action={<Link to="/" className="text-sm font-semibold text-[#15803D]">Back to Tutorlage</Link>}
+      />
+    );
+  }
+  if (phase === 'replaced') {
+    return (
+      <Message
+        title="You joined this room somewhere else"
+        body="You opened this room in another tab or on another device, so this one was closed. You are only in the room once."
+        action={
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="w-full rounded-xl bg-[#15803D] px-4 py-3 font-semibold text-white"
+            >
+              Join from this tab instead
+            </button>
+            <Link to="/" className="block text-sm font-semibold text-slate-500">Back to Tutorlage</Link>
+          </div>
+        }
       />
     );
   }
@@ -442,7 +686,7 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
             {inRoom.length} of {join?.maxParticipants ?? 4} in the room
           </p>
         </div>
-        {isHost && (
+        {canManage && (
           <button
             type="button"
             onClick={copyLink}
@@ -462,7 +706,7 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
       )}
       {error && <p className="mb-3 rounded-lg bg-red-100 px-3 py-2 text-sm text-red-800">{error}</p>}
 
-      {isHost && waiting.length > 0 && (
+      {canManage && waiting.length > 0 && (
         <div className="mb-4 rounded-xl bg-slate-800 p-4">
           <p className="mb-2 text-sm font-semibold">Waiting to join</p>
           <ul className="space-y-2">
@@ -502,7 +746,7 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
                 {remote[id].state === 'failed' ? "Can't connect" : 'Connecting…'}
               </span>
             )}
-            {isHost && (
+            {canManage && (
               <button
                 type="button"
                 onClick={() => act(id, 'remove')}
@@ -518,7 +762,7 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
       </div>
       {remoteIds.length === 0 && (
         <p className="mt-3 text-center text-sm text-slate-400">
-          {isHost ? 'Share the link, then let people in when they appear above.' : "You're in. Waiting for the others to connect…"}
+          {canManage ? 'Share the link, then let people in when they appear above.' : "You're in. Waiting for the others to connect…"}
         </p>
       )}
 
@@ -554,7 +798,7 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
           <PhoneOff className="h-4 w-4" />
           Leave
         </button>
-        {isHost && (
+        {canManage && (
           <button type="button" onClick={endForEveryone} className="rounded-full bg-slate-700 px-4 py-3 text-sm font-semibold">
             End for everyone
           </button>

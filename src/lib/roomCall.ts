@@ -38,6 +38,9 @@ export interface RoomCallOptions {
   onConnectionState: (peerId: string, state: RTCPeerConnectionState) => void;
   // The set-up channel dropped and could not come back; the call may stop working for new arrivals.
   onChannelLost: () => void;
+  // Someone not (yet) on the roster sent a set-up message: the page should ask the room for a fresh roster now, so a
+  // person who has just been let in is not kept waiting for the next poll. Optional.
+  onUnknownSender?: () => void;
 }
 
 // What a video stream is allowed to use, per person we send to (bits per second). Lower with more people,
@@ -46,6 +49,17 @@ const BITRATE_PAIR = 900_000;
 const BITRATE_GROUP = 400_000;
 const BITRATE_LOW_DATA = 150_000;
 
+// Set-up messages from someone the room has not (yet) listed as in the call are held for a short while, in case they were
+// let in a moment ago and our next roster has not caught up; anything older, or beyond these limits, is dropped.
+const HELD_MAX_AGE_MS = 60_000;
+const HELD_MAX_SENDERS = 8;
+const HELD_MAX_PER_SENDER = 24;
+
+interface HeldSignal {
+  at: number;
+  signal: Signal;
+}
+
 export class RoomCall {
   private readonly opts: RoomCallOptions;
   private readonly peers = new Map<string, Peer>();
@@ -53,6 +67,10 @@ export class RoomCall {
   private lowData = false;
   private stopped = false;
   private opened = false;
+  // Who the room currently lists as in the call (never us). null = no roster given: everyone's messages are accepted
+  // (call logic on its own, in tests). Once the page gives one, only people on it may connect; see setRoster.
+  private roster: Set<string> | null = null;
+  private readonly held = new Map<string, HeldSignal[]>();
 
   constructor(opts: RoomCallOptions) {
     this.opts = opts;
@@ -82,7 +100,48 @@ export class RoomCall {
     await this.opts.transport.close();
   }
 
-  // Relay passwords expire (an hour); the page asks the API for fresh settings now and then and passes them here.
+  // The people the room lists as in the call right now (the page passes this from every roster it fetches; we are left
+  // out of it). From the first roster on, only they may connect to us: anyone else's set-up messages are held for a
+  // short while and then dropped, and a connection to someone who is no longer listed (removed by the host, left, or
+  // silent for 90 seconds) is closed from our side, so nothing more is sent to them. This is what makes "Remove" work
+  // against a browser that ignores it: the people still in the call stop answering. Our own end of the Realtime channel
+  // can still carry their messages (Supabase checks a channel's access once per connection), so we must not rely on it.
+  setRoster(ids: string[]): void {
+    if (this.stopped) return;
+    const next = new Set(ids.filter((id) => id !== this.opts.selfId));
+    this.roster = next;
+    for (const id of [...this.peers.keys()]) {
+      if (!next.has(id)) this.closePeer(id, true);
+    }
+    const now = Date.now();
+    for (const [id, list] of [...this.held]) {
+      this.held.delete(id);
+      if (next.has(id)) {
+        // Replay in the order they arrived; stop if the roster changes again while we wait.
+        void (async () => {
+          for (const entry of list) {
+            if (this.stopped || !this.roster?.has(id)) return;
+            await this.dispatch(entry.signal);
+          }
+        })().catch((error) => console.error('Room call: handling a held message failed', error));
+      } else {
+        const fresh = list.filter((entry) => now - entry.at <= HELD_MAX_AGE_MS);
+        if (fresh.length > 0) this.held.set(id, fresh);
+      }
+    }
+  }
+
+  // Start every connection afresh: close ours, then say hello, so the people in the call set up new ones with us. For a
+  // page that was away (a sleeping phone, a dropped connection) or whose place was lost and given back: by then the
+  // others will have closed their end.
+  announce(): void {
+    if (this.stopped || !this.opened) return;
+    for (const id of [...this.peers.keys()]) this.closePeer(id, true);
+    this.send({ kind: 'hello', from: this.opts.selfId });
+  }
+
+  // Relay passwords expire (by default after four hours); the page asks the API for fresh settings now and then and
+  // passes them here.
   updateIceServers(iceServers: IceServer[]): void {
     this.iceServers = iceServers;
     for (const peer of this.peers.values()) {
@@ -106,6 +165,39 @@ export class RoomCall {
 
   private async handle(signal: Signal): Promise<void> {
     if (this.stopped || signal.from === this.opts.selfId) return;
+    if (this.roster && !this.roster.has(signal.from)) {
+      this.hold(signal);
+      return;
+    }
+    await this.dispatch(signal);
+  }
+
+  // A message from someone the room does not list as in the call. Maybe they were let in a moment ago and our roster is
+  // behind, so keep a few of their messages briefly and ask for a fresh roster; setRoster handles or drops them. A "bye"
+  // from someone we do not list changes nothing for us.
+  private hold(signal: Signal): void {
+    if (signal.kind === 'bye') {
+      this.held.delete(signal.from);
+      return;
+    }
+    // Set-up messages meant for someone else are none of our business.
+    if ((signal.kind === 'description' || signal.kind === 'candidate') && signal.to !== this.opts.selfId) return;
+    let list = this.held.get(signal.from);
+    if (!list) {
+      if (this.held.size >= HELD_MAX_SENDERS) return;
+      list = [];
+      this.held.set(signal.from, list);
+    }
+    // A new hello starts that person afresh: what they sent before it is out of date.
+    if (signal.kind === 'hello') list.length = 0;
+    if (list.length >= HELD_MAX_PER_SENDER) return;
+    const first = list.length === 0;
+    list.push({ at: Date.now(), signal });
+    if (first) this.opts.onUnknownSender?.();
+  }
+
+  private async dispatch(signal: Signal): Promise<void> {
+    if (this.stopped) return;
     switch (signal.kind) {
       case 'hello': {
         // Someone arrived (or came back): start fresh with them. The existing members make the first move.
