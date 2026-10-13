@@ -24,6 +24,7 @@ import { BookingFormState, SuggestionItem, UserAccount, PriceLevel, Institution 
 import { toIsoDate } from './lib/format';
 import { fetchUpcomingStudentSessions, fetchStudentGradeLevel, fetchStudentInstitution, updateStudentInstitution } from './lib/queries';
 import { rememberInstitution, recallInstitution } from './lib/institutionMemory';
+import { institutionSaveTarget, institutionMessage, savesOnOwnProfile } from './lib/institutionSave';
 
 export default function App() {
   const navigate = useNavigate();
@@ -88,9 +89,10 @@ export default function App() {
   // sign-in. A learner's own is saved on their profile. For a guardian it is the learner they are booking
   // for: the learner's saved one if it has one, otherwise the last one chosen for that learner on this device
   // (a guardian can't change a learner's profile). Tutors set theirs under Teaching.
+  // 7cv: the roles that load from their own profile are the same ones that save to it (savesOnOwnProfile).
   // Depends on the ids, not the user object, so a token refresh doesn't clear a choice just made.
   useEffect(() => {
-    if (!user || !role || role === 'tutor') return;
+    if (!user || !role || (role !== 'parent' && !savesOnOwnProfile(role))) return;
     const learnerId = role === 'parent' ? bookingFor?.id ?? null : user.id;
     // Start empty so switching learner never carries the previous learner's institution over.
     setFormState(prev => ({ ...prev, institution: '', institutionId: null }));
@@ -161,19 +163,21 @@ export default function App() {
   const handleSelectInstitution = (institution: Institution) => {
     setFormState(prev => ({ ...prev, institution: institution.name, institutionId: institution.id }));
     setUserAccount(prev => ({ ...prev, institution: institution.name }));
-    // 7cq: keep it. A learner's goes on their own profile; a guardian's is remembered for the learner they are
-    // booking for, on this device; a tutor sets theirs under Teaching.
-    if (user && role === 'student') {
+    // 7cq/7cv: keep it where it can be kept, and say only what really happened. A learner's (or an admin's own)
+    // goes on their own profile and is announced only after the database confirms a row changed; a guardian's is
+    // remembered for the learner they are booking for, on this device; a tutor sets theirs under Teaching.
+    const target = institutionSaveTarget(role, !!bookingFor);
+    if (user && target === 'own-profile') {
       updateStudentInstitution(user.id, institution.id)
-        .then(() => showToast(`Institution saved: "${institution.name}"`))
+        .then(() => showToast(institutionMessage(role, target, institution.name)))
         .catch((err) => {
           console.error('updateStudentInstitution failed:', err);
           showToast(`"${institution.name}" is set for this search but could not be saved. Please try again.`);
         });
       return;
     }
-    if (user && role === 'parent' && bookingFor) rememberInstitution(user.id, bookingFor.id, institution);
-    showToast(`Institution updated to "${institution.name}"`);
+    if (user && target === 'device-for-learner' && bookingFor) rememberInstitution(user.id, bookingFor.id, institution);
+    showToast(institutionMessage(role, target, institution.name));
   };
 
   // ManageAccountModal.tsx persists the actual write (updateStudentGradeLevel)

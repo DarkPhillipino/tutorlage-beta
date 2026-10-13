@@ -100,6 +100,13 @@ run both files on their own and expect the "written" count instead.
 `20261012090000` (alone) → `20261012090100` → `20261012090200` → `20261012090300`. Then run `school_results.sql`
 and `tier1_pipeline.sql` on their own.
 
+**APPLIED TO DEV, Mon 12 Oct 2026 (CEO's yes), in that order; both suites then run on their own, rolled back, on the applied
+database: `school_results.sql` all of R0 to R37 as expected (the real audit rows were written: "3 written"), and
+`tier1_pipeline.sql` all of P0 to P40 as expected (P19's "keys in the reply" line prints `f`; P40 "4 written"; P36 shows a tutor's
+own subject still stored `verified` while `require_subject_verification` is `false`, so phase 1 is unchanged).** The seed's
+content was proved identical to the file by a hash computed in the database and from the file (96 items, 7 modules, 4 scenarios).
+Production is untouched; apply there at the cutover.
+
 ## 7br: a parent adding a learner (9 Oct 2026, tested rolled back; not applied)
 
 `7k_signup_trigger.sql` passed because it inserts `auth.users` rows with the guardian already in

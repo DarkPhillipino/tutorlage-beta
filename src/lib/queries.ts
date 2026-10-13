@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { updateOwnLearnerRow } from './institutionSave';
 import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, AvailableSessionRequest, StudentSession, TutorManagedSession, StudentSessionDetail, PriceLevel, PayoutAccount, ProblemReason, AppNotification } from '../types';
 
 // Model 3 (backlog 12a): the price levels a student can book right now for
@@ -71,8 +72,8 @@ export async function fetchStudentGradeLevel(studentId: string): Promise<string 
 }
 
 export async function updateStudentGradeLevel(studentId: string, gradeLevel: string): Promise<void> {
-  const { error } = await supabase.from('student_profiles').update({ grade_level: gradeLevel }).eq('id', studentId);
-  if (error) throw error;
+  // 7cv: a write the row-level rules filter out is "success, zero rows", not an error; updateOwnLearnerRow fails on it.
+  await updateOwnLearnerRow(supabase, studentId, { grade_level: gradeLevel });
 }
 
 // A learner's institution (student_profiles.school_id) — account-level info like the grade, so it has to
@@ -105,8 +106,8 @@ export async function fetchStudentInstitution(studentId: string): Promise<Instit
 }
 
 export async function updateStudentInstitution(studentId: string, institutionId: string): Promise<void> {
-  const { error } = await supabase.from('student_profiles').update({ school_id: institutionId }).eq('id', studentId);
-  if (error) throw error;
+  // 7cv: never report "saved" for a write that changed no row.
+  await updateOwnLearnerRow(supabase, studentId, { school_id: institutionId });
 }
 
 // Switches a brand-new Google sign-up to the role the person picked before
