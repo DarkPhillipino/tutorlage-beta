@@ -30,6 +30,7 @@ Run them in this order after applying migrations `20260930190000`–`20260930239
 | `7u_auto_complete_and_reports.sql` | 20 | Sessions complete 48 hours after their end (a setting) unless a report is open; learner, booking guardian and tutor can report a problem, strangers and signed-out callers can't, and nobody can insert a dispute directly (`20260930239000`) |
 | `7a_split_payments.sql` | 38 | The R1 card check saves a card (authorization code unreadable by browsers); tutors can't write their own payout row or accept from the browser; the server's claim → charge → finalize / release path, commission and fee bearer, legacy paid requests, cancellations refunding the charge, unmatched requests expiring uncharged, the recovery job for stuck charges, and the refund webhook (`20260930239500`) |
 | `7a_no_self_match.sql` | 4 | A tutor account can insert a request for itself (API, no enrolment), but the server's claim refuses that tutor ("You can't accept your own request.") and still lets another tutor accept (`20261005200000`) |
+| `tutor_onboarding.sql` | 31 | Tutor onboarding (master 7cx, `20261013180000` + `20261013180100`): a tutor picks beginner or experienced and records agreement only through two functions (the table can't be written directly; learners and signed-out callers refused; the consent time is the database's clock); tutors that existed before are grandfathered; a tutor can remove or replace an unverified document but **not** change, swap or delete a **verified** one (table and stored file), and adds a renewal alongside it; others can't touch or read them; admins read everything and can still review. Run **together with the migration in one rolled-back transaction** (as the file header says); the new enum value is checked separately after applying (last lines of the file). Storage deletes need `set_config('storage.allow_delete_query','true',true)` inside the test (Supabase refuses plain-SQL deletes otherwise) |
 
 Paystack's replies are faked inside the transaction for `7z` and `7a` (rows in `net._http_response` with
 ids far above anything pg_net has issued); anything those suites enqueue with pg_net is rolled back
@@ -106,6 +107,47 @@ database: `school_results.sql` all of R0 to R37 as expected (the real audit rows
 own subject still stored `verified` while `require_subject_verification` is `false`, so phase 1 is unchanged).** The seed's
 content was proved identical to the file by a hash computed in the database and from the file (96 items, 7 modules, 4 scenarios).
 Production is untouched; apply there at the cutover.
+
+## Tutor onboarding (7cx): APPLIED TO DEV, Wed 14 Oct 2026 (CEO's yes)
+
+`20261013180000` then `20261013180100` were applied to dev. `tutor_onboarding.sql` was then run on its own against the applied
+database, rolled back: O0 to A3 all as wanted (O0b, "every tutor that existed before is grandfathered", reads 0 not grandfathered; it
+only means something straight after applying), and the separate enum check (rows=1). Afterwards dev had 17 users, no test users, 6
+onboarding rows (all grandfathered), 0 documents and 0 stored files. Production: not applied (at the cutover, with the CEO's yes).
+
+## "Tell me when a tutor is available" (7cz, 14 Oct 2026; **APPLIED TO DEV Wed 14 Oct, about 20:20 SAST, with the CEO's yes; not on production**)
+
+Migration `20261014090000_tutor_waitlist.sql` (a table closed to direct writes, join and leave functions, a notifier that
+runs when a tutor is approved or a subject is verified, and a daily purge). **Applied to dev as version `20261014181422`, name `tutor_waitlist`
+(the tool names the version by the time of applying); the stored text hashes to the file's (`8bcc047955c2d9713802197252ac31be`), the
+code-only hash matches too (`47a6f9c95d0f7aa8d0c6646e59da857f`); the suite below was then run on its own on the applied database, rolled
+back: all 31 results as wanted; dev afterwards: 18 users, 0 test users, 0 waiting-list rows, 6 cron jobs (the new `purge-old-tutor-waitlist` is
+the sixth).** Earlier it was run **with the migration in one rolled-back
+statement** (`node scripts/run-rolled-back-test.mjs <out.sql> supabase/tests/tutor_waitlist.sql supabase/migrations/20261014090000_tutor_waitlist.sql`), or on its own after it is applied.
+
+| File | Checks | Covers | Result (dev, rolled back with the migration, 14 Oct) |
+|---|---|---|---|
+| `tutor_waitlist.sql` | 31 results (W0 to W28) | A learner joins for themselves and a parent for their child; joining again returns the same entry; a blank subject, joining for someone else or a stranger's child, signed out, and direct inserts, updates and deletes are all refused; others see none of your entries; at most 10 open entries; an admin sees all; an approved tutor for a different subject tells nobody; adding the subject tells the learner and the parent once each, never twice; joining is refused once a tutor is available; a subject verified for a not-yet-approved tutor tells nobody until the tutor is approved; leaving works only for your own entry; an entry older than 60 days is not told and is replaced when the person joins again; the purge removes entries 90 days after they were told or made and keeps recent ones; clients cannot call the purge or the notifier; the daily job is scheduled | **all as wanted** (dev afterwards: no table, 17 users, no test users, 5 cron jobs, latest migration unchanged) |
+
+## Keep or swap (7aa + 7da + 7db, 14 Oct 2026, tested rolled back; NOT applied)
+
+Migration `20261014200000_keep_or_swap.sql`: the learner (or the parent) keeps a tutor and books them again, or tries someone else; a
+tutor may end a pairing privately; a request addressed to a tutor ends after at most 48 hours; one tap sends it to any available tutor;
+and tutors read waiting requests only through a function (the privacy gap, 7db). **Replaces** `guard_session_request_insert()`,
+`claim_session_request(uuid, uuid)`, `expire_stale_paid_requests()` and drops the policy "Tutors view unclaimed pending requests".
+Run **with the migration in one rolled-back statement** (`node scripts/run-rolled-back-test.mjs <out.sql> supabase/tests/keep_or_swap.sql supabase/migrations/20261014200000_keep_or_swap.sql`).
+
+| File | Checks | Covers | Result (dev, rolled back with the migration, Wed 14 Oct) |
+|---|---|---|---|
+| `keep_or_swap.sql` | 70 results (K0 to K58, with the b/c variants) | Who may choose (an adult learner; a parent for their child; not a stranger, not a learner under 18 with their own sign-in); a tutor can never read what learners chose and a learner can never read that a tutor ended; an addressed request is accepted only for a tutor the learner has had, who is approved, teaches the subject and the price level, with the pairing not parted and fewer than 3 already waiting; forged end times and resend fields are reset; the end is the earlier of 48 hours and 30 minutes after the start; the tutor is told when the card check passes and reminded once after 24 hours; a tutor sees only requests addressed to them or ordinary ones they could accept, never another tutor's, never from a learner who parted with them either way; nobody but the owner, the accepting tutor, an admin or the requester reads the table (7db); claiming refuses addressed-to-another, expired and parted requests with one sentence; "try someone else" withdraws what was waiting and is undone by clearing; a tutor declines (only their own addressed request); ending a pairing tells the learner once, neutrally; one tap sends a request on (waiting: becomes ordinary; expired or declined: a new ordinary request with the same checked card, once, not for a nearly gone time, not by a stranger); My tutors; permissions (signed-out, the internal rule, the notifier) | **all as wanted**, in three runs because the tool shows only part of a long answer (K0 to K38b; K38b to K58; then the whole file again against the final migration with lines shortened: no FAIL, the values that matter checked) |
+| `7a_split_payments.sql` | 38 results | **Check A11 changed**: a tutor now sees the card-checked requests through `available_requests_for_tutor()` (3) and none straight from the table (A11b, 0). Everything else is as before | **all as wanted** with the final migration; A11 = 3, A11b = 0 |
+| `7a_no_self_match.sql` | 4 results | unchanged | **all as wanted** with the final migration |
+| `7k_guardian_phone.sql` | 8 results | unchanged (a guardian's booking still needs a phone; the insert guard is replaced) | **all as wanted** with the migration (before its last change to the tutor list only) |
+
+**Not yet done:** applying it. **The order matters because the live site uses the dev database:** publish the app code first (it reads
+waiting requests through the new function when it exists and through the old policy when it does not), then apply the migration,
+then run `keep_or_swap.sql` on its own on the applied database. App-side checks: `npx tsx scripts/dev/keep-or-swap-test.ts` (95 checks;
+27 deliberate breakages of the helpers and of the source files, all caught).
 
 ## 7br: a parent adding a learner (9 Oct 2026, tested rolled back; not applied)
 

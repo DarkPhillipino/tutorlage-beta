@@ -69,6 +69,11 @@ export const TutorVerificationQueue: React.FC = () => {
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_COLORS[t.onboardingStatus]}`}>
                     {STATUS_LABELS[t.onboardingStatus]}
                   </span>
+                  {t.tutorType && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700">
+                      {t.tutorType === 'beginner' ? 'Beginner' : 'Experienced'}
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-slate-500 mt-0.5 truncate">{t.email} {t.headline ? `· ${t.headline}` : ''}</div>
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-1">

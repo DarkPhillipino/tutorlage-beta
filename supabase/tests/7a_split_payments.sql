@@ -90,8 +90,13 @@ begin
     perform public.claim_session_request(q1, v_tutor);
     r := r || 'A10 FAIL tutor called claim_session_request directly' || E'\n';
   exception when others then r := r || 'A10 ok claim is server-only: ' || sqlerrm || E'\n'; end;
+  -- Changed 14 Oct 2026 (keep or swap, migration 20261014200000, master 7db): a tutor no longer reads waiting requests straight from
+  -- the table (any signed-in account could); they see them through available_requests_for_tutor(). Before that migration this
+  -- check read the table and wanted 3; run this suite together with the migration.
+  select count(*) into n from available_requests_for_tutor() where id in (q1, q2, q3);
+  r := r || format('A11 tutor sees the card-checked requests through the tutor function: %s (want 3)', n) || E'\n';
   select count(*) into n from session_requests where id in (q1, q2, q3);
-  r := r || format('A11 tutor sees the card-checked requests: %s (want 3)', n) || E'\n';
+  r := r || format('A11b ...and none straight from the table (7db): %s (want 0)', n) || E'\n';
   reset role;
 
   set local role service_role;

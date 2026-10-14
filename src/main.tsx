@@ -12,10 +12,12 @@ import PaymentCallback from './pages/PaymentCallback.tsx';
 import AuthCallback from './pages/AuthCallback.tsx';
 import LegalPage from './pages/LegalPage.tsx';
 import RoomPage from './pages/RoomPage.tsx';
+import TutorDocuments from './pages/TutorDocuments.tsx';
 import {FEATURES} from './lib/features.ts';
 import {AuthProvider} from './lib/AuthContext.tsx';
 import {RequireAuth} from './components/RequireAuth.tsx';
 import {AccountGate} from './components/AccountGate.tsx';
+import {TutorOnboardingGate} from './components/TutorOnboardingGate.tsx';
 import {loadCurrencySymbols} from './lib/currencies.ts';
 import {BASE_PATH} from './lib/siteUrl.ts';
 // Side-effect import: initializes i18next before anything renders.
@@ -78,13 +80,29 @@ createRoot(document.getElementById('root')!).render(
               />
             </>
           )}
+          {/* The tutor's second and third sign-up pages, reopened from the Teach screen's reminder (master 7cx). */}
+          {FEATURES.tutorOnboarding && (
+            <Route
+              path="/tutor-documents"
+              element={
+                <RequireAuth>
+                  <AccountGate>
+                    <TutorDocuments />
+                  </AccountGate>
+                </RequireAuth>
+              }
+            />
+          )}
           <Route
             path="/*"
             element={
               <RequireAuth>
                 {/* Date of birth + Terms/Privacy acceptance before the app (7k/7l). */}
                 <AccountGate>
-                  <App />
+                  {/* Tutors: "beginner or experienced?" and their documents, when switched on (master 7cx). */}
+                  <TutorOnboardingGate>
+                    <App />
+                  </TutorOnboardingGate>
                 </AccountGate>
               </RequireAuth>
             }

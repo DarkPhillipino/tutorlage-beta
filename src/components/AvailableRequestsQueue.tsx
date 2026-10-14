@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Inbox, Check, X, Loader2, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { Inbox, Check, X, Loader2, AlertCircle, CheckCircle2, Clock, Heart } from 'lucide-react';
 import { AvailableSessionRequest, PayoutAccount } from '../types';
-import { fetchAvailableRequests, fetchMyPayoutAccount } from '../lib/queries';
+import { declineSessionRequest, fetchAvailableRequests, fetchMyPayoutAccount } from '../lib/queries';
 import { acceptRequest } from '../lib/payments';
 import { getErrorMessage } from '../lib/errors';
+import { KEEP_OR_SWAP_COPY, describeKeepOrSwapError } from '../lib/keepOrSwap';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate } from '../lib/format';
 import { PayoutAccountPanel } from './PayoutAccountPanel';
@@ -34,12 +35,16 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: 'booked' | 'confirming'; text: string } | null>(null);
   const [payoutAccount, setPayoutAccount] = useState<PayoutAccount | null | undefined>(undefined);
+  // Keep or swap: a request addressed to this tutor is declined (the learner is told; nothing is charged), after a confirm.
+  const [confirmDeclineId, setConfirmDeclineId] = useState<string | null>(null);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoading(true);
     setLoadError(false);
     fetchAvailableRequests(tutorId)
-      .then(setRequests)
+      // Requests sent to this tutor first (they have a limited time), then by session time as before.
+      .then((rows) => setRequests([...rows].sort((a, b) => Number(b.sentToYou) - Number(a.sentToYou))))
       .catch((err) => {
         console.error('fetchAvailableRequests failed:', err);
         setRequests([]);
@@ -79,6 +84,23 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
       setRetryCount((c) => c + 1);
     } finally {
       setAcceptingId(null);
+    }
+  };
+
+  const handleDecline = async (request: AvailableSessionRequest) => {
+    setError(null);
+    setNotice(null);
+    setDecliningId(request.id);
+    try {
+      await declineSessionRequest(request.id);
+      setRequests((prev) => prev.filter((r) => r.id !== request.id));
+      setConfirmDeclineId(null);
+      setNotice({ kind: 'confirming', text: 'Done. The learner has been told, and was not charged.' });
+    } catch (e) {
+      setError(describeKeepOrSwapError(e));
+      setRetryCount((c) => c + 1);
+    } finally {
+      setDecliningId(null);
     }
   };
 
@@ -126,6 +148,12 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
               <div key={r.id} className="bg-white rounded-xl p-3 border border-slate-200">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
+                    {r.sentToYou && (
+                      <div className="mb-1 inline-flex items-center gap-1 text-[10px] font-bold text-[#15803D] bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                        <Heart className="w-3 h-3" /> {KEEP_OR_SWAP_COPY.tutorSentToYou}
+                        {r.expiresAt ? ` · open until ${new Date(r.expiresAt).toLocaleDateString()} ${new Date(r.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                      </div>
+                    )}
                     <div className="text-xs font-bold text-[#0F172A] truncate">
                       {r.subjectName ?? 'Any subject'}{r.gradeLevel ? ` · ${r.gradeLevel}` : ''}
                     </div>
@@ -149,15 +177,30 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
                       {isAccepting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                     </button>
                     <button
-                      onClick={() => setDismissedIds((prev) => new Set(prev).add(r.id))}
-                      disabled={isAccepting}
+                      onClick={() => (r.sentToYou ? setConfirmDeclineId(r.id) : setDismissedIds((prev) => new Set(prev).add(r.id)))}
+                      disabled={isAccepting || decliningId === r.id}
                       className="p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors cursor-pointer disabled:opacity-50"
-                      aria-label={`Not for me — hide ${r.subjectName ?? 'this'} request`}
+                      aria-label={r.sentToYou ? `${KEEP_OR_SWAP_COPY.tutorDecline} — ${r.subjectName ?? 'this'} request` : `Not for me — hide ${r.subjectName ?? 'this'} request`}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
+                {r.sentToYou && confirmDeclineId === r.id && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] text-slate-600">{KEEP_OR_SWAP_COPY.tutorDeclineConfirm}</span>
+                    <button
+                      onClick={() => handleDecline(r)}
+                      disabled={decliningId === r.id}
+                      className="text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-60 px-2.5 py-1 rounded-lg cursor-pointer"
+                    >
+                      {decliningId === r.id ? 'Saving…' : KEEP_OR_SWAP_COPY.tutorDecline}
+                    </button>
+                    <button onClick={() => setConfirmDeclineId(null)} className="text-[11px] font-bold text-slate-600 cursor-pointer">
+                      Keep it
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

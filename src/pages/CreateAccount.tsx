@@ -145,6 +145,14 @@ export default function CreateAccount() {
           <p className="text-sm text-slate-500 mb-6">
             We've sent a confirmation link to <span className="font-semibold text-[#0F172A]">{email}</span>. Confirm your account, then sign in below.
           </p>
+          {/* Master 7cx: the documents can only be uploaded once the person is signed in, so say what happens next. */}
+          {role === 'tutor' && FEATURES.tutorOnboarding && (
+            <p className="text-xs text-slate-500 leading-relaxed mb-5 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-left">
+              <span className="font-bold text-[#0F172A]">What happens next:</span> when you sign in, you'll choose beginner or experienced tutor and
+              upload your documents. Have a clear photo of your ID or passport ready, and your police clearance certificate (issued in the last 6
+              months).
+            </p>
+          )}
           {/* Master 7cl: nothing used to happen if the email never came. */}
           <ResendConfirmation key={email.trim()} email={email} className="mb-4" />
           {/* The "send again" answer is deliberately neutral, so say where to go if an account was already there. */}
@@ -281,7 +289,9 @@ export default function CreateAccount() {
 
           {role === 'tutor' && (
             <p className="text-[11px] text-slate-400 mt-4 text-center leading-relaxed">
-              Your subjects, rate tier, and availability are set up next, from your Teaching dashboard.
+              {FEATURES.tutorOnboarding
+                ? "Next, you'll tell us what kind of tutor you are and upload your documents: your ID or passport, a police clearance certificate, and your results or proof of experience."
+                : 'Your subjects, rate tier, and availability are set up next, from your Teaching dashboard.'}
             </p>
           )}
 

@@ -6,6 +6,15 @@ import { useAdminAuth } from '../lib/AuthContext';
 import { TutorVerificationDetail as TutorDetail, DocumentType } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { getErrorMessage } from '../lib/errors';
+import { POLICE_MAX_AGE_MONTHS, TRACK_COPY, formatIsoLong, policeExpiresOn, requirementStatuses, todayIsoSAST } from '../lib/tutorOnboarding';
+
+const hostOf = (link: string) => {
+  try {
+    return new URL(link).hostname.replace(/^www\./, '');
+  } catch {
+    return link;
+  }
+};
 
 // Whole years from a yyyy-mm-dd date to today.
 function ageFrom(isoDate: string): number {
@@ -29,6 +38,7 @@ const DOC_LABELS: Record<DocumentType, string> = {
   practicum_letter: 'Teaching Practicum Letter',
   marking_appointment_letter: 'Exam Marking / Moderation Appointment',
   subject_results: 'Subject Results',
+  proof_of_experience: 'Proof of Experience',
 };
 
 // Tutor documents live in the private 'tutor-documents' bucket; document_url
@@ -58,6 +68,8 @@ export const TutorVerificationDetail: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [dobInput, setDobInput] = useState('');
   const [isSavingDob, setIsSavingDob] = useState(false);
+  // Shown to the tutor next to a document that is not accepted, so they know what to fix (master 7cx).
+  const [docReason, setDocReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
@@ -71,9 +83,15 @@ export const TutorVerificationDetail: React.FC = () => {
   const handleDocReview = async (docId: string, decision: 'verified' | 'rejected') => {
     if (!tutorId || !adminProfile) return;
     setError(null);
+    if (decision === 'rejected' && !docReason.trim()) {
+      setError('Say why in the box above the documents before you reject one: the tutor sees it and needs to know what to fix.');
+      return;
+    }
     setBusyDocId(docId);
     try {
-      await reviewDocument(docId, tutorId, decision, adminProfile.id);
+      const reason = decision === 'rejected' ? docReason.trim() : undefined;
+      await reviewDocument(docId, tutorId, decision, adminProfile.id, reason, reason);
+      if (decision === 'rejected') setDocReason('');
       load();
     } catch (e) {
       setError(getErrorMessage(e, 'Could not update that document.'));
@@ -156,6 +174,27 @@ export const TutorVerificationDetail: React.FC = () => {
   // 7l: the database refuses verification without a recorded 18+ date of birth.
   const canApprove = tutorAge !== null && tutorAge >= 18;
 
+  // Master 7cx: a tutor who went through the "beginner or experienced?" and documents pages cannot be approved until
+  // they chose a kind, agreed to Tutorlage keeping their documents and every REQUIRED document is in (a document that
+  // was rejected, or a police certificate more than 6 months old, does not count). Test-phase tutors (grandfathered) and
+  // tutors with no onboarding record are not held to this.
+  const onboarding = tutor.onboarding;
+  const newFlow = !!onboarding && !onboarding.grandfathered;
+  const docStatuses =
+    newFlow && onboarding?.track
+      ? requirementStatuses(onboarding.track, tutor.documents.map((d) => ({ documentType: d.documentType, issuedOn: d.issuedOn, status: d.status })))
+      : [];
+  const missingRequired = docStatuses.filter((s) => s.requirement.required && !s.done);
+  const shortProblem = (problem: string | null) =>
+    !problem ? '' : /more than \d+ months/.test(problem) ? ' (more than 6 months old)' : /not accepted/.test(problem) ? ' (rejected: needs a new one)' : ` (${problem.replace(/\.$/, '')})`;
+  const notReady: string[] = [];
+  if (newFlow && !onboarding?.track) notReady.push('This tutor has not chosen beginner or experienced yet.');
+  if (newFlow && onboarding?.track && !onboarding.consentedAt) notReady.push('This tutor has not agreed to Tutorlage keeping their documents.');
+  if (missingRequired.length > 0) {
+    notReady.push(`Still missing: ${missingRequired.map((s) => `${s.requirement.title.toLowerCase()}${shortProblem(s.problem)}`).join('; ')}.`);
+  }
+  const blockApprove = notReady.length > 0;
+
   return (
     <div className="max-w-2xl">
       <Link to="/verification" className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-600 hover:text-[#0F172A] mb-4">
@@ -207,6 +246,65 @@ export const TutorVerificationDetail: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 mb-4">
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Sign-up Documents</h2>
+        {!onboarding ? (
+          <p className="text-xs text-slate-500">No document steps recorded for this tutor.</p>
+        ) : onboarding.grandfathered ? (
+          <p className="text-xs text-slate-500">Test-phase tutor: joined before the document steps, so no documents are required.</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="text-sm">
+              <span className="text-slate-500">Kind of tutor: </span>
+              <span className="font-bold text-[#0F172A]">{onboarding.track ? TRACK_COPY[onboarding.track].title : 'Has not chosen yet'}</span>
+            </div>
+            <div className="text-sm">
+              <span className="text-slate-500">Agreed to Tutorlage keeping their documents (including ID and police clearance): </span>
+              {onboarding.consentedAt ? (
+                <span className="font-bold text-[#0F172A]">
+                  {new Date(onboarding.consentedAt).toLocaleString('en-ZA')}
+                  <span className="font-normal text-slate-400"> · wording {onboarding.consentVersion}</span>
+                </span>
+              ) : (
+                <span className="font-bold text-rose-600">Not yet</span>
+              )}
+            </div>
+            {docStatuses.length > 0 && (
+              <ul className="space-y-1.5 pt-1">
+                {docStatuses.map(({ requirement, done, problem }) => {
+                  const police = tutor.documents
+                    .filter((d) => d.documentType === requirement.documentType && d.issuedOn && d.status !== 'rejected')
+                    .sort((a, b) => (b.issuedOn ?? '').localeCompare(a.issuedOn ?? ''))[0];
+                  return (
+                    <li key={requirement.key} className="flex items-start gap-2 text-xs">
+                      {done ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : requirement.required ? (
+                        <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                      ) : (
+                        <span className="w-4 h-4 shrink-0 text-center text-slate-300">–</span>
+                      )}
+                      <span className="min-w-0">
+                        <span className={`font-semibold ${done ? 'text-[#0F172A]' : requirement.required ? 'text-rose-700' : 'text-slate-500'}`}>{requirement.title}</span>
+                        {!done && requirement.required && <span className="text-rose-600"> — missing</span>}
+                        {!done && !requirement.required && <span className="text-slate-400"> — not given</span>}
+                        {requirement.needsIssueDate && police?.issuedOn && (
+                          <span className="block text-slate-500">
+                            Issued {formatIsoLong(police.issuedOn)} · {(policeExpiresOn(police.issuedOn) ?? '') < todayIsoSAST() ? 'expired' : 'counts until'}{' '}
+                            {formatIsoLong(policeExpiresOn(police.issuedOn) ?? '')} ({POLICE_MAX_AGE_MONTHS} months)
+                          </span>
+                        )}
+                        {problem && <span className="block text-rose-600">{problem}</span>}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 mb-4">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Subjects Claimed</h2>
         {tutor.subjects.length === 0 ? (
           <p className="text-xs text-slate-500">None added yet.</p>
@@ -224,11 +322,24 @@ export const TutorVerificationDetail: React.FC = () => {
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 mb-4">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Documents</h2>
+        {tutor.documents.length > 0 && (
+          <input
+            type="text"
+            value={docReason}
+            onChange={(e) => setDocReason(e.target.value)}
+            placeholder="Reason shown to the tutor if you reject a document"
+            aria-label="Reason for rejecting a document"
+            className="w-full bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-3 py-2.5 mb-3 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
+          />
+        )}
         {tutor.documents.length === 0 ? (
           <p className="text-xs text-slate-500">No documents uploaded yet.</p>
         ) : (
           <div className="space-y-2">
-            {tutor.documents.map((doc) => (
+            {tutor.documents.map((doc) => {
+              const isLink = /^https?:\/\//i.test(doc.documentUrl);
+              const policeExpiry = doc.documentType === 'police_clearance' && doc.issuedOn ? policeExpiresOn(doc.issuedOn) : null;
+              return (
               <div key={doc.id} className="p-3 rounded-xl border border-slate-200 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <button
@@ -239,9 +350,21 @@ export const TutorVerificationDetail: React.FC = () => {
                     {DOC_LABELS[doc.documentType] ?? doc.documentType}
                     <ExternalLink className="w-3 h-3" />
                   </button>
+                  {isLink && (
+                    <span className="block text-[11px] text-slate-500 truncate" title={doc.documentUrl}>
+                      Link to {hostOf(doc.documentUrl)} (the tutor's own page: opens in a new tab, treat with care)
+                    </span>
+                  )}
+                  {doc.issuedOn && (
+                    <span className="block text-[11px] text-slate-500">
+                      Issued {formatIsoLong(doc.issuedOn)}
+                      {policeExpiry ? ` · ${policeExpiry < todayIsoSAST() ? 'expired' : 'counts until'} ${formatIsoLong(policeExpiry)}` : ''}
+                    </span>
+                  )}
                   <span className={`text-[10px] font-bold capitalize ${doc.status === 'verified' ? 'text-emerald-600' : doc.status === 'rejected' ? 'text-rose-600' : 'text-amber-600'}`}>
                     {doc.status ?? 'pending'}
                   </span>
+                  {doc.status === 'rejected' && doc.adminNotes && <span className="block text-[11px] text-rose-600">{doc.adminNotes}</span>}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
@@ -262,7 +385,8 @@ export const TutorVerificationDetail: React.FC = () => {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -280,7 +404,12 @@ export const TutorVerificationDetail: React.FC = () => {
           {!canApprove && (
             <p className="text-[11px] text-rose-600 font-semibold mb-3">Record an 18+ date of birth from the tutor's ID before approving.</p>
           )}
-          {!allDocsVerified && (
+          {blockApprove && (
+            <div className="text-[11px] text-rose-600 font-semibold mb-3">
+              Not ready to approve. {notReady.join(' ')}
+            </div>
+          )}
+          {!allDocsVerified && !blockApprove && (
             <p className="text-[11px] text-amber-600 font-semibold mb-3">Not every document is marked verified yet — you can still approve, but double-check.</p>
           )}
           <div className="flex items-center gap-2 mb-3">
@@ -295,7 +424,7 @@ export const TutorVerificationDetail: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={handleApprove}
-              disabled={isFinalizing || !canApprove}
+              disabled={isFinalizing || !canApprove || blockApprove}
               className="flex-1 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white font-bold py-2.5 rounded-xl text-sm cursor-pointer"
             >
               Approve Tutor

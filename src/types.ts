@@ -134,6 +134,8 @@ export interface TutorManagedSession {
 export interface StudentSessionDetail {
   id: string;
   tutorId: string;
+  // The learner the session was for (keep or swap needs it: a parent chooses for the learner, not for themselves).
+  learnerId: string;
   tutorName: string;
   subjectName: string | null;
   scheduledStart: string; // ISO timestamptz
@@ -151,11 +153,14 @@ export interface StudentSessionDetail {
 // Deliberately has no student name/identity: that's the whole point of
 // anonymous matching — a tutor only learns who they're paired with after
 // accepting (see StudentSession/TutorSession, the post-match reveal
-// surfaces). student_id still travels internally (needed to create the
-// resulting public.sessions row on accept), but is never rendered.
+// surfaces). Since keep-or-swap (7db, migration 20261014200000) the learner's id does not
+// reach the tutor's browser at all before accepting: accepting is done by the request's id.
 export interface AvailableSessionRequest {
   id: string;
-  studentId: string;
+  // True when a learner who has been taught by this tutor addressed the request to them ("book again").
+  sentToYou: boolean;
+  // When an addressed request ends (at most 48 hours, never past 30 minutes after its session time); null on ordinary ones.
+  expiresAt: string | null;
   subjectName: string | null;
   gradeLevel: string | null;
   tierId: number | null;

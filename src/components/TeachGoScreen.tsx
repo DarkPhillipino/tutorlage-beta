@@ -6,6 +6,7 @@ import { fetchTutorDashboard, fetchSubTierDefinitions, updateTutorProfile } from
 import { AvailableRequestsQueue } from './AvailableRequestsQueue';
 import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
+import { TutorDocumentsReminder } from './TutorOnboardingGate';
 
 interface TeachGoScreenProps {
   tutorId: string;
@@ -101,6 +102,8 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
 
   return (
     <div className="max-w-md mx-auto w-full">
+      {/* Master 7cx: only when FEATURES.tutorOnboarding is on and the tutor chose "finish later". */}
+      <TutorDocumentsReminder tutorId={tutorId} />
       <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/80">
 
         {/* Top bar */}

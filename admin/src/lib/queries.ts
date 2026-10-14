@@ -1,10 +1,13 @@
 import { supabase } from './supabaseClient';
 import {
-  TutorForVerification, TutorVerificationDetail, VerificationDocument,
+  TutorForVerification, TutorVerificationDetail, VerificationDocument, TutorOnboardingInfo,
   Dispute, AdminUserRow, PayoutBatch, SystemSetting, AuditLogEntry, AuditAction,
   OnboardingStatus, DisputeStatus, DocumentStatus, PaymentAttentionItem, TutorPayoutAccountRow,
   Phase1Metrics,
 } from '../types';
+import { computeSessionOutcomes, SessionOutcomes } from './sessionOutcomes';
+import { groupWaitlistDemand, WaitlistDemand } from './waitlistDemand';
+import { countKeepOrSwap, KeepOrSwapCounts } from './keepOrSwapCounts';
 
 // Every admin mutation below calls this alongside its main write — the
 // admin_audit_logs.action enum names exactly what needs logging
@@ -45,6 +48,57 @@ async function fetchPrivateProfiles(ids: string[]): Promise<Map<string, PrivateP
 
 // --- Tutor verification queue ---
 
+// ---- Master 7cx: the tutor's kind (beginner / experienced), their agreement, and the police certificate's date ----
+// Read in separate, forgiving queries on purpose: these need migrations 20261013180000 and 20261013180100. Until
+// they are applied (and in any environment that does not have them) the queue and the detail page must keep working
+// exactly as before, so a missing table or column just means "nothing to show" here.
+
+async function fetchTutorTypes(ids: string[]): Promise<Map<string, 'beginner' | 'experienced'>> {
+  const types = new Map<string, 'beginner' | 'experienced'>();
+  if (ids.length === 0) return types;
+  try {
+    const { data, error } = await supabase.from('tutor_onboarding').select('tutor_id, track, grandfathered').in('tutor_id', ids);
+    if (error || !data) return types;
+    for (const row of data as { tutor_id: string; track: string | null; grandfathered: boolean }[]) {
+      if (!row.grandfathered && (row.track === 'beginner' || row.track === 'experienced')) types.set(row.tutor_id, row.track);
+    }
+  } catch {
+    // not available: show nothing
+  }
+  return types;
+}
+
+async function fetchOnboardingInfo(tutorId: string): Promise<TutorOnboardingInfo | null> {
+  try {
+    const { data, error } = await supabase
+      .from('tutor_onboarding')
+      .select('track, grandfathered, consented_at, consent_version')
+      .eq('tutor_id', tutorId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return {
+      track: data.track === 'beginner' || data.track === 'experienced' ? data.track : null,
+      grandfathered: data.grandfathered === true,
+      consentedAt: data.consented_at ?? null,
+      consentVersion: data.consent_version ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchIssueDates(tutorId: string): Promise<Map<string, string | null>> {
+  const dates = new Map<string, string | null>();
+  try {
+    const { data, error } = await supabase.from('tutor_verification_documents').select('id, issued_on').eq('tutor_id', tutorId);
+    if (error || !data) return dates;
+    for (const row of data as { id: string; issued_on: string | null }[]) dates.set(row.id, row.issued_on ?? null);
+  } catch {
+    // not available: no dates
+  }
+  return dates;
+}
+
 export async function fetchTutorVerificationQueue(): Promise<TutorForVerification[]> {
   const { data, error } = await supabase
     .from('tutor_profiles')
@@ -60,7 +114,8 @@ export async function fetchTutorVerificationQueue(): Promise<TutorForVerificatio
     .order('created_at', { ascending: true });
 
   if (error) throw error;
-  const privateProfiles = await fetchPrivateProfiles((data ?? []).map((row: any) => row.id));
+  const ids = (data ?? []).map((row: any) => row.id);
+  const [privateProfiles, tutorTypes] = await Promise.all([fetchPrivateProfiles(ids), fetchTutorTypes(ids)]);
 
   return (data ?? []).map((row: any) => ({
     id: row.id,
@@ -74,6 +129,7 @@ export async function fetchTutorVerificationQueue(): Promise<TutorForVerificatio
     pendingDocumentCount: row.tutor_verification_documents.filter(
       (d: { status: string | null }) => d.status === 'pending' || d.status === 'under_review'
     ).length,
+    tutorType: tutorTypes.get(row.id) ?? null,
   }));
 }
 
@@ -98,7 +154,12 @@ export async function fetchTutorVerificationDetail(tutorId: string): Promise<Tut
   if (!data) return null;
   const row = data as any;
 
-  const privateRow = (await fetchPrivateProfiles([tutorId])).get(tutorId);
+  const [privateProfiles, onboarding, issueDates] = await Promise.all([
+    fetchPrivateProfiles([tutorId]),
+    fetchOnboardingInfo(tutorId),
+    fetchIssueDates(tutorId),
+  ]);
+  const privateRow = privateProfiles.get(tutorId);
 
   return {
     id: row.id,
@@ -127,7 +188,9 @@ export async function fetchTutorVerificationDetail(tutorId: string): Promise<Tut
       adminNotes: d.admin_notes,
       uploadedAt: d.uploaded_at,
       reviewedAt: d.reviewed_at,
+      issuedOn: issueDates.get(d.id) ?? null,
     })),
+    onboarding,
   };
 }
 
@@ -514,4 +577,56 @@ export async function fetchPhase1Metrics(): Promise<Phase1Metrics> {
     ratingsCount: ratings.length,
     averageRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null,
   };
+}
+
+// ---- Successful sessions (master item 7cy; the CEO agreed on 14 Oct 2026) ----
+// "Successful" = completed, rated 4 or more, and the same learner and tutor booked again within 14 days.
+// Reads only (sessions, reviews, tutor_profiles); the arithmetic is in sessionOutcomes.ts, checked by
+// scripts/dev/session-outcomes-test.ts. It is separate from fetchPhase1Metrics so a failure here cannot blank
+// the rest of the page.
+export async function fetchSessionOutcomes(): Promise<SessionOutcomes & { approvedTutors: number }> {
+  const [sessions, reviews, tutors] = await Promise.all([
+    supabase.from('sessions').select('id, student_id, tutor_id, status, created_at, scheduled_start, completed_at, duration_hours'),
+    supabase.from('reviews').select('session_id, rating'),
+    supabase.from('tutor_profiles').select('id', { count: 'exact', head: true }).eq('is_verified', true),
+  ]);
+  for (const result of [sessions, reviews, tutors]) {
+    if (result.error) throw result.error;
+  }
+  return {
+    ...computeSessionOutcomes((sessions.data ?? []) as any[], (reviews.data ?? []) as any[]),
+    approvedTutors: tutors.count ?? 0,
+  };
+}
+
+// ---- Unmet demand: the "tell me when a tutor is available" list (master item 7cz) ----
+// Admins can read every entry (policy "Admins read the waiting list"). The table only exists once migration
+// 20261014090000 is applied, so a missing table (or any read error) returns null and the page simply hides the
+// section: it must never break the admin app before the migration is on the database.
+export async function fetchWaitlistDemand(): Promise<WaitlistDemand | null> {
+  const { data, error } = await supabase.from('tutor_waitlist').select('subject, grade_level, notified_at');
+  if (error) return null;
+  return groupWaitlistDemand((data ?? []) as any[]);
+}
+
+// ---- Keep or swap (master 7aa + 7da): what learners chose and what tutors ended, by tutor ----
+// Admins can read both tables (policies "Admins read learner choices" and "Admins read ended pairings"); a tutor can read
+// neither of the learners' choices. The tables exist only once migration 20261014200000 is applied, so any read error returns
+// null and the page hides the section: it must never break the admin app before the migration.
+export async function fetchKeepOrSwapCounts(): Promise<KeepOrSwapCounts | null> {
+  const [choices, ended] = await Promise.all([
+    supabase.from('learner_tutor_choices').select('tutor_id, choice'),
+    supabase.from('tutor_ended_pairings').select('tutor_id'),
+  ]);
+  if (choices.error || ended.error) return null;
+  const rows = (choices.data ?? []) as { tutor_id: string; choice: string }[];
+  const endedRows = (ended.data ?? []) as { tutor_id: string }[];
+  const ids = [...new Set([...rows.map((r) => r.tutor_id), ...endedRows.map((r) => r.tutor_id)])];
+  const names = new Map<string, string>();
+  if (ids.length > 0) {
+    // A name that cannot be read is shown as a short id; the counts do not depend on it.
+    const { data } = await supabase.from('profiles').select('id, full_name').in('id', ids);
+    for (const p of (data ?? []) as { id: string; full_name: string | null }[]) names.set(p.id, p.full_name ?? '');
+  }
+  return countKeepOrSwap(rows, endedRows, names);
 }

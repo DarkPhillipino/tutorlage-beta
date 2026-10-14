@@ -5,6 +5,8 @@ import { fetchGradeLevelSuggestions, fetchMySavedCards, updateStudentGradeLevel,
 import { getErrorMessage } from '../lib/errors';
 import { TeachingProfilePanel } from './TeachingProfilePanel';
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel';
+import type { MyTutor } from '../lib/keepOrSwap';
+import type { BookAgainLearner } from './MyTutorsPanel';
 
 interface ManageAccountModalProps {
   isOpen: boolean;
@@ -17,6 +19,8 @@ interface ManageAccountModalProps {
   // Parents/guardians see their learners' sessions on the Sessions tab.
   isGuardian?: boolean;
   onSignOut: () => void;
+  // Keep or swap (master 7aa): "Book again" on a tutor in My tutors; the page behind fills in the request page.
+  onBookAgain?: (tutor: MyTutor, learner: BookAgainLearner) => void;
 }
 
 export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
@@ -29,6 +33,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
   tutorId,
   isGuardian = false,
   onSignOut,
+  onBookAgain,
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'sessions' | 'billing' | 'teaching'>(initialTab);
 
@@ -182,9 +187,6 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
                   <div className="text-sm font-bold text-[#0F172A] mt-0.5">
                     {userAccount.institution || 'Not set'}
                   </div>
-                  <div className="text-xs text-emerald-700 font-semibold mt-0.5">
-                    Verified Student Membership
-                  </div>
                 </div>
                 <button
                   onClick={() => {
@@ -274,7 +276,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
             </div>
           )}
 
-          {activeTab === 'sessions' && <UpcomingSessionsPanel studentId={tutorId} isGuardian={isGuardian} />}
+          {activeTab === 'sessions' && <UpcomingSessionsPanel studentId={tutorId} isGuardian={isGuardian} onBookAgain={onBookAgain} />}
 
           {activeTab === 'billing' && (
             <div className="space-y-3">

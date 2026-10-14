@@ -5,6 +5,7 @@ import { fetchTutorManagedSessions, setSessionMeetingLink, completeSession } fro
 import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
 import { CancelSessionControl, ReportProblemControl, SessionRoomControl } from './UpcomingSessionsPanel';
+import { LearnersITaughtPanel } from './LearnersITaughtPanel';
 
 interface TutorSessionsPanelProps {
   tutorId: string;
@@ -171,6 +172,8 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
           })}
         </div>
       )}
+      {/* Keep or swap (master 7da, default 4): a tutor who cannot carry on with a learner says so here. Off until FEATURES.keepOrSwap. */}
+      {FEATURES.keepOrSwap && <LearnersITaughtPanel tutorId={tutorId} />}
     </div>
   );
 };

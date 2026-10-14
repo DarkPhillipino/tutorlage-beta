@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Loader2, ChevronRight, AlertTriangle, UserX } from 'lucide-react';
 import { BookingFormState, PriceLevel } from '../types';
 import { fetchAvailablePriceLevels } from '../lib/queries';
+import { FEATURES } from '../lib/features';
+import { WaitlistPrompt } from './WaitlistPrompt';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate } from '../lib/format';
 import {
@@ -17,6 +19,9 @@ interface LevelSelectionPageProps {
   gradeLevel: string;
   onBack: () => void;
   onSelectLevel: (level: PriceLevel) => void;
+  // The learner the lessons are for, when this person may ask to be told when a tutor is available (master 7cz).
+  // null for a view-only learner, or a parent who has not picked a learner yet. Only used when FEATURES.tutorWaitlist is on.
+  waitlistLearnerId?: string | null;
 }
 
 // Model 3, "minimum level" (backlog 12a) — replaces the old tier page that
@@ -30,6 +35,7 @@ export const LevelSelectionPage: React.FC<LevelSelectionPageProps> = ({
   gradeLevel,
   onBack,
   onSelectLevel,
+  waitlistLearnerId = null,
 }) => {
   const [levels, setLevels] = useState<PriceLevel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -102,6 +108,14 @@ export const LevelSelectionPage: React.FC<LevelSelectionPageProps> = ({
               No approved tutor teaches this subject and grade yet, so nobody would answer. Tutors see your request when you send
               it, and the first to accept is matched with you. Try a different subject, or check back soon.
             </p>
+            {FEATURES.tutorWaitlist && waitlistLearnerId && formState.subject.trim() !== '' && (
+              <WaitlistPrompt
+                learnerId={waitlistLearnerId}
+                subject={formState.subject}
+                gradeLevel={gradeLevel.trim() === '' ? null : gradeLevel}
+                institutionId={formState.institutionId}
+              />
+            )}
           </div>
         ) : levels.length === 1 ? (
           // Launch page: one price, no ladder.

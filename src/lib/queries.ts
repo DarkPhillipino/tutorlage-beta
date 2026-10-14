@@ -1,5 +1,7 @@
 import { supabase } from './supabaseClient';
 import { updateOwnLearnerRow } from './institutionSave';
+import type { WaitlistEntry } from './waitlist';
+import { mapMyTutorRow, isMissingDatabaseFunction, type MyTutor } from './keepOrSwap';
 import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, AvailableSessionRequest, StudentSession, TutorManagedSession, StudentSessionDetail, PriceLevel, PayoutAccount, ProblemReason, AppNotification } from '../types';
 
 // Model 3 (backlog 12a): the price levels a student can book right now for
@@ -821,6 +823,9 @@ export async function createSessionRequest(params: {
   scheduledTime: string; // "HH:MM"
   durationHours?: number;
   paystackReference: string;
+  // "Book again" (keep or swap, master 7aa): address the request to a tutor the learner has had a session with. The
+  // database checks that (and the level, the subject and the 3-waiting limit) and refuses with a plain sentence if not.
+  requestedTutorId?: string | null;
 }): Promise<{ id: string; requestedStart: string; chargedAmount: number }> {
   const {
     studentId,
@@ -834,6 +839,7 @@ export async function createSessionRequest(params: {
     scheduledTime,
     durationHours = 1,
     paystackReference,
+    requestedTutorId = null,
   } = params;
 
   const requestedStart =
@@ -862,6 +868,8 @@ export async function createSessionRequest(params: {
       requested_start: requestedStart,
       duration_hours: durationHours,
       paystack_reference: paystackReference,
+      // Only sent when set, so an ordinary request still works on a database without the keep-or-swap migration.
+      ...(requestedTutorId ? { requested_tutor_id: requestedTutorId } : {}),
     })
     .select('id, requested_start, charged_amount')
     .single();
@@ -893,7 +901,63 @@ interface AvailableRequestRow {
 // a level: same tier); same institution (null on either side is a
 // wildcard); and — when the request named a subject — one this tutor
 // actually teaches (case-insensitive, like the database check).
+interface TutorInboxRow {
+  id: string;
+  requested_start: string;
+  duration_hours: number;
+  enrollment_id: string | null;
+  charged_amount: number;
+  currency_code: string;
+  institution_id: string | null;
+  subject_name: string | null;
+  grade_level: string | null;
+  tier_id: number | null;
+  tier_name: string | null;
+  level_id: string | null;
+  level_commission_pct: number | null;
+  sent_to_you: boolean;
+  expires_at: string | null;
+}
+
+// Since keep-or-swap (master 7db, migration 20261014200000) a tutor reads waiting requests only through this database
+// function. It returns just what a tutor needs (no learner id, no payer id, no Paystack reference, no card record), only to
+// an approved tutor, and only requests that tutor could actually accept: the level, the institution and the subject are
+// checked in the database, the same as at acceptance. Requests addressed to another tutor, and requests from a learner who
+// parted with this tutor either way, are never returned.
+// While that migration is not applied the function does not exist; then the older read of the table is used, so this screen
+// works before and after the migration (the order of events is: publish this code, then apply the migration).
 export async function fetchAvailableRequests(tutorId: string): Promise<AvailableSessionRequest[]> {
+  const inbox = await supabase.rpc('available_requests_for_tutor');
+  if (!inbox.error) {
+    return ((inbox.data ?? []) as TutorInboxRow[]).map((row) => {
+      const chargedAmount = Number(row.charged_amount);
+      const commissionPct = row.level_commission_pct != null ? Number(row.level_commission_pct) : null;
+      return {
+        id: row.id,
+        sentToYou: !!row.sent_to_you,
+        expiresAt: row.expires_at ?? null,
+        subjectName: row.subject_name ?? null,
+        gradeLevel: row.grade_level ?? null,
+        tierId: row.tier_id ?? null,
+        tierName: row.tier_name ?? null,
+        levelId: row.level_id ?? null,
+        requestedStart: row.requested_start,
+        durationHours: Number(row.duration_hours),
+        enrollmentId: row.enrollment_id,
+        chargedAmount,
+        tutorPayout:
+          commissionPct != null
+            ? (Math.round(chargedAmount * 100) - Math.round(chargedAmount * commissionPct)) / 100
+            : null,
+        currencyCode: row.currency_code,
+      };
+    });
+  }
+  if (!isMissingDatabaseFunction(inbox.error)) throw inbox.error;
+  return fetchAvailableRequestsFromTable(tutorId);
+}
+
+async function fetchAvailableRequestsFromTable(tutorId: string): Promise<AvailableSessionRequest[]> {
   const { data: tutorProfile, error: tutorError } = await supabase
     .from('tutor_profiles')
     .select(`
@@ -955,7 +1019,8 @@ export async function fetchAvailableRequests(tutorId: string): Promise<Available
       const commissionPct = row.level?.commission_rate_pct != null ? Number(row.level.commission_rate_pct) : null;
       return {
         id: row.id,
-        studentId: row.student_id,
+        sentToYou: false,
+        expiresAt: null,
         subjectName: row.student_subject_enrollments?.subject_name ?? null,
         gradeLevel: row.student_subject_enrollments?.grade_level ?? null,
         tierId: row.tier_definitions?.id ?? null,
@@ -1154,6 +1219,7 @@ function toSessionDetail(row: StudentSessionDetailRow, hasReview: boolean): Stud
   return {
     id: row.id,
     tutorId: row.tutor_id,
+    learnerId: row.student_id,
     tutorName: row.tutor_profiles?.profiles?.full_name ?? 'Tutor',
     subjectName: row.student_subject_enrollments?.subject_name ?? null,
     scheduledStart: row.scheduled_start,
@@ -1257,4 +1323,181 @@ export async function markNotificationsRead(ids: string[]): Promise<void> {
     .in('id', ids)
     .is('read_at', null);
   if (error) throw error;
+}
+
+// ---- "Tell me when a tutor is available" (master 7cz; needs migration 20261014090000 and FEATURES.tutorWaitlist) ----
+// The only writes are the two database functions; the table can only be read (own rows). The person is told through
+// the notification bell, so nothing here stores a phone number or an address.
+export async function joinTutorWaitlist(params: {
+  studentId: string; // the learner the lessons are for (the signed-in learner, or a learner they look after)
+  subject: string;
+  gradeLevel: string | null;
+  institutionId: string | null;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc('join_tutor_waitlist', {
+    p_student: params.studentId,
+    p_subject: params.subject,
+    p_grade: params.gradeLevel,
+    p_institution: params.institutionId,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function leaveTutorWaitlist(entryId: string): Promise<void> {
+  const { error } = await supabase.rpc('leave_tutor_waitlist', { p_id: entryId });
+  if (error) throw error;
+}
+
+// The signed-in user's own open entries (RLS: "Read own waiting-list entries").
+export async function fetchMyOpenWaitlistEntries(): Promise<WaitlistEntry[]> {
+  const { data, error } = await supabase
+    .from('tutor_waitlist')
+    .select('id, student_id, subject, grade_level, institution_id, created_at')
+    .is('notified_at', null)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    studentId: row.student_id,
+    subject: row.subject,
+    gradeLevel: row.grade_level,
+    institutionId: row.institution_id,
+    createdAt: row.created_at,
+  }));
+}
+
+// ---- Keep or swap (master 7aa, 7da, 7db; needs migration 20261014200000 and FEATURES.keepOrSwap) ----------------------------------
+// The tutors a learner has had a session with, what they chose about each, and any request waiting for or ended by that
+// tutor. Only the learner (an adult) or the person who looks after them gets rows; anyone else gets none. Before the migration
+// is applied the function does not exist: the list is simply empty.
+export async function fetchMyTutors(learnerId: string): Promise<MyTutor[]> {
+  const { data, error } = await supabase.rpc('my_tutors', { p_learner: learnerId });
+  if (error) {
+    if (isMissingDatabaseFunction(error)) return [];
+    throw error;
+  }
+  return ((data ?? []) as any[]).map(mapMyTutorRow);
+}
+
+// "Keep" or "try someone else" about a tutor the learner has had a session with. The tutor is never told.
+export async function setTutorChoice(learnerId: string, tutorId: string, choice: 'keep' | 'avoid'): Promise<void> {
+  const { error } = await supabase.rpc('set_tutor_choice', { p_learner: learnerId, p_tutor: tutorId, p_choice: choice });
+  if (error) throw error;
+}
+
+export async function clearTutorChoice(learnerId: string, tutorId: string): Promise<void> {
+  const { error } = await supabase.rpc('clear_tutor_choice', { p_learner: learnerId, p_tutor: tutorId });
+  if (error) throw error;
+}
+
+// What this learner chose about this tutor, if anything (RLS: the learner, or the person who looks after them; a tutor can
+// never read it). null when nothing was chosen, and also before the migration is applied (the table does not exist yet).
+export async function fetchTutorChoice(learnerId: string, tutorId: string): Promise<'keep' | 'avoid' | null> {
+  const { data, error } = await supabase
+    .from('learner_tutor_choices')
+    .select('choice')
+    .eq('learner_id', learnerId)
+    .eq('tutor_id', tutorId)
+    .maybeSingle();
+  if (error) {
+    const code = (error as { code?: string }).code;
+    if (code === '42P01' || code === 'PGRST205') return null;
+    throw error;
+  }
+  return data?.choice === 'keep' || data?.choice === 'avoid' ? data.choice : null;
+}
+
+// One tap: a request addressed to a tutor goes to any available tutor instead. Still waiting: it becomes an ordinary
+// request. Expired or declined: sent again once as a new ordinary request with the card already checked (no second R1
+// check), while its session time is still ahead. Returns the request that is now waiting.
+export async function resendRequestToAnyone(requestId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('resend_request_to_anyone', { p_request_id: requestId });
+  if (error) throw error;
+  return data as string;
+}
+
+// A tutor says they cannot take a request addressed to them. The learner is told, and nothing is charged.
+export async function declineSessionRequest(requestId: string): Promise<void> {
+  const { error } = await supabase.rpc('decline_session_request', { p_request_id: requestId });
+  if (error) throw error;
+}
+
+// A tutor ends a pairing privately; the learner is told in neutral words. Undone with resumeTutorPairing.
+export async function endTutorPairing(learnerId: string): Promise<void> {
+  const { error } = await supabase.rpc('end_tutor_pairing', { p_learner: learnerId });
+  if (error) throw error;
+}
+
+export async function resumeTutorPairing(learnerId: string): Promise<void> {
+  const { error } = await supabase.rpc('resume_tutor_pairing', { p_learner: learnerId });
+  if (error) throw error;
+}
+
+// The learners this tutor has ended a pairing with (RLS: a tutor reads only their own).
+export async function fetchMyEndedPairings(): Promise<string[]> {
+  const { data, error } = await supabase.from('tutor_ended_pairings').select('learner_id');
+  if (error) {
+    if (isMissingDatabaseFunction(error) || (error as { code?: string }).code === '42P01' || (error as { code?: string }).code === 'PGRST205') return [];
+    throw error;
+  }
+  return (data ?? []).map((r: { learner_id: string }) => r.learner_id);
+}
+
+export interface TaughtLearner {
+  learnerId: string;
+  name: string;
+  lastSessionAt: string;
+  lastSubject: string | null;
+}
+
+// The learners a tutor has finished a session with in the last 90 days (RLS: a tutor reads their own sessions), one row each,
+// newest first. Used only to let the tutor say they cannot carry on with a learner.
+export async function fetchLearnersITaught(tutorId: string): Promise<TaughtLearner[]> {
+  const since = new Date(Date.now() - 90 * 24 * 3600_000).toISOString();
+  const { data, error } = await supabase
+    .from('sessions')
+    .select(`
+      student_id,
+      scheduled_start,
+      profiles!sessions_student_id_fkey ( full_name ),
+      student_subject_enrollments ( subject_name )
+    `)
+    .eq('tutor_id', tutorId)
+    .eq('status', 'completed')
+    .gte('scheduled_start', since)
+    .order('scheduled_start', { ascending: false });
+  if (error) throw error;
+  const seen = new Map<string, TaughtLearner>();
+  for (const row of (data ?? []) as any[]) {
+    if (seen.has(row.student_id)) continue;
+    seen.set(row.student_id, {
+      learnerId: row.student_id,
+      name: row.profiles?.full_name ?? 'Learner',
+      lastSessionAt: row.scheduled_start,
+      lastSubject: row.student_subject_enrollments?.subject_name ?? null,
+    });
+  }
+  return [...seen.values()];
+}
+
+// The price level a learner paid last time, in the shape the request page uses ("book again at the same price", master 7aa:
+// the same price rules; repeat pricing stays on hold). The ladder is public. null if it cannot be read: the learner then
+// picks a level in the usual way.
+export async function fetchPriceLevelById(levelId: string): Promise<PriceLevel | null> {
+  const { data, error } = await supabase
+    .from('sub_tier_definitions')
+    .select('id, tier_id, max_allowed_rate, tier_definitions ( public_name, currency_code )')
+    .eq('id', levelId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const tier = (data as any).tier_definitions as { public_name: string; currency_code: string } | null;
+  return {
+    id: data.id,
+    tierId: data.tier_id,
+    tierName: tier?.public_name ?? '',
+    price: Number(data.max_allowed_rate),
+    currencyCode: (tier?.currency_code ?? 'ZAR').trim(),
+    tutors: 0,
+  };
 }

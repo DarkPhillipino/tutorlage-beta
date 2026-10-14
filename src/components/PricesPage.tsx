@@ -9,6 +9,7 @@ import { useAuth } from '../lib/AuthContext';
 import { getErrorMessage } from '../lib/errors';
 import { useAccountStatus } from './AccountGate';
 import { COPY } from '../lib/accountRules';
+import { KEEP_OR_SWAP_COPY, windowNote } from '../lib/keepOrSwap';
 
 interface PricesPageProps {
   // Set when a parent/guardian is booking for one of their learners (7k).
@@ -25,6 +26,9 @@ interface PricesPageProps {
   onClearLevel: () => void;
   selectedFormat: SuggestionItem | null;
   onClearFormat: () => void;
+  // Keep or swap (master 7aa): set when the learner chose "Book {name} again". The request is then addressed to that tutor.
+  bookAgain?: { tutorId: string; firstName: string } | null;
+  onClearBookAgain?: () => void;
 }
 
 export const PricesPage: React.FC<PricesPageProps> = ({
@@ -41,8 +45,11 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   onClearLevel,
   selectedFormat,
   onClearFormat,
+  bookAgain = null,
+  onClearBookAgain,
 }) => {
   const { user, profile } = useAuth();
+  const addressed = !!bookAgain;
   const { isViewOnlyLearner } = useAccountStatus();
   const isGuardian = profile?.role === 'parent';
   const [isSending, setIsSending] = useState(false);
@@ -157,6 +164,8 @@ export const PricesPage: React.FC<PricesPageProps> = ({
         scheduledTime: formState.scheduledTime,
         durationHours,
         paystackReference: reference,
+        // "Book again": addressed to a tutor the learner has had; the database checks it and says why if it refuses.
+        requestedTutorId: bookAgain?.tutorId ?? null,
       });
 
       const { authorizationUrl } = await initializePayment(reference);
@@ -203,6 +212,19 @@ export const PricesPage: React.FC<PricesPageProps> = ({
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight mb-6">
             Send a tutoring request
           </h1>
+
+          {/* Keep or swap: this request goes to a tutor the learner has had, with up to 48 hours to accept. */}
+          {bookAgain && (
+            <div className="mb-6 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-1.5">
+              <div className="text-xs font-bold text-[#15803D]">{KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName)}</div>
+              <p className="text-[11px] text-slate-600">{windowNote(bookAgain.firstName, formState.scheduleType)}</p>
+              {onClearBookAgain && (
+                <button type="button" onClick={onClearBookAgain} className="text-[11px] font-bold text-slate-600 hover:underline cursor-pointer">
+                  {KEEP_OR_SWAP_COPY.bannerClear(bookAgain.firstName)}
+                </button>
+              )}
+            </div>
+          )}
 
           {selectedLevel && (
             <div className="mb-6 flex items-center justify-between gap-2 px-4 py-3 rounded-xl bg-[#0F172A] text-white">
@@ -349,7 +371,9 @@ export const PricesPage: React.FC<PricesPageProps> = ({
           <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
             <div>
               <h2 className="text-lg font-extrabold text-[#0F172A]">
-                {tutorCount} tutor{tutorCount === 1 ? '' : 's'} available
+                {bookAgain
+                  ? KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName)
+                  : `${tutorCount} tutor${tutorCount === 1 ? '' : 's'} available`}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Matching for <span className="font-semibold text-[#0F172A]">{appliedSubject || 'any subject'}</span> ({gradeLevel || 'any grade level'})
@@ -369,12 +393,12 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                 <span>{sendError}</span>
               </div>
             )}
-            {isLoading ? (
+            {isLoading && !addressed ? (
               <div className="flex items-center justify-center py-16 text-slate-400">
                 <Loader2 className="w-5 h-5 animate-spin mr-2" />
                 <span className="text-sm font-semibold">Loading tutors…</span>
               </div>
-            ) : loadError ? (
+            ) : loadError && !addressed ? (
               <div className="text-center py-16 px-4">
                 <AlertTriangle className="w-8 h-8 text-rose-400 mx-auto mb-2" />
                 <p className="text-sm font-bold text-[#0F172A]">Couldn't load tutors</p>
@@ -387,7 +411,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   Retry
                 </button>
               </div>
-            ) : tutorCount === 0 ? (
+            ) : tutorCount === 0 && !addressed ? (
               <div className="text-center py-16 px-4">
                 <UserX className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                 <p className="text-sm font-bold text-[#0F172A]">No tutor can take this request yet</p>
@@ -401,12 +425,14 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   <Users className="w-7 h-7" />
                 </div>
                 <p className="text-sm font-bold text-[#0F172A] mb-1">
-                  {tutorCount} tutor{tutorCount === 1 ? '' : 's'} teach{tutorCount === 1 ? 'es' : ''} this subject
+                  {bookAgain
+                    ? KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName)
+                    : `${tutorCount} tutor${tutorCount === 1 ? '' : 's'} teach${tutorCount === 1 ? 'es' : ''} this subject`}
                 </p>
                 <p className="text-xs text-slate-500 mb-3 max-w-sm">
-                  You don't pick the tutor. Tutors at the price level you choose or above get your request, and the first to
-                  accept is matched with you. You'll see who accepted, and you can cancel the session before it starts if you'd
-                  rather not have them.
+                  {bookAgain
+                    ? `This request goes to ${bookAgain.firstName}. Choose the price level (the same as last time, or lower, because ${bookAgain.firstName} can only take levels up to their own).`
+                    : "You don't pick the tutor. Tutors at the price level you choose or above get your request, and the first to accept is matched with you. You'll see who accepted, and you can cancel the session before it starts if you'd rather not have them."}
                 </p>
                 <p className="text-xs text-slate-500 mb-5 max-w-sm">
                   Choose a price level so you know exactly what you'll pay before you send your request.
@@ -424,7 +450,9 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   <CreditCard className="w-7 h-7" />
                 </div>
                 <p className="text-sm font-bold text-[#0F172A] mb-1">
-                  {selectedLevel.tutors} tutor{selectedLevel.tutors === 1 ? '' : 's'} at this level or above can take this request
+                  {bookAgain
+                    ? `This request goes to ${bookAgain.firstName}`
+                    : `${selectedLevel.tutors} tutor${selectedLevel.tutors === 1 ? '' : 's'} at this level or above can take this request`}
                 </p>
                 {isViewOnlyLearner ? (
                   <p className="text-xs text-slate-600 max-w-sm bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
@@ -446,8 +474,17 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   <>
                     <p className="text-xs text-slate-500 mb-5 max-w-sm">
                       You'll pay <span className="font-bold text-[#0F172A]">{getCurrencySymbol(selectedLevel.currencyCode)}{formatRate(chargedAmount ?? 0)}</span>,
-                      charged to your card only when a tutor at this level or above accepts. The first to accept is matched with{' '}
-                      {learner ? learner.firstName : 'you'}, and you'll see who they are before the session. If nobody accepts in time, you're never charged.
+                      {bookAgain ? (
+                        <>
+                          {' '}charged to your card only when {bookAgain.firstName} accepts. If {bookAgain.firstName} does not accept in
+                          time, you're never charged and you can send the request to any available tutor in one tap.
+                        </>
+                      ) : (
+                        <>
+                          {' '}charged to your card only when a tutor at this level or above accepts. The first to accept is matched with{' '}
+                          {learner ? learner.firstName : 'you'}, and you'll see who they are before the session. If nobody accepts in time, you're never charged.
+                        </>
+                      )}
                     </p>
                     <p className="text-[11px] text-slate-500 mb-5 max-w-sm">
                       To save your card, Paystack makes a {getCurrencySymbol(selectedLevel.currencyCode)}1 check now and refunds it straight away.
@@ -459,7 +496,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                     >
                       {isSending
                         ? 'Redirecting to secure checkout…'
-                        : `Save card & send request${learner ? ` for ${learner.firstName}` : ''}`}
+                        : `Save card & send request${bookAgain ? ` to ${bookAgain.firstName}` : ''}${learner ? ` for ${learner.firstName}` : ''}`}
                     </button>
                   </>
                 )}

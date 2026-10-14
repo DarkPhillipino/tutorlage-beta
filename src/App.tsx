@@ -22,7 +22,9 @@ import { LinkedLearner, fetchMyLearners } from './lib/guardian';
 
 import { BookingFormState, SuggestionItem, UserAccount, PriceLevel, Institution } from './types';
 import { toIsoDate } from './lib/format';
-import { fetchUpcomingStudentSessions, fetchStudentGradeLevel, fetchStudentInstitution, updateStudentInstitution } from './lib/queries';
+import { fetchUpcomingStudentSessions, fetchStudentGradeLevel, fetchStudentInstitution, updateStudentInstitution, fetchPriceLevelById } from './lib/queries';
+import { defaultBookAgainSchedule, type MyTutor } from './lib/keepOrSwap';
+import type { BookAgainLearner } from './components/MyTutorsPanel';
 import { rememberInstitution, recallInstitution } from './lib/institutionMemory';
 import { institutionSaveTarget, institutionMessage, savesOnOwnProfile } from './lib/institutionSave';
 
@@ -119,11 +121,53 @@ export default function App() {
   const [selectedLevel, setSelectedLevel] = useState<PriceLevel | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<SuggestionItem | null>(null);
 
+  // Keep or swap (master 7aa; FEATURES.keepOrSwap): "Book again" from My tutors addresses the next request to that tutor.
+  // The request page shows who it is addressed to and lets the learner send it to anyone instead.
+  const [bookAgain, setBookAgain] = useState<{ tutorId: string; firstName: string } | null>(null);
+
+  const handleBookAgain = async (tutor: MyTutor, forLearner: BookAgainLearner) => {
+    setIsManageAccountOpen(false);
+    let learnerToBookFor: LinkedLearner | null = null;
+    if (isGuardian && user) {
+      // The parent books for the learner whose tutor this is: the search and the request both use that learner.
+      try {
+        const found = await fetchMyLearners(user.id);
+        learnerToBookFor = found.find((l) => l.id === forLearner.id) ?? null;
+      } catch (err) {
+        console.error('fetchMyLearners failed:', err);
+      }
+      if (!learnerToBookFor) {
+        showToast('Could not open that learner. Please try again.');
+        return;
+      }
+    }
+    const schedule = defaultBookAgainSchedule(new Date());
+    if (learnerToBookFor) setBookingFor(learnerToBookFor);
+    setFormState(prev => ({
+      ...prev,
+      subject: tutor.lastSubject ?? prev.subject,
+      scheduleType: 'scheduled',
+      scheduledDate: schedule.date,
+      scheduledTime: schedule.time,
+    }));
+    setSelectedFormat(null);
+    setSelectedLevel(null);
+    setBookAgain({ tutorId: tutor.tutorId, firstName: tutor.firstName });
+    setActiveNav('learn');
+    setView('prices');
+    // The price level last time ("the same price rules": repeat pricing is on hold). If it cannot be found, the learner chooses one.
+    if (tutor.lastLevelId) {
+      const level = await fetchPriceLevelById(tutor.lastLevelId);
+      if (level) setSelectedLevel(level);
+    }
+  };
+
   // Left-nav clicks (Learn/Teach/About, and Schools/Resources while they're
   // hidden in Header.tsx) double as view switches: Teach and About jump to
   // their own screens, anything else returns to the home view (where the
   // "Viewing: X Portal" banner still handles any future/unbuilt nav item).
   const handleSetActiveNav = (nav: string) => {
+    setBookAgain(null);
     setActiveNav(nav);
     setView(nav === 'teach' ? 'teach' : nav === 'about' ? 'about' : 'home');
   };
@@ -247,6 +291,7 @@ export default function App() {
               setSelectedLevel(level);
               setView('prices');
             }}
+            waitlistLearnerId={isViewOnlyLearner ? null : isGuardian ? (bookingFor?.id ?? null) : (user?.id ?? null)}
           />
         ) : view === 'prices' ? (
           <PricesPage
@@ -255,7 +300,10 @@ export default function App() {
             setFormState={setFormState}
             gradeLevel={searchGradeLevel}
             onChangeGradeLevel={handleChangeGradeLevel}
-            onBack={() => setView('home')}
+            onBack={() => {
+              setBookAgain(null);
+              setView('home');
+            }}
             onChangeInstitution={() => setIsInstitutionModalOpen(true)}
             onOpenScheduleModal={() => setIsScheduleModalOpen(true)}
             onSearch={() => setView('tiers')}
@@ -263,6 +311,8 @@ export default function App() {
             onClearLevel={() => setSelectedLevel(null)}
             selectedFormat={selectedFormat}
             onClearFormat={() => setSelectedFormat(null)}
+            bookAgain={FEATURES.keepOrSwap ? bookAgain : null}
+            onClearBookAgain={() => setBookAgain(null)}
           />
         ) : (
           <>
@@ -359,6 +409,7 @@ export default function App() {
         tutorId={user!.id}
         isGuardian={isGuardian}
         onSignOut={handleSignOut}
+        onBookAgain={FEATURES.keepOrSwap ? handleBookAgain : undefined}
       />
 
       {/* Toast Notification */}

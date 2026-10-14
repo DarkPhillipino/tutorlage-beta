@@ -3,16 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, Loader2, AlertTriangle, Video, Star, Check, AlertCircle } from 'lucide-react';
 import { StudentSessionDetail, ProblemReason } from '../types';
 import { fetchStudentSessionDetails, fetchLearnerSessionDetails, submitReview, cancelSession, reportSessionProblem } from '../lib/queries';
-import { fetchMyLearners } from '../lib/guardian';
+import { fetchMyLearners, type LinkedLearner } from '../lib/guardian';
 import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
 import { openSessionRoom, sessionRoomWindow } from '../lib/videoRooms';
+import type { MyTutor } from '../lib/keepOrSwap';
+import { KeepOrSwapChoice } from './KeepOrSwapChoice';
+import { MyTutorsPanel, type BookAgainLearner } from './MyTutorsPanel';
 
 interface UpcomingSessionsPanelProps {
   // The signed-in user's id: the learner's own, or the guardian's.
   studentId: string;
   // A parent or guardian sees their learners' sessions instead (backlog 7k).
   isGuardian?: boolean;
+  // Keep or swap (master 7aa): "Book again" from My tutors. App.tsx fills in the request page and opens it.
+  onBookAgain?: (tutor: MyTutor, learner: BookAgainLearner) => void;
 }
 
 // The "Sessions & History" tab body in ManageAccountModal.tsx: the learner's
@@ -21,8 +26,9 @@ interface UpcomingSessionsPanelProps {
 // review is what moves the tutor's rating and level). For a guardian, the
 // same list across all their learners, each labelled with who it's for; they
 // can cancel what they booked, and rating stays with the learner.
-export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ studentId, isGuardian = false }) => {
+export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ studentId, isGuardian = false, onBookAgain }) => {
   const [sessions, setSessions] = useState<StudentSessionDetail[]>([]);
+  const [learners, setLearners] = useState<LinkedLearner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -31,9 +37,10 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
     setIsLoading(true);
     setLoadError(false);
     const load = isGuardian
-      ? fetchMyLearners(studentId).then((learners) =>
-          fetchLearnerSessionDetails(learners.map((l) => ({ id: l.id, name: l.firstName }))),
-        )
+      ? fetchMyLearners(studentId).then((found) => {
+          setLearners(found);
+          return fetchLearnerSessionDetails(found.map((l) => ({ id: l.id, name: l.firstName })));
+        })
       : fetchStudentSessionDetails(studentId);
     load
       .then(setSessions)
@@ -76,22 +83,48 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
     .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart));
   const completed = sessions.filter((s) => s.status === 'completed');
 
+  // Keep or swap (master 7aa + 7da): the tutors this learner (or each learner of a parent) has had, whatever the date of the
+  // last session. Off until FEATURES.keepOrSwap; shows nothing at all if there is nobody yet.
+  const myTutorsSection =
+    FEATURES.keepOrSwap && onBookAgain ? (
+      <div className="space-y-4">
+        {isGuardian ? (
+          learners
+            .filter((l) => l.canBook)
+            .map((l) => (
+              <MyTutorsPanel
+                key={l.id}
+                learner={{ id: l.id, firstName: l.firstName, gradeLevel: l.gradeLevel }}
+                showLearnerName={learners.length > 1}
+                onBookAgain={onBookAgain}
+              />
+            ))
+        ) : (
+          <MyTutorsPanel learner={{ id: studentId, firstName: 'You' }} onBookAgain={onBookAgain} />
+        )}
+      </div>
+    ) : null;
+
   if (upcoming.length === 0 && completed.length === 0) {
     return (
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 text-center space-y-2">
-        <Calendar className="w-8 h-8 text-slate-400 mx-auto" />
-        <h4 className="text-sm font-bold text-[#0F172A]">No sessions yet</h4>
-        <p className="text-xs text-slate-500 max-w-xs mx-auto">
-          {isGuardian
-            ? 'When a tutor accepts a request you made for one of your learners, the session and the link to join will appear here.'
-            : 'When a tutor accepts your request, the session and the link to join will appear here.'}
-        </p>
+      <div className="space-y-4">
+        {myTutorsSection}
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 text-center space-y-2">
+          <Calendar className="w-8 h-8 text-slate-400 mx-auto" />
+          <h4 className="text-sm font-bold text-[#0F172A]">No sessions yet</h4>
+          <p className="text-xs text-slate-500 max-w-xs mx-auto">
+            {isGuardian
+              ? 'When a tutor accepts a request you made for one of your learners, the session and the link to join will appear here.'
+              : 'When a tutor accepts your request, the session and the link to join will appear here.'}
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {myTutorsSection}
       {upcoming.length > 0 && (
         <div className="space-y-2">
           <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Upcoming</h4>
@@ -147,6 +180,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                 <p className="text-[11px] text-slate-500">
                   {s.learnerName ?? 'Your learner'} can rate this session when they sign in.
                 </p>
+                {FEATURES.keepOrSwap && <KeepOrSwapChoice learnerId={s.learnerId} tutorId={s.tutorId} tutorName={s.tutorName} />}
                 <ReportProblemControl sessionId={s.id} />
               </div>
             ) : (
@@ -453,6 +487,7 @@ const CompletedSessionCard: React.FC<{
           </button>
         </div>
       )}
+      {FEATURES.keepOrSwap && <KeepOrSwapChoice learnerId={session.learnerId} tutorId={session.tutorId} tutorName={session.tutorName} />}
       <ReportProblemControl sessionId={session.id} />
     </div>
   );

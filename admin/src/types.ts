@@ -22,6 +22,9 @@ export interface TutorForVerification {
   createdAt: string;
   documentCount: number;
   pendingDocumentCount: number;
+  // Master 7cx: 'beginner' or 'experienced' once the tutor has chosen; null for a tutor who has not, and for a
+  // test-phase tutor who is not asked.
+  tutorType: 'beginner' | 'experienced' | null;
 }
 
 export type DocumentType =
@@ -36,18 +39,32 @@ export type DocumentType =
   | 'sace_certificate'
   | 'practicum_letter'
   | 'marking_appointment_letter'
-  | 'subject_results';
+  | 'subject_results'
+  | 'proof_of_experience';
 export type DocumentStatus = 'pending' | 'under_review' | 'verified' | 'rejected';
 
 export interface VerificationDocument {
   id: string;
   tutorId: string;
   documentType: DocumentType;
+  // A private storage path for a file, or an https link (proof of experience may be a link).
   documentUrl: string;
   status: DocumentStatus | null;
   adminNotes: string | null;
   uploadedAt: string | null;
   reviewedAt: string | null;
+  // The date printed on a police clearance certificate (master 7cx); null for other documents.
+  issuedOn: string | null;
+}
+
+// Master 7cx: which kind of tutor this is and whether they agreed to Tutorlage keeping their documents.
+// null = the tutor has not reached the "beginner or experienced?" page yet. grandfathered = a test-phase tutor
+// who existed before the document steps and is never asked.
+export interface TutorOnboardingInfo {
+  track: 'beginner' | 'experienced' | null;
+  grandfathered: boolean;
+  consentedAt: string | null;
+  consentVersion: string | null;
 }
 
 export interface TutorVerificationDetail {
@@ -65,6 +82,7 @@ export interface TutorVerificationDetail {
   createdAt: string;
   subjects: { subjectName: string; curriculum: string; minGradeLevel: string; maxGradeLevel: string; verificationStatus: string | null }[];
   documents: VerificationDocument[];
+  onboarding: TutorOnboardingInfo | null;
 }
 
 export type DisputeReason = 'billing_error' | 'technical_issue' | 'poor_quality' | 'late_arrival' | 'no_show' | 'other';
