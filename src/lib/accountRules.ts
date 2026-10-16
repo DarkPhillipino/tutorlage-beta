@@ -51,6 +51,10 @@ export function isPlausibleDateOfBirth(isoDate: string, today = new Date()): boo
 export const COPY = {
   // Legal spec §1 — never pre-ticked. Rendered with links to /terms and /privacy.
   acceptTermsLead: 'I accept the',
+  // Pointed out beside every acceptance box, because the Terms limit Tutorlage's liability (section 15) and a term like
+  // that must be drawn to the person's attention before they agree (CPA s 49).
+  termsSummary:
+    "The Terms explain how payments, cancellations and refunds work, and section 15 limits what Tutorlage is responsible for. Please read them before you accept.",
   // Legal spec §2 (7l).
   tutorUnder18: "Tutors on Tutorlage need to be 18 or older — we'd love to hear from you once you are.",
   parentUnder18: 'Parent and guardian accounts need to be 18 or older.',

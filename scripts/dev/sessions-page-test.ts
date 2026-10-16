@@ -4,7 +4,8 @@
 //   3. the request used the subject last SEARCHED, not the one in the box (typed "Life Sciences", sent "English");
 //   4. the history query asked for a session status the database does not have ("cancelled"), which made the page fail;
 //   5. a parent's "Change" next to the grade did nothing (it sent them to the home page they were already on), and a parent
-//      had no way at all to change a learner's grade (the learner's row is read-only to a parent).
+//      had no way at all to change a learner's grade (the learner's row is read-only to a parent);
+//   6. with only one price level on offer, a parent still had to "choose" it on a page of its own.
 //
 // Part A: the small rule for where a notification goes (pure).
 // Part B: source guards, because every one of these faults was in the wiring. Each guard is then run against a deliberately
@@ -41,6 +42,7 @@ const FILES = {
   gradeModal: 'src/components/LearnerGradeModal.tsx',
   gradeMigration: 'supabase/migrations/20261016150000_parent_sets_learner_grade.sql',
   booking: 'src/components/BookingForm.tsx',
+  levels: 'src/components/LevelSelectionPage.tsx',
 } as const;
 type Sources = Record<keyof typeof FILES, string>;
 
@@ -137,6 +139,12 @@ const guards: { name: string; ok: (s: Sources) => boolean }[] = [
     name: 'a parent with no learner chosen sees "Choose a learner" on the grade row, not "Set in account"',
     ok: (s) => /'Choose a learner'/.test(s.app) && /gradeLevel \? 'Change' : gradeSetLabel/.test(s.booking),
   },
+  {
+    name: 'when only one price level has a tutor it is chosen automatically (nothing to choose)',
+    ok: (s) =>
+      /const onlyLevel = !isLoading && !loadError && levels\.length === 1 \? levels\[0\] : null;/.test(s.levels) &&
+      /if \(onlyLevel\) onSelectLevel\(onlyLevel\);/.test(s.levels),
+  },
 ];
 
 const real = load();
@@ -164,6 +172,7 @@ const breakages: { guard: string; file: keyof typeof FILES; from: string | RegEx
   { guard: 'the grade is saved through the database function, and a missing function is said in words', file: 'queries', from: "rpc('set_learner_grade'", to: "rpc('something_else'" },
   { guard: 'the grade function checks the guardian and the list of grades, and is not callable signed out', file: 'gradeMigration', from: 'can_act_for_learner(p_learner)', to: 'true' },
   { guard: 'a parent with no learner chosen sees "Choose a learner" on the grade row, not "Set in account"', file: 'booking', from: "gradeLevel ? 'Change' : gradeSetLabel", to: "gradeLevel ? 'Change' : 'Set in account'" },
+  { guard: 'when only one price level has a tutor it is chosen automatically (nothing to choose)', file: 'levels', from: 'if (onlyLevel) onSelectLevel(onlyLevel);', to: '' },
 ];
 
 let caught = 0;

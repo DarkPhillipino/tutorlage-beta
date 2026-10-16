@@ -217,6 +217,7 @@ export const AccountGate: React.FC<{ children: React.ReactNode }> = ({ children 
             </span>
           </label>
         )}
+        {needsAcceptance && <p className="text-[11px] text-slate-400 leading-relaxed">{COPY.termsSummary}</p>}
 
         <button
           type="submit"

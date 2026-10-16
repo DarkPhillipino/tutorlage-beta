@@ -204,7 +204,7 @@ const row = (p: Record<string, unknown> = {}) => ({
   check('the admin page says it is private and penalises no one', /a tutor never sees\s+these numbers/.test(adminPage) && /nothing here penalises anyone automatically/.test(adminPage));
 
   // The switch
-  check('the switch is OFF unless VITE_KEEP_OR_SWAP=1 is set', /keepOrSwap:\s*import\.meta\.env\?\.VITE_KEEP_OR_SWAP\s*===\s*'1'/.test(features));
+  check('the switch is ON (the CEO switched all seven built features on, 16 Oct 2026)', /keepOrSwap:\s*true\b/.test(features));
   check('My tutors and the choice on a completed session are shown only with the switch', /FEATURES\.keepOrSwap\s*&&\s*onBookAgain/.test(sessionsPanel) && (sessionsPanel.match(/FEATURES\.keepOrSwap\s*&&\s*<KeepOrSwapChoice/g) ?? []).length === 2);
   check('the tutor\'s "Learners you have taught" is shown only with the switch', /FEATURES\.keepOrSwap\s*&&\s*<LearnersITaughtPanel/.test(tutorSessions));
   check('"Book again" reaches the request page only with the switch', /onBookAgain=\{FEATURES\.keepOrSwap \? handleBookAgain : undefined\}/.test(app) && /bookAgain=\{FEATURES\.keepOrSwap \? bookAgain : null\}/.test(app));

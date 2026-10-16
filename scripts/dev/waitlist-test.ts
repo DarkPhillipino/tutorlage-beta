@@ -76,6 +76,7 @@ check('it says how long the request is kept (60 days), as the migration does', /
   const read = (p: string) => fs.readFileSync(new URL(p, root), 'utf8');
   const features = read('src/lib/features.ts');
   const level = read('src/components/LevelSelectionPage.tsx');
+  const prices = read('src/components/PricesPage.tsx');
   const app = read('src/App.tsx');
   const queries = read('src/lib/queries.ts');
   const prompt = read('src/components/WaitlistPrompt.tsx');
@@ -83,8 +84,14 @@ check('it says how long the request is kept (60 days), as the migration does', /
   const adminPage = read('admin/src/pages/Phase1Numbers.tsx');
   const migration = read('supabase/migrations/20261014090000_tutor_waitlist.sql');
 
-  check('the switch is OFF unless VITE_TUTOR_WAITLIST=1 is set', /tutorWaitlist:\s*import\.meta\.env\?\.VITE_TUTOR_WAITLIST\s*===\s*'1'/.test(features));
+  check('the switch is ON (the CEO switched all seven built features on, 16 Oct 2026)', /tutorWaitlist:\s*true\b/.test(features));
   check('the dead-end screen shows the prompt only with the switch, a learner and a subject', /FEATURES\.tutorWaitlist\s*&&\s*waitlistLearnerId\s*&&\s*formState\.subject\.trim\(\)\s*!==\s*''/.test(level));
+  // 16 Oct 2026: the first page of the request flow (PricesPage) is where "No tutor can take this request yet" really shows
+  // (the "Choose a price" step cannot be reached with no tutor), so the prompt must be there too.
+  check('the page that really shows "No tutor can take this request yet" (PricesPage) shows the prompt, for the searched subject',
+    /FEATURES\.tutorWaitlist\s*&&\s*waitlistLearnerId\s*&&\s*appliedSubject\.trim\(\)\s*!==\s*''[\s\S]{0,120}<WaitlistPrompt[\s\S]{0,200}subject=\{appliedSubject\}/.test(prices));
+  check('...and its learner is null for a view-only learner or a parent with no learner chosen',
+    /const waitlistLearnerId = isViewOnlyLearner \? null : isGuardian \? \(learner\?\.id \?\? null\) : \(user\?\.id \?\? null\)/.test(prices));
   check('a view-only learner, or a parent with no learner chosen, gets no prompt', /waitlistLearnerId=\{isViewOnlyLearner\s*\?\s*null\s*:\s*isGuardian\s*\?\s*\(bookingFor\?\.id\s*\?\?\s*null\)/.test(app));
   check('the queries call the two database functions with the migration\'s parameter names',
     /rpc\('join_tutor_waitlist',\s*\{\s*p_student:[^}]*p_subject:[^}]*p_grade:[^}]*p_institution:/.test(queries) &&

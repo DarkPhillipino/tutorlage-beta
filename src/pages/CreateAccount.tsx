@@ -274,6 +274,7 @@ export default function CreateAccount() {
                     <Link to="/privacy" target="_blank" className="font-bold text-[#15803D] hover:underline">Privacy Policy</Link>.
                   </span>
                 </label>
+                <p className="text-[11px] text-slate-400 leading-relaxed">{COPY.termsSummary}</p>
 
                 <button
                   type="submit"

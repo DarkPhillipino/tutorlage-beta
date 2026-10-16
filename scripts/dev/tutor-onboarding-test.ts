@@ -336,8 +336,8 @@ async function main() {
 
   check('C1 the admin app\'s copy of the rules is identical to the tutor app\'s', source('src/lib/tutorOnboarding.ts') === source('admin/src/lib/tutorOnboarding.ts'));
   const { FEATURES } = await import('../../src/lib/features');
-  check('C2 the switch is OFF unless VITE_TUTOR_ONBOARDING=1 is set (nothing changes on the live site)', FEATURES.tutorOnboarding === false);
-  check('C2b the switch reads only that variable, so a published build can only turn it on by an edit', /tutorOnboarding: import\.meta\.env\?\.VITE_TUTOR_ONBOARDING === '1'/.test(source('src/lib/features.ts')));
+  check('C2 the switch is ON (the CEO switched all seven built features on, 16 Oct 2026)', FEATURES.tutorOnboarding === true);
+  check('C2b the switch is a plain true in src/lib/features.ts, not read from an environment variable', /tutorOnboarding: true,/.test(source('src/lib/features.ts')));
 
   const mainTsx = source('src/main.tsx');
   check('C3 the app sits inside the onboarding gate, which sits inside the account gate', /<AccountGate>[\s\S]{0,200}<TutorOnboardingGate>\s*<App \/>\s*<\/TutorOnboardingGate>/.test(mainTsx));

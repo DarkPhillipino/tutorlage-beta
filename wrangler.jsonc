@@ -20,7 +20,12 @@
     // The GitHub Pages site. Add the real domain here when the site moves to it.
     "ALLOWED_ORIGINS": "https://darkphillipino.github.io",
     // Cloudflare sets this header to the visitor's address; see rateLimit() in server/index.ts.
-    "RATE_LIMIT_IP_HEADER": "cf-connecting-ip"
+    "RATE_LIMIT_IP_HEADER": "cf-connecting-ip",
+    // Video rooms (master 7bm), switched on 16 Oct 2026 (the CEO's "all seven, video rooms first"). Both are needed: without
+    // VIDEO_RELAY_ONLY every room route answers 503 (fails closed). The relay's two secrets (CF_TURN_KEY_ID, CF_TURN_API_TOKEN)
+    // are saved as Worker secrets. The database part is migration 20261009200000 (applied to dev 16 Oct).
+    "VIDEO_ROOMS_ENABLED": "1",
+    "VIDEO_RELAY_ONLY": "1"
   },
   "observability": { "enabled": true }
 }

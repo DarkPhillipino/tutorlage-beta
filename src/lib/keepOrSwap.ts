@@ -1,7 +1,7 @@
 // Keep or swap (master 7aa + 7da + 7db; the CEO's principle of 14 Oct 2026). Pure helpers and the exact wording; the
 // database side is migration 20261014200000 (tested rolled back by supabase/tests/keep_or_swap.sql), the screens are
 // MyTutorsPanel, KeepOrSwapChoice, LearnersITaughtPanel and the changes to AvailableRequestsQueue and PricesPage.
-// Off unless FEATURES.keepOrSwap is on (VITE_KEEP_OR_SWAP=1).
+// Shown only while FEATURES.keepOrSwap is on (on since 16 Oct 2026).
 //
 // The idea in plain words: the first match stays anonymous. After a session the learner (or the parent who looks after
 // them) can KEEP the tutor ("book again": a request addressed to that tutor) or TRY SOMEONE ELSE (that tutor never sees

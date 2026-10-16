@@ -150,8 +150,11 @@ waiting requests through the new function when it exists and through the old pol
 then run `keep_or_swap.sql` on its own on the applied database. App-side checks: `npx tsx scripts/dev/keep-or-swap-test.ts` (95 checks;
 27 deliberate breakages of the helpers and of the source files, all caught).
 
-## A parent is told when the tutor adds the meeting link (16 Oct 2026, tested rolled back; NOT applied)
+## A parent is told when the tutor adds the meeting link (16 Oct 2026; APPLIED TO DEV at 15:33 SAST as version `20261016133151`, stored text equal to the file, md5 `36c070f2cff7dacc656a69419a40fc4f`; the test was re-run on the applied database: 9 of 9)
 Migration `20261016140000_session_link_notifies_booker.sql` replaces one function, `set_session_meeting_link(uuid, text)`: the same checks and update, and the notice "Your session link is ready" now reaches the learner AND the person who booked the session, once each (it used to reach only the learner's own account, so a parent who booked for a child was never told). Test `session_link_notifies_booker.sql` (9 results, L1 to L9: the child told once, the parent told once, nobody else, the link saved, an adult who booked for themselves told once not twice, another tutor refused, an http link refused, the parent cannot set it): run with the migration in one rolled-back statement on dev, **9 of 9 as wanted**; afterwards the live function unchanged, 18 users, 0 test users, latest migration `20261016114013`. Waits for the CEO's yes (decision row 45).
+
+## A parent changes a learner's grade (16 Oct 2026; APPLIED TO DEV at 15:33 SAST as version `20261016133201`, stored text equal to the file, md5 `4890b536acc6ff3fe1cfc4ae5e64b358`; the test was re-run on the applied database: 11 of 11; a real save as the parent also worked in the app)
+Migration `20261016150000_parent_sets_learner_grade.sql` adds one function, `set_learner_grade(p_learner uuid, p_grade text)`: only a signed-in adult with an active guardian consent for that learner (`can_act_for_learner`) may call it; the grade must be a name in `grade_levels` (any capitals; stored in the table's spelling); it changes that learner's `student_profiles.grade_level` and nothing else. (Before this a parent could only read a linked learner's profile, so a grade chosen when adding the learner could never be corrected.) Test `parent_sets_learner_grade.sql` (G0 to G8, 11 results): run with the migration in one rolled-back statement on dev, **11 of 11 as wanted**: the parent changes it; a learner with no grade gets one; a made-up or an empty grade is refused and the stored grade does not move; another parent, the child's own sign-in and a signed-out caller are refused; after consent is withdrawn the parent loses the right at once. Afterwards the function absent, 18 users, 0 test users, latest migration `20261016114013`. Waits for the CEO's yes (decision row 46). The screen is live and says "isn't switched on yet" until it is applied.
 
 ## 7br: a parent adding a learner (9 Oct 2026, tested rolled back; not applied)
 
@@ -171,7 +174,7 @@ migrations** (it doesn't depend on them): `20261009133000`, then deploy the Work
 guardian and passes the learner's id to `createUser`), then run `7br_guardian_intents.sql` on its own. Production
 needs the same migration and Worker at the cutover (its trigger is the same).
 
-## 7bm: video rooms on our own WebRTC (9 Oct 2026, tested rolled back; not applied)
+## 7bm: video rooms on our own WebRTC (9 Oct 2026, tested rolled back; **APPLIED TO DEV on 16 Oct 2026 at about 19:53 SAST as version `20261016175352`**, the stored text equal to the file: md5 `d9320c2be9f0153bb2978dd1d25b72d4`, 28,428 bytes; the two Realtime policies exist on `realtime.messages`, the purge job is scheduled, 18 users, 7 requests and 1 session unchanged; the whole suite was then run on its own on the applied database, rolled back: **127 ok, 0 FAIL**. The CEO had turned Realtime's "Allow public access" OFF before it was applied.)
 
 Migration `20261009200000_video_rooms.sql` (two tables closed to clients, server-only rules, and the policies that
 let only admitted people use a room's Realtime channel). Design: `Drake/programmer/video-rooms-design-v2.md`.

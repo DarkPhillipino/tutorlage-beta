@@ -10,6 +10,8 @@ import { getErrorMessage } from '../lib/errors';
 import { useAccountStatus } from './AccountGate';
 import { COPY } from '../lib/accountRules';
 import { KEEP_OR_SWAP_COPY, windowNote } from '../lib/keepOrSwap';
+import { FEATURES } from '../lib/features';
+import { WaitlistPrompt } from './WaitlistPrompt';
 
 interface PricesPageProps {
   // Set when a parent/guardian is booking for one of their learners (7k).
@@ -55,6 +57,8 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   const addressed = !!bookAgain;
   const { isViewOnlyLearner } = useAccountStatus();
   const isGuardian = profile?.role === 'parent';
+  // Who the "tell me when a tutor is available" prompt is for: null for a view-only learner, or a parent who has not picked a learner.
+  const waitlistLearnerId = isViewOnlyLearner ? null : isGuardian ? (learner?.id ?? null) : (user?.id ?? null);
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [tutorCount, setTutorCount] = useState(0);
@@ -433,6 +437,14 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                 <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
                   {noTutorsMessage}
                 </p>
+                {FEATURES.tutorWaitlist && waitlistLearnerId && appliedSubject.trim() !== '' && (
+                  <WaitlistPrompt
+                    learnerId={waitlistLearnerId}
+                    subject={appliedSubject}
+                    gradeLevel={gradeLevel.trim() === '' ? null : gradeLevel}
+                    institutionId={formState.institutionId}
+                  />
+                )}
               </div>
             ) : !selectedLevel ? (
               <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-xs flex flex-col items-center text-center">

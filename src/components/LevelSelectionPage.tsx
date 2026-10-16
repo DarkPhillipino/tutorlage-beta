@@ -66,6 +66,14 @@ export const LevelSelectionPage: React.FC<LevelSelectionPageProps> = ({
     levels: levels.filter((l) => l.tierId === tierId),
   }));
 
+  // One level is the only one with a tutor: there is nothing to choose, so take it and go straight on to the request page
+  // (the CEO, 16 Oct 2026: "what is the point of choosing that only R50"). The price is shown there, before anything is sent.
+  const onlyLevel = !isLoading && !loadError && levels.length === 1 ? levels[0] : null;
+  useEffect(() => {
+    if (onlyLevel) onSelectLevel(onlyLevel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlyLevel?.id]);
+
   return (
     <div className="max-w-2xl mx-auto w-full">
       <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
@@ -119,13 +127,16 @@ export const LevelSelectionPage: React.FC<LevelSelectionPageProps> = ({
             )}
           </div>
         ) : levels.length === 1 ? (
-          // One level has a matching tutor: one price, no ladder.
-          <div className="space-y-4">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
-              {getCurrencySymbol(levels[0].currencyCode)}{formatRate(levels[0].price)} an hour
-            </h1>
+          // One level has a matching tutor: nothing to choose. The effect above has already chosen it and moves on to the
+          // request page; this is only what shows for that instant. (If the move does not happen, the button still works.)
+          <div className="space-y-3">
+            <div className="flex items-center text-slate-400">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              <span className="text-sm font-semibold">
+                {getCurrencySymbol(levels[0].currencyCode)}{formatRate(levels[0].price)} an hour, going to your request…
+              </span>
+            </div>
             {SHOW_TRUST_LINE && <p className="text-sm text-slate-700">{TRUST_LINE}</p>}
-            <p className="text-sm text-slate-700">You'll see exactly who you've been matched with before your session starts.</p>
             <button
               onClick={() => onSelectLevel(levels[0])}
               className="w-full sm:w-auto px-6 py-3 bg-[#15803D] hover:bg-[#166534] text-white text-sm font-bold rounded-xl cursor-pointer"
