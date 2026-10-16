@@ -4,12 +4,17 @@ import { AppNotification } from '../types';
 import { fetchMyNotifications, markNotificationsRead } from '../lib/queries';
 import { useAuth } from '../lib/AuthContext';
 
+interface NotificationsBellProps {
+  // Tapping a notification calls this (16 Oct 2026): App.tsx opens the "Sessions & history" page, or Teach for a tutor.
+  onOpenNotification?: (notification: AppNotification) => void;
+}
+
 // The database has written notifications since the first session features
 // (a tutor accepted, a meeting link was added, a session was cancelled or
 // completed, a refund was processed or a card couldn't be charged), but no
 // screen showed them. This is the one place they appear. Opening the list
-// marks what's shown as read.
-export const NotificationsBell: React.FC = () => {
+// marks what's shown as read. Each one can be tapped to go to the sessions.
+export const NotificationsBell: React.FC<NotificationsBellProps> = ({ onOpenNotification }) => {
   const { user } = useAuth();
   const [items, setItems] = useState<AppNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -69,7 +74,11 @@ export const NotificationsBell: React.FC = () => {
         )}
       </button>
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-96 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50">
+        // onMouseDown keeps the bell button from losing focus (and closing the list) before a tap on an item registers.
+        <div
+          onMouseDown={(e) => e.preventDefault()}
+          className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-96 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50"
+        >
           {isLoading && items.length === 0 ? (
             <div className="flex items-center justify-center py-6 text-slate-400 text-xs">
               <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
@@ -78,11 +87,19 @@ export const NotificationsBell: React.FC = () => {
             <p className="px-4 py-6 text-xs text-slate-500 text-center">Nothing new. Updates about your sessions and payments appear here.</p>
           ) : (
             items.map((n) => (
-              <div key={n.id} className={`px-4 py-3 border-b border-slate-100 last:border-0 ${n.readAt ? '' : 'bg-emerald-50/60'}`}>
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onOpenNotification?.(n);
+                }}
+                className={`block w-full text-left px-4 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer ${n.readAt ? '' : 'bg-emerald-50/60'}`}
+              >
                 <div className="text-xs font-bold text-[#0F172A]">{n.title}</div>
                 {n.body && <div className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">{n.body}</div>}
                 <div className="text-[10px] text-slate-400 mt-1">{new Date(n.createdAt).toLocaleString()}</div>
-              </div>
+              </button>
             ))
           )}
         </div>

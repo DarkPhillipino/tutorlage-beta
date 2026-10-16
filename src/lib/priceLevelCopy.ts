@@ -6,9 +6,9 @@
 export const MENU_HEADLINE =
   "You'll never be matched below the level you choose — and you may be matched above it.";
 
-// Sourced from the 750-advert market study (Jan 2025 – Jul 2026) cited in
-// Drake/project-manager/previous-meetings.md.
-export const MARKET_REFERENCE = 'Private tutoring in South Africa typically costs around R330 an hour.';
+// (16 Oct 2026, the CEO: the line "Private tutoring in South Africa typically costs around R330 an hour" is removed from
+// the price pages; it read as a sales pitch. The 750-advert study it came from is still in
+// Drake/project-manager/previous-meetings.md.)
 
 // The CEO chose trust line "Option A" on 2026-09-30. It may only be shown once
 // every tester has actually been checked (their school-screening documents on

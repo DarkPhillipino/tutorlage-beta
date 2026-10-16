@@ -16,11 +16,14 @@ import { ManageAccountModal } from './components/ManageAccountModal';
 import { Footer } from './components/Footer';
 import { LearnersPanel } from './components/LearnersPanel';
 import { SchoolResultsPanel } from './components/SchoolResultsPanel';
+import { SessionsHistoryPage } from './components/SessionsHistoryPage';
+import { LearnerGradeModal } from './components/LearnerGradeModal';
+import { notificationTarget } from './lib/notificationTarget';
 import { useAccountStatus } from './components/AccountGate';
 import { FEATURES } from './lib/features';
 import { LinkedLearner, fetchMyLearners } from './lib/guardian';
 
-import { BookingFormState, SuggestionItem, UserAccount, PriceLevel, Institution } from './types';
+import { BookingFormState, SuggestionItem, UserAccount, PriceLevel, Institution, AppNotification } from './types';
 import { toIsoDate } from './lib/format';
 import { fetchUpcomingStudentSessions, fetchStudentGradeLevel, fetchStudentInstitution, updateStudentInstitution, fetchPriceLevelById } from './lib/queries';
 import { defaultBookAgainSchedule, type MyTutor } from './lib/keepOrSwap';
@@ -117,7 +120,7 @@ export default function App() {
   }, [user?.id, role, bookingFor?.id]);
 
   // Page / view state
-  const [view, setView] = useState<'home' | 'prices' | 'tiers' | 'teach' | 'about'>('home');
+  const [view, setView] = useState<'home' | 'prices' | 'tiers' | 'teach' | 'about' | 'sessions'>('home');
   const [selectedLevel, setSelectedLevel] = useState<PriceLevel | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<SuggestionItem | null>(null);
 
@@ -172,6 +175,20 @@ export default function App() {
     setView(nav === 'teach' ? 'teach' : nav === 'about' ? 'about' : 'home');
   };
 
+  // The "Sessions & history" page (the CEO, 16 Oct 2026): reached from a notification in the header and from the
+  // "upcoming sessions" line in the dark banner, instead of through Manage Account.
+  const openSessionsPage = () => {
+    setBookAgain(null);
+    setActiveNav(role === 'tutor' ? 'teach' : 'learn');
+    setView('sessions');
+    window.scrollTo({ top: 0 });
+  };
+
+  const handleOpenNotification = (notification: AppNotification) => {
+    if (notificationTarget(notification.type) === 'teach') handleSetActiveNav('teach');
+    else openSessionsPage();
+  };
+
   // Modals state
   const [isInstitutionModalOpen, setIsInstitutionModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -184,14 +201,36 @@ export default function App() {
     setIsManageAccountOpen(true);
   };
 
-  // A learner's grade is set when their guardian adds them, so a guardian
-  // "changes grade" by choosing the learner on the home page.
+  // A parent's "Change" (or "Set") next to the grade (16 Oct 2026). It used to send a parent to the home page, which on the home
+  // page itself did nothing, and a parent could not change a learner's grade at all. Now: with a learner chosen, a small window
+  // lets the parent change THAT learner's grade; with none chosen, the page scrolls to "Your learners" and says why.
+  const [isLearnerGradeOpen, setIsLearnerGradeOpen] = useState(false);
+  // Bumped after a grade is saved so "Your learners" reloads and shows it.
+  const [learnersVersion, setLearnersVersion] = useState(0);
+
   const handleChangeGradeLevel = () => {
     if (isGuardian) {
-      setView('home');
+      if (bookingFor) {
+        setIsLearnerGradeOpen(true);
+      } else {
+        showToast("Choose who you're booking for first: the grade belongs to the learner.");
+        setView('home');
+        // After the home view has drawn, bring "Your learners" into view.
+        window.setTimeout(() => document.getElementById('your-learners')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      }
     } else {
       openManageAccount('profile');
     }
+  };
+
+  // The words on the grade row's button when no grade is showing: a parent has to choose a learner first; others set it in their account.
+  const gradeSetLabel = isGuardian ? (bookingFor ? 'Set' : 'Choose a learner') : undefined;
+
+  const handleLearnerGradeChanged = (gradeLevel: string) => {
+    const name = bookingFor?.firstName ?? 'The learner';
+    setBookingFor((prev) => (prev ? { ...prev, gradeLevel } : prev));
+    setLearnersVersion((v) => v + 1);
+    showToast(`${name}'s grade is now ${gradeLevel}`);
   };
 
   // Notification / Toast
@@ -263,18 +302,28 @@ export default function App() {
         activeNav={activeNav}
         setActiveNav={handleSetActiveNav}
         onOpenManageAccount={() => openManageAccount('profile')}
+        onOpenNotification={handleOpenNotification}
       />
 
       {/* 2. Secondary Sub-Header Banner */}
       <SubHeaderBanner
         upcomingSessionsCount={userAccount.upcomingSessions}
         onOpenAccount={() => openManageAccount('profile')}
+        onOpenSessions={openSessionsPage}
       />
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
 
-        {view === 'about' ? (
+        {view === 'sessions' ? (
+          <SessionsHistoryPage
+            userId={user!.id}
+            role={role}
+            isGuardian={isGuardian}
+            onBack={() => handleSetActiveNav(role === 'tutor' ? 'teach' : 'learn')}
+            onBookAgain={FEATURES.keepOrSwap ? handleBookAgain : undefined}
+          />
+        ) : view === 'about' ? (
           <AboutPage />
         ) : view === 'teach' ? (
           <TeachGoScreen
@@ -300,6 +349,7 @@ export default function App() {
             setFormState={setFormState}
             gradeLevel={searchGradeLevel}
             onChangeGradeLevel={handleChangeGradeLevel}
+            gradeSetLabel={gradeSetLabel}
             onBack={() => {
               setBookAgain(null);
               setView('home');
@@ -333,6 +383,7 @@ export default function App() {
 
             {isGuardian && user && (
               <LearnersPanel
+                key={learnersVersion}
                 guardianId={user.id}
                 selectedLearnerId={bookingFor?.id ?? null}
                 onSelectLearner={setBookingFor}
@@ -356,6 +407,7 @@ export default function App() {
                   setFormState={setFormState}
                   gradeLevel={searchGradeLevel}
                   onChangeGradeLevel={handleChangeGradeLevel}
+                  gradeSetLabel={gradeSetLabel}
                   onChangeInstitution={() => setIsInstitutionModalOpen(true)}
                   onOpenScheduleModal={() => setIsScheduleModalOpen(true)}
                   onSeePrices={() => setView('prices')}
@@ -397,6 +449,13 @@ export default function App() {
         item={selectedSuggestion}
         onClose={() => setSelectedSuggestion(null)}
         onSelectFormat={handleSelectSuggestionFormat}
+      />
+
+      <LearnerGradeModal
+        isOpen={isLearnerGradeOpen}
+        onClose={() => setIsLearnerGradeOpen(false)}
+        learner={bookingFor ? { id: bookingFor.id, firstName: bookingFor.firstName, gradeLevel: bookingFor.gradeLevel } : null}
+        onChanged={handleLearnerGradeChanged}
       />
 
       <ManageAccountModal

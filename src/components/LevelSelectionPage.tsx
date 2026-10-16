@@ -8,7 +8,6 @@ import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate } from '../lib/format';
 import {
   MENU_HEADLINE,
-  MARKET_REFERENCE,
   SHOW_TRUST_LINE,
   TRUST_LINE,
   LEVEL_DESCRIPTIONS,
@@ -28,8 +27,10 @@ interface LevelSelectionPageProps {
 // showed a range and then charged the floor. The student picks one level and
 // pays exactly its price; any tutor at that level or above may accept. Only
 // levels with a matching tutor right now are listed, so nothing advertised is
-// unavailable. With a single available level this is marketing's "launch
-// page": one price, no ladder (Drake/marketing-gtm/pricing-menu-copy.md).
+// unavailable. With a single available level the page shows that one price, no
+// ladder (Drake/marketing-gtm/pricing-menu-copy.md). The CEO removed the sales
+// lines from both layouts on 16 Oct 2026 (the "typically costs around R330" comparison and
+// the "One price, no surprises" headline): a price page states the price.
 export const LevelSelectionPage: React.FC<LevelSelectionPageProps> = ({
   formState,
   gradeLevel,
@@ -118,14 +119,13 @@ export const LevelSelectionPage: React.FC<LevelSelectionPageProps> = ({
             )}
           </div>
         ) : levels.length === 1 ? (
-          // Launch page: one price, no ladder.
+          // One level has a matching tutor: one price, no ladder.
           <div className="space-y-4">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
-              {getCurrencySymbol(levels[0].currencyCode)}{formatRate(levels[0].price)} an hour. One price, no surprises.
+              {getCurrencySymbol(levels[0].currencyCode)}{formatRate(levels[0].price)} an hour
             </h1>
             {SHOW_TRUST_LINE && <p className="text-sm text-slate-700">{TRUST_LINE}</p>}
             <p className="text-sm text-slate-700">You'll see exactly who you've been matched with before your session starts.</p>
-            <p className="text-xs text-slate-500">{MARKET_REFERENCE}</p>
             <button
               onClick={() => onSelectLevel(levels[0])}
               className="w-full sm:w-auto px-6 py-3 bg-[#15803D] hover:bg-[#166534] text-white text-sm font-bold rounded-xl cursor-pointer"
@@ -137,7 +137,6 @@ export const LevelSelectionPage: React.FC<LevelSelectionPageProps> = ({
           <div className="space-y-5">
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-[#0F172A] tracking-tight mb-1">{MENU_HEADLINE}</h1>
-              <p className="text-xs text-slate-500">{MARKET_REFERENCE}</p>
               {SHOW_TRUST_LINE && <p className="text-xs text-slate-600 mt-1">{TRUST_LINE}</p>}
             </div>
             {tiers.map((tier) => (

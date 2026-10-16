@@ -18,6 +18,8 @@ interface PricesPageProps {
   setFormState: React.Dispatch<React.SetStateAction<BookingFormState>>;
   gradeLevel: string; // account-level — see onChangeGradeLevel
   onChangeGradeLevel: () => void;
+  // The words on the grade button when no grade is showing (a parent must choose a learner first); default "Set in account".
+  gradeSetLabel?: string;
   onBack: () => void;
   onChangeInstitution: () => void;
   onOpenScheduleModal: () => void;
@@ -37,6 +39,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   setFormState,
   gradeLevel,
   onChangeGradeLevel,
+  gradeSetLabel = 'Set in account',
   onBack,
   onChangeInstitution,
   onOpenScheduleModal,
@@ -90,6 +93,8 @@ export const PricesPage: React.FC<PricesPageProps> = ({
 
   const handleApplySearch = () => {
     setAppliedSubject(formState.subject);
+    // A price level was worked out for the old subject (which tutors teach it); choose again for the new one.
+    if (selectedLevel) onClearLevel();
   };
 
   // A pricing tier can't be reached before the search itself is filled out —
@@ -146,6 +151,16 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   const handleSendRequest = async () => {
     if (!user?.email || !selectedLevel || chargedAmount === null) return;
     if (isGuardian && !learner) return;
+    // Found 16 Oct 2026: the request used the subject last SEARCHED (appliedSubject), while the box on this page shows the
+    // subject last TYPED. Typing a new subject after choosing a price and then sending sent the old one (a parent who typed
+    // Life Sciences got English on the tutor's side). Never send while the two differ.
+    if (searchIsStale) {
+      setSendError(
+        `The subject box says "${formState.subject.trim() || 'any subject'}" but this request is for "${appliedSubject.trim() || 'any subject'}". ` +
+          `Press "Update results" on the left, choose a price again, then send.`,
+      );
+      return;
+    }
     setSendError(null);
     setIsSending(true);
     try {
@@ -298,11 +313,11 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                 onClick={onChangeGradeLevel}
                 className="text-xs font-bold text-[#15803D] hover:underline shrink-0 ml-2 cursor-pointer"
               >
-                {gradeLevel ? 'Change' : 'Set in account'}
+                {gradeLevel ? 'Change' : gradeSetLabel}
               </button>
             </div>
             {missingField === 'gradeLevel' && (
-              <p className="text-xs font-semibold text-rose-600 -mt-2">Set your grade level in account settings to start searching.</p>
+              <p className="text-xs font-semibold text-rose-600 -mt-2">Set the grade level to start searching.</p>
             )}
 
             {searchIsStale && (
@@ -489,6 +504,12 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                     <p className="text-[11px] text-slate-500 mb-5 max-w-sm">
                       To save your card, Paystack makes a {getCurrencySymbol(selectedLevel.currencyCode)}1 check now and refunds it straight away.
                     </p>
+                    {searchIsStale && (
+                      <p className="text-[11px] font-semibold text-amber-700 mb-3 max-w-sm">
+                        You changed the subject to "{formState.subject.trim() || 'any subject'}", but this request is for "{appliedSubject.trim() || 'any subject'}".
+                        Press "Update results" on the left, then choose a price again.
+                      </p>
+                    )}
                     <button
                       onClick={handleSendRequest}
                       disabled={isSending}

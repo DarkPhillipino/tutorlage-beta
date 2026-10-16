@@ -88,7 +88,7 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs mb-8">
+    <div id="your-learners" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs mb-8 scroll-mt-28">
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-emerald-100 text-[#15803D] flex items-center justify-center">
@@ -166,12 +166,20 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
                 <div className="flex items-center gap-2">
                   {learner.canBook && (
                     <button
-                      onClick={() => onSelectLearner(isSelected ? null : learner)}
+                      // 16 Oct 2026: this button used to deselect the learner when pressed again, so a parent who pressed the
+                      // green "Booking for <name>" to carry on saw the choice silently undone ("a button did nothing"). Pressing
+                      // it now keeps the learner chosen and takes the parent to the booking form below; choosing another learner
+                      // switches the choice.
+                      onClick={() => {
+                        if (!isSelected) onSelectLearner(learner);
+                        document.getElementById('book-a-tutor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }}
                       disabled={!phoneReady}
+                      aria-pressed={isSelected}
                       title={phoneReady ? undefined : 'Add your phone number first'}
                       className={`text-xs font-bold px-3 py-2 rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${isSelected ? 'bg-[#15803D] text-white' : 'bg-slate-100 text-[#0F172A] hover:bg-slate-200'}`}
                     >
-                      {isSelected ? `Booking for ${learner.firstName}` : `Book for ${learner.firstName}`}
+                      {isSelected ? `✓ Booking for ${learner.firstName}` : `Book for ${learner.firstName}`}
                     </button>
                   )}
                   {learner.canBook && confirmWithdrawId !== learner.id && (
@@ -199,6 +207,11 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
                   )}
                 </div>
               </div>
+              {isSelected && (
+                <p className="text-[11px] text-slate-500 mt-1.5 px-1">
+                  Now enter a subject in the Book a tutor box below and press See prices.
+                </p>
+              )}
               {FEATURES.schoolResults && resultsOpenId === learner.id && (
                 <SchoolResultsPanel learnerId={learner.id} learnerName={learner.firstName} />
               )}

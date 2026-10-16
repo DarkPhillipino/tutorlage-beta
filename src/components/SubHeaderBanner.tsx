@@ -6,6 +6,8 @@ interface SubHeaderBannerProps {
   onOpenActivity?: () => void;
   onOpenPromotions?: () => void;
   onOpenAccount?: () => void;
+  // The "You have N upcoming sessions" line opens the "Sessions & history" page (16 Oct 2026).
+  onOpenSessions?: () => void;
 }
 
 export const SubHeaderBanner: React.FC<SubHeaderBannerProps> = ({
@@ -13,6 +15,7 @@ export const SubHeaderBanner: React.FC<SubHeaderBannerProps> = ({
   onOpenActivity,
   onOpenPromotions,
   onOpenAccount,
+  onOpenSessions,
 }) => {
   return (
     <section className="bg-[#0A192F] text-white border-b border-slate-800 py-3.5 px-4 sm:px-6 lg:px-8">
@@ -24,14 +27,19 @@ export const SubHeaderBanner: React.FC<SubHeaderBannerProps> = ({
             Welcome back
           </h2>
           
-          <div className="flex items-center text-xs sm:text-sm font-medium text-slate-300 bg-slate-800/60 px-3 py-1.5 rounded-full border border-slate-700/60">
+          <button
+            type="button"
+            onClick={onOpenSessions}
+            disabled={!onOpenSessions}
+            className="flex items-center text-xs sm:text-sm font-medium text-slate-300 bg-slate-800/60 px-3 py-1.5 rounded-full border border-slate-700/60 hover:bg-slate-800 hover:text-white enabled:cursor-pointer"
+          >
             <Calendar className="w-4 h-4 mr-2 text-emerald-400 shrink-0" />
             <span>
               {upcomingSessionsCount === 0
                 ? 'You have no upcoming sessions'
                 : `You have ${upcomingSessionsCount} upcoming session${upcomingSessionsCount === 1 ? '' : 's'}`}
             </span>
-          </div>
+          </button>
         </div>
 
         {/* Right Side: Activity, Promotions, Account (Strictly NO pill button like Uber One) */}

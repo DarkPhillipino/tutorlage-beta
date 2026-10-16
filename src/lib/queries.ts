@@ -2,7 +2,7 @@ import { supabase } from './supabaseClient';
 import { updateOwnLearnerRow } from './institutionSave';
 import type { WaitlistEntry } from './waitlist';
 import { mapMyTutorRow, isMissingDatabaseFunction, type MyTutor } from './keepOrSwap';
-import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, AvailableSessionRequest, StudentSession, TutorManagedSession, StudentSessionDetail, PriceLevel, PayoutAccount, ProblemReason, AppNotification } from '../types';
+import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, AvailableSessionRequest, StudentSession, TutorManagedSession, StudentSessionDetail, WaitingRequest, PriceLevel, PayoutAccount, ProblemReason, AppNotification } from '../types';
 
 // Model 3 (backlog 12a): the price levels a student can book right now for
 // this search — only levels with at least one matching verified tutor at or
@@ -76,6 +76,16 @@ export async function fetchStudentGradeLevel(studentId: string): Promise<string 
 export async function updateStudentGradeLevel(studentId: string, gradeLevel: string): Promise<void> {
   // 7cv: a write the row-level rules filter out is "success, zero rows", not an error; updateOwnLearnerRow fails on it.
   await updateOwnLearnerRow(supabase, studentId, { grade_level: gradeLevel });
+}
+
+// A parent or guardian changes a linked learner's grade (16 Oct 2026). The learner's row is read-only to a parent, so this
+// goes through the database function set_learner_grade (migration 20261016150000), which checks the guardian's active consent
+// and that the grade is one of grade_levels. Returns the grade as stored. Throws the database's own plain sentence, or a
+// "function not found" error before that migration is applied (the caller says so in words).
+export async function setLearnerGrade(learnerId: string, gradeLevel: string): Promise<string> {
+  const { data, error } = await supabase.rpc('set_learner_grade', { p_learner: learnerId, p_grade: gradeLevel });
+  if (error) throw error;
+  return String(data);
 }
 
 // A learner's institution (student_profiles.school_id) — account-level info like the grade, so it has to
@@ -1189,11 +1199,12 @@ interface StudentSessionDetailRow {
 }
 
 // Upcoming sessions plus those completed in the last 30 days, for the given
-// learners.
-async function fetchSessionDetailRows(studentIds: string[]): Promise<StudentSessionDetailRow[]> {
+// learners. With `history` (the "Sessions & history" page, 16 Oct 2026) there is no 30-day limit
+// and cancelled sessions are included too.
+async function fetchSessionDetailRows(studentIds: string[], history = false): Promise<StudentSessionDetailRow[]> {
   if (studentIds.length === 0) return [];
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600_000).toISOString();
-  const { data, error } = await supabase
+  let query = supabase
     .from('sessions')
     .select(`
       id,
@@ -1207,9 +1218,10 @@ async function fetchSessionDetailRows(studentIds: string[]): Promise<StudentSess
       student_subject_enrollments ( subject_name )
     `)
     .in('student_id', studentIds)
-    .in('status', ['scheduled', 'completed'])
-    .gte('scheduled_start', thirtyDaysAgo)
-    .order('scheduled_start', { ascending: false });
+    // The database's session_status labels are scheduled, completed, cancelled_by_tutor and cancelled_by_student (there is no "cancelled").
+    .in('status', history ? ['scheduled', 'completed', 'cancelled_by_tutor', 'cancelled_by_student'] : ['scheduled', 'completed']);
+  if (!history) query = query.gte('scheduled_start', thirtyDaysAgo);
+  const { data, error } = await query.order('scheduled_start', { ascending: false });
 
   if (error) throw error;
   return (data ?? []) as unknown as StudentSessionDetailRow[];
@@ -1231,8 +1243,8 @@ function toSessionDetail(row: StudentSessionDetailRow, hasReview: boolean): Stud
 }
 
 // The learner's own sessions, each flagged with whether they've reviewed it.
-export async function fetchStudentSessionDetails(studentId: string): Promise<StudentSessionDetail[]> {
-  const rows = await fetchSessionDetailRows([studentId]);
+export async function fetchStudentSessionDetails(studentId: string, history = false): Promise<StudentSessionDetail[]> {
+  const rows = await fetchSessionDetailRows([studentId], history);
   const { data: reviews, error: reviewError } = await supabase
     .from('reviews')
     .select('session_id')
@@ -1248,10 +1260,59 @@ export async function fetchStudentSessionDetails(studentId: string): Promise<Stu
 // who took the session, so reviews aren't looked up here.
 export async function fetchLearnerSessionDetails(
   learners: { id: string; name: string }[],
+  history = false,
 ): Promise<StudentSessionDetail[]> {
   const nameById = new Map(learners.map((l) => [l.id, l.name]));
-  const rows = await fetchSessionDetailRows(learners.map((l) => l.id));
+  const rows = await fetchSessionDetailRows(learners.map((l) => l.id), history);
   return rows.map((row) => ({ ...toSessionDetail(row, false), learnerName: nameById.get(row.student_id) }));
+}
+
+// Requests the signed-in person sent that nobody has accepted yet, for the "Sessions & history" page. RLS: "Students
+// view own session requests" (the learner, or whoever sent it). Only a request whose card check has passed is shown (an
+// unfinished one, still at the card step, is not "waiting for a tutor"), and only while its end time (30 minutes after
+// its start) is ahead, so one the five-minute expiry job has not yet marked expired does not linger on the page.
+export async function fetchMyWaitingRequests(
+  requestedById: string,
+  learnerNames: Map<string, string> = new Map(),
+): Promise<WaitingRequest[]> {
+  const endCutoff = new Date(Date.now() - 30 * 60_000).toISOString();
+  const { data, error } = await supabase
+    .from('session_requests')
+    .select(`
+      id,
+      student_id,
+      requested_start,
+      duration_hours,
+      charged_amount,
+      currency_code,
+      student_subject_enrollments ( subject_name )
+    `)
+    .eq('requested_by_profile_id', requestedById)
+    .eq('status', 'pending')
+    .eq('payment_status', 'card_verified')
+    .is('tutor_id', null)
+    .gt('requested_start', endCutoff)
+    .order('requested_start', { ascending: true });
+  if (error) throw error;
+  type Row = {
+    id: string;
+    student_id: string;
+    requested_start: string;
+    duration_hours: number;
+    charged_amount: number;
+    currency_code: string;
+    student_subject_enrollments: { subject_name: string } | null;
+  };
+  return ((data ?? []) as unknown as Row[]).map((row) => ({
+    id: row.id,
+    learnerId: row.student_id,
+    learnerName: learnerNames.get(row.student_id),
+    subjectName: row.student_subject_enrollments?.subject_name ?? null,
+    requestedStart: row.requested_start,
+    durationHours: Number(row.duration_hours),
+    amount: Number(row.charged_amount),
+    currencyCode: String(row.currency_code).trim(),
+  }));
 }
 
 // Cancels an upcoming session with a full refund. The database decides who

@@ -9,6 +9,8 @@ interface BookingFormProps {
   setFormState: React.Dispatch<React.SetStateAction<BookingFormState>>;
   gradeLevel: string; // account-level, read-only here — see onChangeGradeLevel
   onChangeGradeLevel: () => void;
+  // The words on the grade button when no grade is showing (a parent must choose a learner first); default "Set in account".
+  gradeSetLabel?: string;
   onChangeInstitution: () => void;
   onOpenScheduleModal: () => void;
   onSeePrices: () => void;
@@ -19,6 +21,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   setFormState,
   gradeLevel,
   onChangeGradeLevel,
+  gradeSetLabel = 'Set in account',
   onChangeInstitution,
   onOpenScheduleModal,
   onSeePrices,
@@ -45,8 +48,8 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
-      
+    <div id="book-a-tutor" className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200/80 scroll-mt-28">
+
       {/* Institution Subtext & Location Link */}
       <div className="flex items-center space-x-2 text-sm text-slate-700 font-medium mb-6 flex-wrap gap-y-1">
         <div className="flex items-center text-[#0F172A] font-semibold">
@@ -151,7 +154,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
             onClick={onChangeGradeLevel}
             className="text-xs font-bold text-[#15803D] hover:underline shrink-0 ml-2 cursor-pointer"
           >
-            {gradeLevel ? 'Change' : 'Set in account'}
+            {gradeLevel ? 'Change' : gradeSetLabel}
           </button>
         </div>
 

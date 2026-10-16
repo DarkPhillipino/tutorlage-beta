@@ -147,6 +147,19 @@ export interface StudentSessionDetail {
   learnerName?: string;
 }
 
+// A request the signed-in person sent that no tutor has accepted yet (the "Sessions & history" page, 16 Oct 2026):
+// the card check has passed, nothing has been charged, and it ends 30 minutes after its start if nobody accepts.
+export interface WaitingRequest {
+  id: string;
+  learnerId: string;
+  learnerName?: string; // set on a parent's view, like StudentSessionDetail
+  subjectName: string | null;
+  requestedStart: string; // ISO timestamptz
+  durationHours: number;
+  amount: number;
+  currencyCode: string;
+}
+
 // Mirrors public.session_requests while it's still anonymous — tutor_id is
 // null, so this is a request any qualifying tutor can browse and claim
 // (see fetchAvailableRequests in queries.ts and acceptRequest in payments.ts).

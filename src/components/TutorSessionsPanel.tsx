@@ -149,6 +149,12 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
                     Add the link your learner will use to join — they can't reach you without it.
                   </p>
                 )}
+                {/* Found 16 Oct 2026: Google Meet refused a learner who was not signed in to Google ("You can't join this video call"). */}
+                {!hasEnded && s.meetingUrl && /meet\.google\.com/i.test(s.meetingUrl) && (
+                  <p className="text-[11px] text-slate-500">
+                    With Google Meet, your learner has to be signed in to Google and ask to join. Open the meeting and let them in.
+                  </p>
+                )}
                 {/* Tutorlage's own video room for this session (master 7bm); off until FEATURES.videoRooms is switched on.
                     Shown from 15 minutes before the start until an hour after the session should have ended, which is
                     also after the "Mark session complete" button replaces the link box. */}

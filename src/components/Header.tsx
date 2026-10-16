@@ -4,14 +4,17 @@ import { Globe, ChevronDown, User, HelpCircle } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../lib/i18n';
 import { SUPPORT_EMAIL } from '../lib/businessInfo';
 import { NotificationsBell } from './NotificationsBell';
+import type { AppNotification } from '../types';
 
 interface HeaderProps {
   onOpenManageAccount: () => void;
   activeNav: string;
   setActiveNav: (nav: string) => void;
+  // Tapping a notification in the bell (16 Oct 2026): App.tsx opens "Sessions & history", or Teach for a tutor.
+  onOpenNotification?: (notification: AppNotification) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, setActiveNav }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, setActiveNav, onOpenNotification }) => {
   const { t, i18n } = useTranslation();
   const [showAboutDropdown, setShowAboutDropdown] = useState(false);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
@@ -148,7 +151,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
               <span className="hidden sm:inline">{t('help')}</span>
             </a>
 
-            <NotificationsBell />
+            <NotificationsBell onOpenNotification={onOpenNotification} />
 
             {/* Manage Account Dropdown Pill Button */}
             <button

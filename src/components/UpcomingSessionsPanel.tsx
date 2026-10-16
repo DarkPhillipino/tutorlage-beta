@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Loader2, AlertTriangle, Video, Star, Check, AlertCircle } from 'lucide-react';
-import { StudentSessionDetail, ProblemReason } from '../types';
-import { fetchStudentSessionDetails, fetchLearnerSessionDetails, submitReview, cancelSession, reportSessionProblem } from '../lib/queries';
+import { StudentSessionDetail, ProblemReason, WaitingRequest } from '../types';
+import { fetchStudentSessionDetails, fetchLearnerSessionDetails, fetchMyWaitingRequests, submitReview, cancelSession, reportSessionProblem } from '../lib/queries';
+import { getCurrencySymbol } from '../lib/currencies';
+import { formatRate } from '../lib/format';
 import { fetchMyLearners, type LinkedLearner } from '../lib/guardian';
 import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
@@ -18,6 +20,9 @@ interface UpcomingSessionsPanelProps {
   isGuardian?: boolean;
   // Keep or swap (master 7aa): "Book again" from My tutors. App.tsx fills in the request page and opens it.
   onBookAgain?: (tutor: MyTutor, learner: BookAgainLearner) => void;
+  // The "Sessions & history" page (16 Oct 2026) instead of the account tab: also shows the requests still waiting for a
+  // tutor, every completed session (not only the last 30 days) and the cancelled ones.
+  page?: boolean;
 }
 
 // The "Sessions & History" tab body in ManageAccountModal.tsx: the learner's
@@ -26,8 +31,9 @@ interface UpcomingSessionsPanelProps {
 // review is what moves the tutor's rating and level). For a guardian, the
 // same list across all their learners, each labelled with who it's for; they
 // can cancel what they booked, and rating stays with the learner.
-export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ studentId, isGuardian = false, onBookAgain }) => {
+export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ studentId, isGuardian = false, onBookAgain, page = false }) => {
   const [sessions, setSessions] = useState<StudentSessionDetail[]>([]);
+  const [waiting, setWaiting] = useState<WaitingRequest[]>([]);
   const [learners, setLearners] = useState<LinkedLearner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -36,21 +42,34 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
   useEffect(() => {
     setIsLoading(true);
     setLoadError(false);
+    let learnerNames = new Map<string, string>();
     const load = isGuardian
       ? fetchMyLearners(studentId).then((found) => {
           setLearners(found);
-          return fetchLearnerSessionDetails(found.map((l) => ({ id: l.id, name: l.firstName })));
+          learnerNames = new Map(found.map((l) => [l.id, l.firstName]));
+          return fetchLearnerSessionDetails(found.map((l) => ({ id: l.id, name: l.firstName })), page);
         })
-      : fetchStudentSessionDetails(studentId);
+      : fetchStudentSessionDetails(studentId, page);
     load
-      .then(setSessions)
+      .then(async (rows) => {
+        // The waiting requests are an extra on the page: if they cannot be read, the sessions still show.
+        if (page) {
+          try {
+            setWaiting(await fetchMyWaitingRequests(studentId, learnerNames));
+          } catch (err) {
+            console.error('fetchMyWaitingRequests failed:', err);
+            setWaiting([]);
+          }
+        }
+        setSessions(rows);
+      })
       .catch((err) => {
         console.error('fetchStudentSessionDetails failed:', err);
         setSessions([]);
         setLoadError(true);
       })
       .finally(() => setIsLoading(false));
-  }, [studentId, isGuardian, retryCount]);
+  }, [studentId, isGuardian, page, retryCount]);
 
   if (isLoading) {
     return (
@@ -82,6 +101,11 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
     .filter((s) => s.status === 'scheduled' && new Date(s.scheduledStart).getTime() + s.durationHours * 3600_000 > now)
     .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart));
   const completed = sessions.filter((s) => s.status === 'completed');
+  const cancelled = page ? sessions.filter((s) => s.status === 'cancelled_by_tutor' || s.status === 'cancelled_by_student') : [];
+  // A session whose time is over but which the tutor has not marked complete yet (completing it is what opens the rating).
+  const finished = page
+    ? sessions.filter((s) => s.status === 'scheduled' && new Date(s.scheduledStart).getTime() + s.durationHours * 3600_000 <= now)
+    : [];
 
   // Keep or swap (master 7aa + 7da): the tutors this learner (or each learner of a parent) has had, whatever the date of the
   // last session. Off until FEATURES.keepOrSwap; shows nothing at all if there is nobody yet.
@@ -105,7 +129,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
       </div>
     ) : null;
 
-  if (upcoming.length === 0 && completed.length === 0) {
+  if (upcoming.length === 0 && completed.length === 0 && waiting.length === 0 && cancelled.length === 0 && finished.length === 0) {
     return (
       <div className="space-y-4">
         {myTutorsSection}
@@ -125,6 +149,30 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
   return (
     <div className="space-y-4">
       {myTutorsSection}
+      {waiting.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Waiting for a tutor</h4>
+          {waiting.map((r) => {
+            const start = new Date(r.requestedStart);
+            return (
+              <div key={r.id} className="bg-white rounded-2xl p-4 border border-amber-200 space-y-1">
+                <div className="text-sm font-bold text-[#0F172A]">
+                  {r.subjectName ?? 'Tutoring session'}
+                  {r.learnerName && <span className="font-semibold text-slate-500"> · for {r.learnerName}</span>}
+                </div>
+                <div className="text-xs text-slate-500">
+                  {start.toLocaleDateString()} · {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {r.durationHours}h ·{' '}
+                  {getCurrencySymbol(r.currencyCode)}{formatRate(r.amount)}
+                </div>
+                <p className="text-[11px] text-slate-600">
+                  Your request is waiting for a tutor to accept it. You're charged only when one does. If nobody accepts in
+                  time it ends, and you're not charged.
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {upcoming.length > 0 && (
         <div className="space-y-2">
           <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Upcoming</h4>
@@ -140,15 +188,25 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                   {start.toLocaleDateString()} · {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {s.durationHours}h
                 </div>
                 {s.meetingUrl ? (
-                  <a
-                    href={s.meetingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 bg-[#15803D] hover:bg-[#166534] text-white text-xs font-bold px-3 py-2 rounded-lg"
-                  >
-                    <Video className="w-3.5 h-3.5" />
-                    Join session
-                  </a>
+                  <div className="space-y-1">
+                    <a
+                      href={s.meetingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 bg-[#15803D] hover:bg-[#166534] text-white text-xs font-bold px-3 py-2 rounded-lg"
+                    >
+                      <Video className="w-3.5 h-3.5" />
+                      Join session
+                    </a>
+                    {/* Found 16 Oct 2026: a visitor who is not signed in to Google is refused by Google Meet ("You can't join this
+                        video call"); the host also has to let a guest in. Say so, so nobody thinks the page is broken. */}
+                    {/meet\.google\.com/i.test(s.meetingUrl) && (
+                      <p className="text-[11px] text-slate-500">
+                        This opens your tutor's Google Meet. Google only lets in people who are signed in to Google, and your tutor may
+                        need to let you in once you ask to join.
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <p className="text-[11px] text-slate-500">Your tutor will add the link to join before the session starts.</p>
                 )}
@@ -168,7 +226,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
 
       {completed.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Recently completed</h4>
+          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{page ? 'Completed' : 'Recently completed'}</h4>
           {completed.map((s) =>
             isGuardian ? (
               <div key={s.id} className="bg-white rounded-2xl p-4 border border-slate-200 space-y-1">
@@ -192,6 +250,40 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
               />
             ),
           )}
+        </div>
+      )}
+
+      {finished.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Finished, not yet marked complete</h4>
+          {finished.map((s) => (
+            <div key={s.id} className="bg-white rounded-2xl p-4 border border-slate-200 space-y-1">
+              <div className="text-sm font-bold text-[#0F172A]">
+                {s.subjectName ?? 'Tutoring session'} with {s.tutorName}
+                {s.learnerName && <span className="font-semibold text-slate-500"> · for {s.learnerName}</span>}
+              </div>
+              <div className="text-xs text-slate-500">{new Date(s.scheduledStart).toLocaleDateString()}</div>
+              <p className="text-[11px] text-slate-500">When your tutor marks it complete, it moves to Completed and can be rated.</p>
+              <ReportProblemControl sessionId={s.id} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {cancelled.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cancelled</h4>
+          {cancelled.map((s) => (
+            <div key={s.id} className="bg-white rounded-2xl p-4 border border-slate-200 space-y-1">
+              <div className="text-sm font-bold text-slate-600">
+                {s.subjectName ?? 'Tutoring session'} with {s.tutorName}
+                {s.learnerName && <span className="font-semibold text-slate-500"> · for {s.learnerName}</span>}
+              </div>
+              <div className="text-xs text-slate-500">
+                {new Date(s.scheduledStart).toLocaleDateString()} · {s.status === 'cancelled_by_tutor' ? 'cancelled by the tutor' : 'cancelled'}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
