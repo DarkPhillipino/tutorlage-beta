@@ -75,6 +75,16 @@ check('when the counts are unknown no count is shown and every level can still b
   const unknown = renderToStaticMarkup(React.createElement(PriceLadder, { rows: ROWS, available: null, selectedId: null, onSelect: () => undefined, currencySymbol: () => 'R' }));
   return !/tutors? can take this|No tutor at this level yet/.test(unknown) && (unknown.match(/data-level="/g) ?? []).length === 16;
 })());
+check('a note says each tally counts every tutor at that level or higher (shown when the counts are known, not when they are not)',
+  html.includes('counts every tutor at that level or higher') &&
+    !renderToStaticMarkup(React.createElement(PriceLadder, { rows: ROWS, available: null, selectedId: null, onSelect: () => undefined, currencySymbol: () => 'R' })).includes('counts every tutor'));
+// Proved on the database on 17 Oct 2026 (rolled back; tutors at 1A, 2A and 3C teaching one subject: 1A=3, 1B to 2A=2, 2B to 3C=1,
+// nothing above), and the sources agree: the tally counts every tutor whose rate is at or above the level's, the tutor's request
+// list shows requests at or below their own level, and accepting is refused only when the request is for a higher level.
+check('the database counts every tutor at or above a level towards it, the request list and the accept step use the same rule',
+  /select count\(\*\)::integer from eligible_tutors e where e\.tutor_rate >= s\.max_allowed_rate/.test(read('supabase/migrations/20260930160000_model3_pricing_levels.sql')) &&
+    /s\.max_allowed_rate <= ts\.max_allowed_rate/.test(read('supabase/migrations/20261014200000_keep_or_swap.sql')) &&
+    /if v_tutor\.tutor_rate < v_level_rate then/.test(read('supabase/migrations/20261014200000_keep_or_swap.sql')));
 check('the minimums lead line is on every level but the first', (html.match(/To be at this level a tutor has:/g) ?? []).length === 15 && html.includes('No minimum yet'));
 
 // ---- the source -----------------------------------------------------------------------------------------------------------------------

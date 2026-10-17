@@ -54,6 +54,12 @@ export function requirementLines(row: LadderRow): string[] {
 export const FIRST_LEVEL_LINE = 'Every tutor starts here, new to Tutorlage and building their record. No minimum yet.';
 export const MINIMUMS_LEAD = 'To be at this level a tutor has:';
 
+// Said once above the ladder (CEO, 17 Oct 2026): a tutor can take any request priced at or below their own level, so tutors at
+// higher levels count towards the tally of every lower level. The database does this (available_price_levels counts every
+// eligible tutor whose level's rate is at or above the level's), and the tutor's request list and the accept step use the same rule.
+export const TALLY_NOTE =
+  'Each number counts every tutor at that level or higher, because a tutor can take any request priced at or below their own level.';
+
 // How many tutors can take a request at this level (this level or above), in words.
 export function availabilityLine(tutors: number | null): string | null {
   if (tutors === null) return null;

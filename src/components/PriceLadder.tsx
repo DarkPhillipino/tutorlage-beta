@@ -7,6 +7,7 @@ import {
   FIRST_LEVEL_LINE,
   LadderRow,
   MINIMUMS_LEAD,
+  TALLY_NOTE,
   availabilityLine,
   requirementLines,
 } from '../lib/ladderCopy';
@@ -33,6 +34,7 @@ export const PriceLadder: React.FC<PriceLadderProps> = ({ rows, available, selec
 
   return (
     <div className="space-y-6 text-left">
+      {available && <p className="text-[11px] text-slate-500 leading-relaxed">{TALLY_NOTE}</p>}
       {tiers.map((tier) => (
         <section key={tier.tierId} aria-label={tier.name}>
           <h3 className="text-sm font-extrabold text-[#0F172A]">{tier.name}</h3>
