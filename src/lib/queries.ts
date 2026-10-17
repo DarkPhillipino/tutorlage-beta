@@ -3,6 +3,7 @@ import { updateOwnLearnerRow } from './institutionSave';
 import type { WaitlistEntry } from './waitlist';
 import { mapMyTutorRow, isMissingDatabaseFunction, type MyTutor } from './keepOrSwap';
 import { documentsNeverAccepted } from './accountRules';
+import type { LadderRow } from './ladderCopy';
 import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, AvailableSessionRequest, StudentSession, TutorManagedSession, StudentSessionDetail, WaitingRequest, PriceLevel, PayoutAccount, ProblemReason, AppNotification } from '../types';
 
 // Model 3 (backlog 12a): the price levels a student can book right now for
@@ -1550,6 +1551,39 @@ export async function fetchLearnersITaught(tutorId: string): Promise<TaughtLearn
     });
   }
   return [...seen.values()];
+}
+
+// All 16 price levels with their prices and the minimums a tutor must have reached to be at each (the ladder is public: the
+// same table fn_recalculate_tutor_tier reads). Shown in full on the request page (CEO, 17 Oct 2026). Read once and kept.
+let ladderCache: LadderRow[] | null = null;
+export async function fetchPriceLadder(): Promise<LadderRow[]> {
+  if (ladderCache) return ladderCache;
+  const { data, error } = await supabase
+    .from('sub_tier_definitions')
+    .select(
+      'id, tier_id, max_allowed_rate, min_hours, min_rating, min_repeat_rate_pct, min_written_reviews, min_distinct_students_uplift, required_grade_uplift_pct, tier_definitions ( public_name, positioning_quote, currency_code )',
+    )
+    .order('max_allowed_rate');
+  if (error) throw error;
+  const rows = (data ?? []).map((row) => {
+    const tier = (row as any).tier_definitions as { public_name: string; positioning_quote: string | null; currency_code: string } | null;
+    return {
+      id: row.id as string,
+      tierId: row.tier_id as number,
+      tierName: tier?.public_name ?? '',
+      tierQuote: tier?.positioning_quote ?? '',
+      price: Number(row.max_allowed_rate),
+      currencyCode: (tier?.currency_code ?? 'ZAR').trim(),
+      minHours: row.min_hours ?? 0,
+      minRating: Number(row.min_rating ?? 0),
+      minRepeatRatePct: Number(row.min_repeat_rate_pct ?? 0),
+      minReviews: row.min_written_reviews ?? 0,
+      minUpliftStudents: row.min_distinct_students_uplift ?? 0,
+      requiredUpliftPct: Number(row.required_grade_uplift_pct ?? 0),
+    } satisfies LadderRow;
+  });
+  if (rows.length > 0) ladderCache = rows;
+  return rows;
 }
 
 // The price level a learner paid last time, in the shape the request page uses ("book again at the same price", master 7aa:

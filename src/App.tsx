@@ -359,7 +359,7 @@ export default function App() {
             }}
             onChangeInstitution={() => setIsInstitutionModalOpen(true)}
             onOpenScheduleModal={() => setIsScheduleModalOpen(true)}
-            onSearch={() => setView('tiers')}
+            onSelectLevel={(level) => setSelectedLevel(level)}
             selectedLevel={selectedLevel}
             onClearLevel={() => setSelectedLevel(null)}
             selectedFormat={selectedFormat}

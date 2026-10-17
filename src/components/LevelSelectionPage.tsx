@@ -114,8 +114,7 @@ export const LevelSelectionPage: React.FC<LevelSelectionPageProps> = ({
             <UserX className="w-8 h-8 text-slate-300 mx-auto mb-2" />
             <p className="text-sm font-bold text-[#0F172A]">No tutor can take this request yet</p>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              No approved tutor teaches this subject and grade yet, so nobody would answer. Tutors see your request when you send
-              it, and the first to accept is matched with you. Try a different subject, or check back soon.
+              No approved tutor teaches this subject and grade yet. Try a different subject, or check back soon.
             </p>
             {FEATURES.tutorWaitlist && waitlistLearnerId && formState.subject.trim() !== '' && (
               <WaitlistPrompt

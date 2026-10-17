@@ -101,7 +101,7 @@ We decide cancellations and refunds case by case, fairly, and we set no fixed de
 
 ## 10. Your choice of tutor, and booking through Tutorlage
 
-1. **You cannot pick who accepts your first request, but after that the choice is yours.** When a session is done you can **keep that tutor** (book them again, under the same price rules) or **ask for a different tutor**. Changing costs nothing, you do not have to give a reason, and the tutor is not told why.
+1. **After a session, the choice is yours.** When a session is done you can **keep that tutor** (book them again, under the same price rules) or **ask for a different tutor**. Changing costs nothing, you do not have to give a reason, and the tutor is not told why.
 2. **Why book through Tutorlage.** When you book and pay through Tutorlage you get a tutor we have checked; payment taken only when a tutor accepts; refunds as the Refund Policy says; a record of your sessions and progress; a way to report a problem and have it looked into; and a safe place to talk to your tutor. Sessions you arrange or pay for outside Tutorlage have none of these, and our refunds, records and safety processes do not cover them.
 3. **Please do not pay a tutor outside Tutorlage.** If someone asks you to, tell us at support@tutorlage.com. We do not charge penalties for this. Repeated breaches may lead to your account being suspended (§17).
 

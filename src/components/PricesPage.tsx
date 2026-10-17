@@ -1,7 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, MapPin, Clock, ChevronDown, ShieldCheck, Search, Loader2, UserX, Tag, X, AlertTriangle, Users, CreditCard, GraduationCap } from 'lucide-react';
 import { BookingFormState, PriceLevel, SuggestionItem } from '../types';
-import { fetchTutors, createSessionRequest } from '../lib/queries';
+import { fetchTutors, createSessionRequest, fetchPriceLadder, fetchAvailablePriceLevels } from '../lib/queries';
+import { PriceLadder } from './PriceLadder';
+import { chosenLevelLine } from '../lib/ladderCopy';
+import type { LadderRow } from '../lib/ladderCopy';
+import { MENU_HEADLINE } from '../lib/priceLevelCopy';
 import { initializePayment } from '../lib/payments';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate, describeDate } from '../lib/format';
@@ -25,7 +29,8 @@ interface PricesPageProps {
   onBack: () => void;
   onChangeInstitution: () => void;
   onOpenScheduleModal: () => void;
-  onSearch: () => void;
+  // The learner chose one of the 16 levels on the ladder shown on the right (17 Oct 2026; it used to be a second page).
+  onSelectLevel: (level: PriceLevel) => void;
   selectedLevel: PriceLevel | null;
   onClearLevel: () => void;
   selectedFormat: SuggestionItem | null;
@@ -45,7 +50,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   onBack,
   onChangeInstitution,
   onOpenScheduleModal,
-  onSearch,
+  onSelectLevel,
   selectedLevel,
   onClearLevel,
   selectedFormat,
@@ -93,6 +98,45 @@ export const PricesPage: React.FC<PricesPageProps> = ({
       .finally(() => setIsLoading(false));
   }, [appliedSubject, gradeLevel, retryCount, formState.institutionId]);
 
+  // The whole ladder (all 16 levels with their minimums), read once, and how many tutors can take a request at each level for
+  // this search. If the counts cannot be read the ladder still shows and every level can still be chosen.
+  const [ladder, setLadder] = useState<LadderRow[]>([]);
+  const [ladderError, setLadderError] = useState(false);
+  const [available, setAvailable] = useState<Map<string, number> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPriceLadder()
+      .then((rows) => {
+        if (!cancelled) {
+          setLadder(rows);
+          setLadderError(rows.length === 0);
+        }
+      })
+      .catch((err) => {
+        console.error('fetchPriceLadder failed:', err);
+        if (!cancelled) setLadderError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [retryCount]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAvailablePriceLevels({ subject: appliedSubject, gradeLevel, institutionId: formState.institutionId })
+      .then((levels) => {
+        if (!cancelled) setAvailable(new Map(levels.map((l) => [l.id, l.tutors])));
+      })
+      .catch((err) => {
+        console.error('fetchAvailablePriceLevels failed:', err);
+        if (!cancelled) setAvailable(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [appliedSubject, gradeLevel, formState.institutionId, retryCount]);
+
   const searchIsStale = formState.subject !== appliedSubject;
 
   const handleApplySearch = () => {
@@ -124,7 +168,8 @@ export const PricesPage: React.FC<PricesPageProps> = ({
       return;
     }
     setMissingField(null);
-    onSearch();
+    // Search now re-runs the search for what is typed; the ladder of prices is already on the right.
+    handleApplySearch();
   };
 
   // Institution and grade level are both set elsewhere (a modal, and
@@ -200,12 +245,11 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // "the platform genuinely has no approved tutors yet" from "your subject/grade
   // level/tier just didn't match anyone," which used to collapse into the
   // same misleading "no tutors have registered" message regardless of cause.
-  // The wording says how matching really works (master 7co, decision row 32, CEO "only the wording", 12 Oct): a learner
-  // does not pick a tutor; tutors who are approved and teach the subject and grade see the request, and the first to accept
-  // is matched. "Approved" is deliberate: a tutor who has signed up but not been approved is hidden from learners.
+  // 17 Oct 2026 (CEO: "stop telling people they cant pick the tutors"): the lines about not picking the tutor and about the first
+  // to accept being matched are gone from this page. "Approved" stays: a tutor who has signed up but not been approved is hidden.
   const hasSearchFilter = !!appliedSubject.trim() || !!gradeLevel.trim();
   const noTutorsMessage = hasSearchFilter
-    ? `No approved tutor teaches "${appliedSubject || 'any subject'}" (${gradeLevel || 'any grade level'}) yet, so nobody would answer a request. Tutors see your request when you send it, and the first to accept is matched with you. Try a different subject or check back soon.`
+    ? `No approved tutor teaches "${appliedSubject || 'any subject'}" (${gradeLevel || 'any grade level'}) yet. Try a different subject or check back soon.`
     : 'No approved tutors are on Tutorlage yet — check back soon.';
 
   return (
@@ -447,29 +491,41 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                 )}
               </div>
             ) : !selectedLevel ? (
-              <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-xs flex flex-col items-center text-center">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 shadow-xs flex items-center justify-center text-[#15803D] mb-3">
-                  <Users className="w-7 h-7" />
+              <div className="space-y-4">
+                <div className="text-left">
+                  <h3 className="text-base font-extrabold text-[#0F172A]">
+                    {bookAgain ? KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName) : 'Choose a price level'}
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    {bookAgain
+                      ? `This request goes to ${bookAgain.firstName}. Choose the price level (the same as last time, or lower, because ${bookAgain.firstName} can only take levels up to their own).`
+                      : MENU_HEADLINE}{' '}
+                    You pay exactly the price shown, and only when a tutor accepts.
+                  </p>
                 </div>
-                <p className="text-sm font-bold text-[#0F172A] mb-1">
-                  {bookAgain
-                    ? KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName)
-                    : `${tutorCount} tutor${tutorCount === 1 ? '' : 's'} teach${tutorCount === 1 ? 'es' : ''} this subject`}
-                </p>
-                <p className="text-xs text-slate-500 mb-3 max-w-sm">
-                  {bookAgain
-                    ? `This request goes to ${bookAgain.firstName}. Choose the price level (the same as last time, or lower, because ${bookAgain.firstName} can only take levels up to their own).`
-                    : "You don't pick the tutor. Tutors at the price level you choose or above get your request, and the first to accept is matched with you. You'll see who accepted, and you can cancel the session before it starts if you'd rather not have them."}
-                </p>
-                <p className="text-xs text-slate-500 mb-5 max-w-sm">
-                  Choose a price level so you know exactly what you'll pay before you send your request.
-                </p>
-                <button
-                  onClick={onSearch}
-                  className="px-6 py-3 bg-[#0F172A] hover:bg-slate-800 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
-                >
-                  Choose a price
-                </button>
+                {ladderError ? (
+                  <div className="text-center py-10 px-4">
+                    <AlertTriangle className="w-8 h-8 text-rose-400 mx-auto mb-2" />
+                    <p className="text-sm font-bold text-[#0F172A]">Couldn't load the price levels</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLadderError(false);
+                        setRetryCount((c) => c + 1);
+                      }}
+                      className="mt-3 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-[#0F172A] font-bold text-xs rounded-xl cursor-pointer"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : ladder.length === 0 ? (
+                  <div className="flex items-center justify-center py-10 text-slate-400">
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    <span className="text-sm font-semibold">Loading price levels…</span>
+                  </div>
+                ) : (
+                  <PriceLadder rows={ladder} available={available} selectedId={null} onSelect={onSelectLevel} currencySymbol={getCurrencySymbol} />
+                )}
               </div>
             ) : (
               <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-xs flex flex-col items-center text-center">
@@ -479,7 +535,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                 <p className="text-sm font-bold text-[#0F172A] mb-1">
                   {bookAgain
                     ? `This request goes to ${bookAgain.firstName}`
-                    : `${selectedLevel.tutors} tutor${selectedLevel.tutors === 1 ? '' : 's'} at this level or above can take this request`}
+                    : chosenLevelLine(selectedLevel.tutors)}
                 </p>
                 {isViewOnlyLearner ? (
                   <p className="text-xs text-slate-600 max-w-sm bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
@@ -508,8 +564,8 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                         </>
                       ) : (
                         <>
-                          {' '}charged to your card only when a tutor at this level or above accepts. The first to accept is matched with{' '}
-                          {learner ? learner.firstName : 'you'}, and you'll see who they are before the session. If nobody accepts in time, you're never charged.
+                          {' '}charged to your card only when a tutor at this level or above accepts. You'll see who they are before the
+                          session. If nobody accepts in time, you're never charged.
                         </>
                       )}
                     </p>
