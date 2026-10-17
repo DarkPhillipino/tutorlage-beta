@@ -19,6 +19,7 @@ import { SchoolResultsPanel } from './components/SchoolResultsPanel';
 import { SessionsHistoryPage } from './components/SessionsHistoryPage';
 import { LearnerGradeModal } from './components/LearnerGradeModal';
 import { notificationTarget } from './lib/notificationTarget';
+import { siteUrl } from './lib/siteUrl';
 import { useAccountStatus } from './components/AccountGate';
 import { FEATURES } from './lib/features';
 import { LinkedLearner, fetchMyLearners } from './lib/guardian';
@@ -185,7 +186,9 @@ export default function App() {
   };
 
   const handleOpenNotification = (notification: AppNotification) => {
-    if (notificationTarget(notification.type) === 'teach') handleSetActiveNav('teach');
+    const target = notificationTarget(notification.type);
+    if (target === 'teach') handleSetActiveNav('teach');
+    else if (target === 'terms') window.open(siteUrl('/terms'), '_blank', 'noopener');
     else openSessionsPage();
   };
 

@@ -1,7 +1,7 @@
 > **The short version.**
 > - Tutorlage is a platform. The tutor gives the lesson; we arrange the match and collect the payment for the tutor.
 > - You see one fixed price before you send a request. You are charged only when a tutor accepts.
-> - You can cancel a booked session within 7 days of being charged, before it starts, for a full refund. A session booked further ahead can still be cancelled (§8).
+> - Refunds are decided case by case. Section 8 lists the situations in which we always refund, and how we decide the rest.
 > - Parents and guardians hold the account for learners under 18.
 > - **Section 15 limits what we are responsible for. Please read it.**
 
@@ -51,7 +51,7 @@ Nothing in these Terms makes Tutorlage, a tutor and a learner each other's emplo
 1. **Your request.** You choose a subject, grade, date and time and a price level. Before you send anything, the booking screen shows the price you will pay and when you will be charged. You can change the details or go back.
 2. **Saving your card.** When you send the request, our payment processor, Paystack, saves your card with a R1 check. The R1 is refunded straight away.
 3. **A tutor accepts.** The request goes to approved tutors who teach the subject and grade at your chosen level or above, and the first to accept is matched with you. Paystack then charges your saved card the price you saw.
-4. **The agreement for that session is made when the charge succeeds.** We confirm it on screen and in your sessions list. This is the moment the cooling-off period in §8 starts.
+4. **The agreement for that session is made when the charge succeeds.** We confirm it on screen and in your sessions list.
 5. **The session.** It takes place online at the booked time, in Tutorlage's own video room or through a meeting link (for example Google Meet, Teams or Zoom) that the tutor adds to the session. It lasts the booked length (currently one hour). Where a tutor uses another service's meeting link, that service's own terms apply to it.
 6. **Your record.** Every booking, its price, its status and any refund stays in your sessions list. Paystack sends a receipt for each charge.
 
@@ -73,27 +73,26 @@ Nothing in these Terms makes Tutorlage, a tutor and a learner each other's emplo
 
 A request stays open for up to **48 hours**, or until **30 minutes after the start time you asked for**, whichever comes first. If no tutor accepts by then, the request expires and **you are not charged**. The R1 card check is refunded whatever happens.
 
-## 8. Cancelling a booked session
+## 8. Cancelling and refunds
 
-1. **Cooling-off: 7 days, full refund.**
-   - You may cancel a booked session for any reason **within 7 days of the agreement being made** (when you were charged, §5), as long as **the session has not started**. You get a full refund.
-   - Once a session starts with your agreement, the cooling-off right for that session ends.
-   - A refund for a cancellation is made within 30 days at most. In practice we start it at once (see the Refund Policy).
-   - **How**: cancel from your sessions list in the app.
-2. **Sessions booked further ahead.** If your session is more than 7 days after you were charged, you can still cancel it after the 7 days, until it starts. Email support@tutorlage.com and we will cancel it for you:
-   - more than **24 hours** before the session: a full refund;
-   - less than 24 hours before: we may keep a cancellation charge of up to **50% of the price**, which goes to the tutor for the time they held for you;
-   - no cancellation charge if you cannot attend because of the death or hospitalisation of the person the session was for.
-3. **If the tutor cancels**, you are refunded in full, whenever they cancel.
+We decide cancellations and refunds case by case, fairly, and we set no fixed deadlines for asking. Tell us as early as you can: where the app lets you cancel from your sessions list, that cancellation and its refund are handled for you; otherwise email support@tutorlage.com. The Refund Policy has the detail.
 
-Nothing in this section takes away a right you have under the Consumer Protection Act or the Electronic Communications and Transactions Act (ECTA).
+1. **We always refund in full when:**
+   - no tutor accepts your request (you are never charged);
+   - the tutor cancels, or does not turn up;
+   - the session cannot take place, or cannot be finished, because of a failure on Tutorlage's side or the tutor's (for example our video room is down), and it is not re-arranged to suit you;
+   - you were charged by mistake, or twice;
+   - a report about the tutor's conduct in the session is upheld.
+2. **We may refund in full or in part, depending on the circumstances,** when you ask to cancel or you report a problem. We look at how much notice you gave, whether the tutor could use the time they held, what happened in the session, and, for a session disrupted by something outside anyone's control (load-shedding, an outage), what is fair.
+3. **We do not refund** because a learner did not get a particular mark, or because you changed your mind after the session took place, unless the law requires it.
+4. **Your legal rights stay.** Nothing in this section takes away a right you have under the Consumer Protection Act or the Electronic Communications and Transactions Act (ECTA).
 
 ## 9. Sessions, completion and reviews
 
 1. **Completion.**
    - The tutor marks a session complete after it ends.
    - If nobody marks it, it **completes automatically 48 hours after its scheduled end**, unless a problem has been reported.
-2. **Something went wrong?** Use **Report a problem** on the session, or email support@tutorlage.com, within **14 days**. A session with an open report is not completed until we have looked into it. See the Refund Policy for what happens next.
+2. **Something went wrong?** Use **Report a problem** on the session, or email support@tutorlage.com, as soon as you can. A session with an open report is not completed until we have looked into it. See the Refund Policy for what happens next.
 3. **Reviews.**
    - After a completed session the learner, or the parent or guardian, may rate it.
    - Ratings help decide a tutor's level, and so their prices (B3), so they must be honest and about a real session.
@@ -115,6 +114,7 @@ These rules apply to everyone, and to tutors in particular (see Part B):
   - the parent or guardian's name and phone number are shared with the tutor for this reason.
 - **Online only, for now.** Sessions are online only until we say otherwise. A parent or guardian must be reachable during any session with a learner under 18.
 - **Tutorlage's video room.** A learner under 18 can enter the video room of a booked session, and only that. Only the session's tutor, the learner and the learner's parents or guardians are admitted to it, and the tutor cannot remove the learner or a guardian from it. Tutors can also open a room for adults. Calls are carried live between the people in the room and are never recorded by us (see the Privacy Policy, §8).
+- **A learner under 18's camera is never used.** From the day a learner's account is created, Tutorlage never switches on or shows a learner under 18's camera, before, during or after a session. A learner under 18 takes part in a video room with sound only; the tutor and the others hear them but do not see them. The rule is applied by the room itself, not left to the learner.
 - **Please do not meet outside a lesson.** Tutorlage lessons happen online, in a scheduled session. **We strongly advise against meeting a tutor, or a learner, anywhere else or at any other time.** We do not arrange, supervise or approve such meetings and, to the extent the law allows, we are not responsible for what happens at one (§15). A tutor who asks to meet, to move to a private chat, or to send you gifts or money is breaking our rules: say no and tell us at safety@tutorlage.com.
 - **Parents and guardians: please watch over lessons.** For a learner under 18, we strongly advise a parent or guardian to be present, or within sight and hearing, for every lesson, in a shared part of the home rather than behind a closed door, and to read the session notes afterwards. Any learner or parent can end a lesson at any time and report it.
 - **Keep personal details to a minimum.** Do not give a tutor a home address, a school timetable or other personal details a lesson does not need.
@@ -187,9 +187,9 @@ We may change, add or remove features to improve Tutorlage or comply with the la
 
 ## 19. Changes to these Terms
 
-- We will tell account holders about material changes by email and in the app at least **14 days** before they take effect.
-- We will ask you to accept the new version the next time you sign in.
-- If you do not accept, you can close your account, and sessions already booked keep the Terms they were booked under.
+- When we change these Terms, every account holder gets a notice in the app (the bell at the top of the page), and by email when the change affects payments or refunds. Nobody is signed out or stopped from using Tutorlage because of a change.
+- If you keep using Tutorlage after a change, you accept the new version. The version number and date are at the top of this page.
+- If you do not agree with a change, you can close your account (§17), and sessions already booked keep the Terms they were booked under.
 
 ## 20. How we communicate with you
 
@@ -211,6 +211,7 @@ These Terms are governed by the law of the Republic of South Africa, and South A
 - **Acceptance.** You accept these Terms by ticking the box that says "I accept the Terms of Service and the Privacy Policy" when you create an account. The box links to the current version of each and is never pre-ticked.
   - We record which version you accepted, and when.
   - A parent or guardian accepts on behalf of a learner under 18.
+  - After a later change, carrying on using Tutorlage means you accept the new version (§19).
 - **Where to find them.** These Terms, our Privacy Policy and our Refund Policy are linked from the foot of every page. You can save or print them.
 - **Together** they are the whole agreement between you and Tutorlage about using the platform.
 - **Severability.** If any part is found unenforceable, the rest still applies.
@@ -263,7 +264,7 @@ These apply to you as well as Part A if you tutor on Tutorlage.
 
 ## B5. Refunds, cancellations and chargebacks: your share
 
-1. **Cancelled before the session.** If a learner cancels within the cooling-off period, or under the advance-booking rules in Part A §8, the session does not take place and you are not entitled to the payment for it. If a cancellation charge applies, it is paid to you.
+1. **Cancelled before the session.** If a session is cancelled and refunded under Part A §8, it does not take place and you are not entitled to the payment for it. If we keep part of the price for the time you held, that part is paid to you.
 2. **Tutor-caused refunds.** If a learner is refunded because **you** cancelled, did not attend, or a problem report about your session was upheld, you are not entitled to the payment for that session, and Tutorlage may recover it from you or from your later earnings.
 3. **Chargebacks.** If a learner's bank later reverses a payment because the session was not delivered as booked, Tutorlage may recover your share for that session from your later earnings. We will tell you first, and you can respond under Part A §17.
 4. **Never recovered from you**: refunds Tutorlage gives for its own reasons.

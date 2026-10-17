@@ -13,11 +13,12 @@ import { getErrorMessage } from '../lib/errors';
 
 // Sits between sign-in and the app (7k/7l). Before anyone can use Tutorlage it
 // makes sure we have (1) their date of birth — tutors must be 18+, and a learner
-// under 18 is booked for by a guardian — and (2) their acceptance of the current
-// Terms of Service and Privacy Policy. Google sign-ups and older accounts arrive
+// under 18 is booked for by a guardian — and (2) that they have accepted the Terms of
+// Service and Privacy Policy AT ALL. Google sign-ups and older accounts arrive
 // here without either; email sign-ups normally pass straight through because
-// the signup form already collected both. A change of document version brings
-// everyone back here once.
+// the signup form already collected both. A change of document version does NOT bring
+// anyone back here any more (CEO, 17 Oct 2026): everyone gets a notice in the bell
+// (database trigger, migration 20261017090000) and carrying on means accepting the new text.
 //
 // The database is the real control (booking, verification and guardian checks
 // all refuse without a recorded adult date of birth); this screen is how people
@@ -168,12 +169,12 @@ export const AccountGate: React.FC<{ children: React.ReactNode }> = ({ children 
         <ShieldCheck className="w-6 h-6" />
       </div>
       <h1 className="font-serif text-2xl text-[#0F172A] mb-2">
-        {needsDateOfBirth ? 'One more step' : 'Our terms have been updated'}
+        One more step
       </h1>
       <p className="text-sm text-slate-500 mb-6">
         {needsDateOfBirth
           ? 'Before you start, we need a couple of details.'
-          : 'Please read and accept the current versions to keep using Tutorlage.'}
+          : 'Please read and accept our Terms of Service and Privacy Policy to start using Tutorlage.'}
       </p>
 
       {formError && (

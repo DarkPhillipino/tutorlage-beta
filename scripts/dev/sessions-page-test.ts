@@ -73,7 +73,7 @@ const guards: { name: string; ok: (s: Sources) => boolean }[] = [
   },
   {
     name: 'App opens the sessions page for a notification (Teach only for a tutor request)',
-    ok: (s) => /notificationTarget\(notification\.type\) === 'teach'/.test(s.app) && /onOpenNotification=\{handleOpenNotification\}/.test(s.app),
+    ok: (s) => /const target = notificationTarget\(notification\.type\)/.test(s.app) && /target === 'teach'/.test(s.app) && /onOpenNotification=\{handleOpenNotification\}/.test(s.app),
   },
   {
     name: 'App renders the sessions page and the banner opens it',

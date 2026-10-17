@@ -19,6 +19,17 @@ export function parseSignupRole(raw: string | undefined): SignupRole {
 
 export const ADULT_AGE = 18;
 
+// What stops a person at the account gate: the documents they have NEVER accepted, in any version. `unacceptedNow` is what
+// the database lists as not accepted at the current version; `everAccepted` is every document they have accepted at all.
+// A changed version is announced in the notification bell and blocks nobody (CEO, 17 Oct 2026).
+export function documentsNeverAccepted(
+  unacceptedNow: ('terms' | 'privacy')[],
+  everAccepted: ('terms' | 'privacy')[],
+): ('terms' | 'privacy')[] {
+  const seen = new Set(everAccepted);
+  return unacceptedNow.filter((document) => !seen.has(document));
+}
+
 // A learner a guardian adds without an email gets a sign-in name (e.g.
 // "thando-7k2m9q") stored as an address under this reserved .invalid domain,
 // which can never receive mail or belong to anyone. Must match

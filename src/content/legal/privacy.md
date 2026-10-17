@@ -95,7 +95,7 @@ We will ask your consent before using your information for a purpose not listed 
   - tutors and learners see each other's names, and the subject, level and time;
   - for a session a parent or guardian booked, **the tutor sees the parent or guardian's name and phone number**, so the parent can be reached during the session;
   - a tutor's name and level are visible to signed-in users who are matched with them.
-- **Other people in a video room.** In Tutorlage's video room the others in the room see your name, and your camera and microphone are carried live to them. We do not record or keep the audio or video. A tutor who opens a room for adults lets people in from a waiting area, and sees the names of the people waiting.
+- **Other people in a video room.** In Tutorlage's video room the others in the room see your name, and your camera and microphone are carried live to them. We do not record or keep the audio or video. **A learner under 18's camera is never used:** from the day their account is created they take part with sound only, and the room does not show anyone's picture of them. A tutor who opens a room for adults lets people in from a waiting area, and sees the names of the people waiting.
 - **Our service providers ("operators")**, who process information only on our instructions and must keep it secure:
 
 | Provider | What they do for us | Where |

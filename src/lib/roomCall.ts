@@ -33,6 +33,9 @@ export interface RoomCallOptions {
   relayOnly: boolean;
   // Our own camera and microphone; null to take part without sending anything.
   localStream: MediaStream | null;
+  // false for a learner under 18: whatever is in localStream, no video track of ours is ever sent (defence behind the page,
+  // which opens no camera for them). Left out, it means true (the call logic on its own, in tests).
+  cameraAllowed?: boolean;
   onRemoteStream: (peerId: string, stream: MediaStream) => void;
   onPeerGone: (peerId: string) => void;
   onConnectionState: (peerId: string, state: RTCPeerConnectionState) => void;
@@ -70,6 +73,9 @@ export class RoomCall {
   // Who the room currently lists as in the call (never us). null = no roster given: everyone's messages are accepted
   // (call logic on its own, in tests). Once the page gives one, only people on it may connect; see setRoster.
   private roster: Set<string> | null = null;
+  // People whose video must never be shown (a learner under 18's): their video track is dropped when it arrives, and if one
+  // is already showing when we learn this, it is taken out of their stream. Their sound is unaffected.
+  private noVideo = new Set<string>();
   private readonly held = new Map<string, HeldSignal[]>();
 
   constructor(opts: RoomCallOptions) {
@@ -106,12 +112,22 @@ export class RoomCall {
   // silent for 90 seconds) is closed from our side, so nothing more is sent to them. This is what makes "Remove" work
   // against a browser that ignores it: the people still in the call stop answering. Our own end of the Realtime channel
   // can still carry their messages (Supabase checks a channel's access once per connection), so we must not rely on it.
-  setRoster(ids: string[]): void {
+  //
+  // noVideo: of those people, the ones whose video must not be shown (a learner under 18's).
+  setRoster(ids: string[], noVideo: string[] = []): void {
     if (this.stopped) return;
     const next = new Set(ids.filter((id) => id !== this.opts.selfId));
     this.roster = next;
+    this.noVideo = new Set(noVideo);
     for (const id of [...this.peers.keys()]) {
       if (!next.has(id)) this.closePeer(id, true);
+    }
+    for (const id of this.noVideo) {
+      const peer = this.peers.get(id);
+      if (!peer) continue;
+      const videos = peer.stream.getVideoTracks();
+      for (const track of videos) peer.stream.removeTrack(track);
+      if (videos.length > 0) this.opts.onRemoteStream(id, peer.stream);
     }
     const now = Date.now();
     for (const [id, list] of [...this.held]) {
@@ -245,9 +261,11 @@ export class RoomCall {
       if (candidate) this.send({ kind: 'candidate', from: this.opts.selfId, to: id, candidate: candidate.toJSON() });
     };
     pc.ontrack = (event) => {
-      const stream = event.streams[0] ?? peer.stream;
-      if (!event.streams[0]) peer.stream.addTrack(event.track);
-      this.opts.onRemoteStream(id, stream);
+      // Tracks go into the peer's own stream one by one (not the stream the browser builds), so a video track that must not be
+      // shown can simply be left out.
+      if (event.track.kind === 'video' && this.noVideo.has(id)) return;
+      if (!peer.stream.getTrackById(event.track.id)) peer.stream.addTrack(event.track);
+      this.opts.onRemoteStream(id, peer.stream);
     };
     pc.onnegotiationneeded = async () => {
       try {
@@ -275,6 +293,8 @@ export class RoomCall {
     const kinds = new Set<string>();
     if (local) {
       for (const track of local.getTracks()) {
+        // A learner under 18 sends sound only, whatever the stream holds.
+        if (track.kind === 'video' && this.opts.cameraAllowed === false) continue;
         pc.addTrack(track, local);
         kinds.add(track.kind);
       }

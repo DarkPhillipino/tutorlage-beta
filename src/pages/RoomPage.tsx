@@ -10,6 +10,7 @@ import { supabaseTransport } from '../lib/roomTransport';
 import {
   RoomError,
   admitMember,
+  cameraIsAllowed,
   createRoom,
   endRoom,
   joinRoom,
@@ -41,10 +42,26 @@ const othersInCall = (people: RoomPerson[], selfId: string) =>
 // page keeps going through these, because the next poll or beat usually works; only the room's own refusals end a visit.
 const isHiccup = (e: unknown) => e instanceof RoomError && (e.status === 0 || e.status === 429 || e.status >= 500);
 
-// Camera and microphone. Falls back to audio only, then to nothing, and says why.
-async function getLocalMedia(): Promise<{ stream: MediaStream | null; note: string | null }> {
+// The people whose video must not be shown: anyone the room lists without a clear "camera allowed" (a learner under 18).
+const withoutVideo = (people: RoomPerson[], selfId: string) =>
+  people.filter((p) => p.id !== selfId && !cameraIsAllowed(p)).map((p) => p.id);
+
+// Camera and microphone. Falls back to audio only, then to nothing, and says why. A learner under 18 (allowCamera false) is
+// never asked for a camera at all: the browser's camera permission is not even requested.
+async function getLocalMedia(allowCamera: boolean): Promise<{ stream: MediaStream | null; note: string | null }> {
   if (!navigator.mediaDevices?.getUserMedia) {
     return { stream: null, note: "This browser can't use a camera or microphone here. You can still see and hear the others." };
+  }
+  if (!allowCamera) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      return { stream, note: 'Your camera stays off on Tutorlage because you are under 18. You can speak and hear everyone, and see those who use their camera.' };
+    } catch {
+      return {
+        stream: null,
+        note: "Tutorlage couldn't use your microphone (check the browser's permission for this site). You can still see and hear the others. Your camera stays off on Tutorlage because you are under 18.",
+      };
+    }
   }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -252,6 +269,8 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
   const [remote, setRemote] = useState<Record<string, { stream: MediaStream; state: string }>>({});
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+  // May our own camera be used? Only when the server says so (an adult). Until then, and for a learner under 18: no.
+  const [camAllowed, setCamAllowed] = useState(false);
   const [lowData, setLowData] = useState(false);
   const [copied, setCopied] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -300,14 +319,18 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
   // was left or closed while the browser was asking for the camera), so nothing may be started or kept.
   const enterCall = useCallback(
     async (
-      state: Pick<RoomJoin | RoomState, 'iceServers' | 'relayOnly'> & { channelName: string },
+      state: Pick<RoomJoin | RoomState, 'iceServers' | 'relayOnly' | 'cameraAllowed'> & { channelName: string },
       isCancelled: () => boolean,
       // Who the room lists as in the call (without us). [] when we have not heard yet: nobody may connect until we have.
       roster: string[],
+      // Of those, whose video must not be shown.
+      noVideo: string[],
     ) => {
       if (startedCallRef.current) return;
       startedCallRef.current = true;
-      const { stream, note } = await getLocalMedia();
+      const allowCamera = cameraIsAllowed(state);
+      setCamAllowed(allowCamera);
+      const { stream, note } = await getLocalMedia(allowCamera);
       if (isCancelled()) {
         stopStream(stream);
         startedCallRef.current = false;
@@ -324,6 +347,7 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
         iceServers: state.iceServers,
         relayOnly: state.relayOnly,
         localStream: stream,
+        cameraAllowed: allowCamera,
         onRemoteStream: (peerId, remoteStream) =>
           setRemote((prev) => ({ ...prev, [peerId]: { stream: remoteStream, state: prev[peerId]?.state ?? 'connecting' } })),
         onPeerGone: (peerId) =>
@@ -337,7 +361,7 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
         onUnknownSender: () => askRosterRef.current?.(),
       });
       // Before the channel opens, so that nobody the room does not list can start a connection with us.
-      call.setRoster(roster);
+      call.setRoster(roster, noVideo);
       callRef.current = call;
       lastIceRef.current = Date.now();
       try {
@@ -444,6 +468,7 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
         if (cancelled) return;
         setPeople(state.participants);
         const roster = othersInCall(state.participants, selfId);
+        const noVideo = withoutVideo(state.participants, selfId);
         if (state.status === 'left') {
           // Not in the room any more. The heartbeat's answer tells whether another tab of ours took over (stop) or the
           // place was lost (join again), so it decides.
@@ -451,13 +476,19 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
         } else if (state.status === 'admitted') {
           if (!startedCallRef.current) {
             await enterCall(
-              { iceServers: state.iceServers, relayOnly: state.relayOnly, channelName: `room:${state.roomId}` },
+              {
+                iceServers: state.iceServers,
+                relayOnly: state.relayOnly,
+                cameraAllowed: state.cameraAllowed,
+                channelName: `room:${state.roomId}`,
+              },
               isCancelled,
               roster,
+              noVideo,
             );
           } else if (callRef.current) {
             // Only the people the room lists may stay connected to us; anyone removed or gone is cut off from our side.
-            callRef.current.setRoster(roster);
+            callRef.current.setRoster(roster, noVideo);
             if (needIce && state.iceServers.length > 0) {
               // Never replace working settings with an empty answer.
               callRef.current.updateIceServers(state.iceServers);
@@ -517,8 +548,14 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
           if (joined.status === 'admitted') {
             // The roster is not known yet: the call lets nobody connect until the first poll below has given it.
             await enterCall(
-              { iceServers: joined.iceServers, relayOnly: joined.relayOnly, channelName: joined.channel },
+              {
+                iceServers: joined.iceServers,
+                relayOnly: joined.relayOnly,
+                cameraAllowed: joined.cameraAllowed,
+                channelName: joined.channel,
+              },
               isCancelled,
+              [],
               [],
             );
             if (cancelled) return;
@@ -740,7 +777,7 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
       <div className={`grid gap-3 ${remoteIds.length >= 1 ? 'sm:grid-cols-2' : ''}`}>
         {remoteIds.map((id) => (
           <div key={id} className="relative">
-            <Tile stream={remote[id].stream} label={nameOf(id)} />
+            <Tile stream={remote[id].stream} label={nameOf(id)} off={remote[id].stream.getVideoTracks().length === 0} />
             {remote[id].state !== 'connected' && (
               <span className="absolute right-2 top-2 rounded-md bg-black/60 px-2 py-0.5 text-xs">
                 {remote[id].state === 'failed' ? "Can't connect" : 'Connecting…'}
@@ -776,15 +813,17 @@ const RoomView: React.FC<{ code: string }> = ({ code }) => {
         >
           {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
         </button>
-        <button
-          type="button"
-          onClick={toggleCam}
-          disabled={!localStream?.getVideoTracks().length}
-          aria-label={camOn ? 'Turn camera off' : 'Turn camera on'}
-          className={`rounded-full p-3 ${camOn ? 'bg-slate-700' : 'bg-red-600'} disabled:opacity-40`}
-        >
-          {camOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-        </button>
+        {camAllowed && (
+          <button
+            type="button"
+            onClick={toggleCam}
+            disabled={!localStream?.getVideoTracks().length}
+            aria-label={camOn ? 'Turn camera off' : 'Turn camera on'}
+            className={`rounded-full p-3 ${camOn ? 'bg-slate-700' : 'bg-red-600'} disabled:opacity-40`}
+          >
+            {camOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
+          </button>
+        )}
         <button
           type="button"
           onClick={toggleLowData}

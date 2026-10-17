@@ -107,14 +107,16 @@ interface Person {
   unknown: number;
 }
 
-function makePerson(id: string, transportFor: (id: string) => SignalTransport, relayOnly = false): Person {
+function makePerson(id: string, transportFor: (id: string) => SignalTransport, relayOnly = false, cameraAllowed = true): Person {
   const person: Person = { id, call: null, remote: new Map(), gone: [], unknown: 0 };
   person.call = new RoomCall({
     selfId: id,
     transport: transportFor(id),
     iceServers: [],
     relayOnly,
+    // The stream always holds a camera picture; with cameraAllowed false the call must still send none of it.
     localStream: fakeMedia(id),
+    cameraAllowed,
     onRemoteStream: (peer, stream) => person.remote.set(peer, { stream, state: person.remote.get(peer)?.state ?? 'new' }),
     onPeerGone: (peer) => {
       person.remote.delete(peer);
@@ -436,10 +438,13 @@ interface FakeApi {
   leaveNever: boolean;
   // Any request that is not to /api/rooms/ (there should be none).
   unexpected: string[];
+  // What the server says about the signed-in person's camera (true = an adult). false: a learner under 18.
+  cameraAllowed: boolean;
 }
 const allApis: FakeApi[] = [];
 const newApi = (): FakeApi => {
   const api: FakeApi = {
+    cameraAllowed: true,
     calls: [],
     joinStatus: 'admitted',
     stateStatus: 'admitted',
@@ -481,6 +486,7 @@ function fakeFetch(api: FakeApi): typeof fetch {
         sessionId: null,
         channel: `room:${ROOM_ID}`,
         iceServers: [],
+        cameraAllowed: api.cameraAllowed,
       });
     }
     if (path.endsWith('/heartbeat')) {
@@ -495,7 +501,8 @@ function fakeFetch(api: FakeApi): typeof fetch {
         isHost: true,
         maxParticipants: 4,
         relayOnly: false,
-        participants: [{ id: SELF, name: 'Test Tutor', status: api.stateStatus, isHost: true }],
+        cameraAllowed: api.cameraAllowed,
+        participants: [{ id: SELF, name: 'Test Tutor', status: api.stateStatus, isHost: true, cameraAllowed: api.cameraAllowed }],
         iceServers: [],
       });
     }
@@ -507,7 +514,10 @@ function fakeFetch(api: FakeApi): typeof fetch {
 let sharedAudio: AudioContext | null = null;
 // A camera picture and a microphone track that need no permission and no tone (browsers limit how many audio contexts
 // one page may open, so every fake microphone uses the same one).
-function pageMedia(): MediaStream {
+function pageMedia(withVideo = true): MediaStream {
+  sharedAudio ??= new AudioContext();
+  const destination = sharedAudio.createMediaStreamDestination();
+  if (!withVideo) return new MediaStream([...destination.stream.getAudioTracks()]);
   const canvas = document.createElement('canvas');
   canvas.width = 160;
   canvas.height = 90;
@@ -515,8 +525,6 @@ function pageMedia(): MediaStream {
   ctx.fillStyle = '#246';
   ctx.fillRect(0, 0, 160, 90);
   const video = canvas.captureStream(1);
-  sharedAudio ??= new AudioContext();
-  const destination = sharedAudio.createMediaStreamDestination();
   return new MediaStream([...video.getVideoTracks(), ...destination.stream.getAudioTracks()]);
 }
 
@@ -556,6 +564,7 @@ function mountPage() {
   );
   return {
     text: () => host.textContent ?? '',
+    has: (selector: string) => host.querySelector(selector) !== null,
     path: () => pathname,
     button: (label: string) =>
       Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === label) as HTMLButtonElement | undefined,
@@ -622,8 +631,11 @@ async function pageChecks() {
   client.removeChannel = async () => 'ok';
 
   const streams: MediaStream[] = [];
-  navigator.mediaDevices.getUserMedia = (async () => {
-    const stream = pageMedia();
+  // What the page asked the browser for each time (a camera is only given when video was asked for, as a real browser does).
+  const asked: Array<MediaStreamConstraints | undefined> = [];
+  navigator.mediaDevices.getUserMedia = (async (constraints?: MediaStreamConstraints) => {
+    asked.push(constraints);
+    const stream = pageMedia(Boolean(constraints?.video));
     streams.push(stream);
     return stream;
   }) as typeof navigator.mediaDevices.getUserMedia;
@@ -855,6 +867,82 @@ async function pageChecks() {
       await sleep(200);
     }
 
+    // T36. A learner under 18 (the server says cameraAllowed false): the page never asks the browser for a camera, shows
+    // no camera button, says why, and sends no video; an adult (T19 to T29) still gets a camera and the button.
+    {
+      const api = newApi();
+      api.cameraAllowed = false;
+      window.fetch = fakeFetch(api);
+      const askedBefore = asked.length;
+      const streamsBefore = streams.length;
+      const page = mountPage();
+      const entered = await inCall(page);
+      await sleep(500);
+      const mine = asked.slice(askedBefore);
+      const stream = streams[streamsBefore];
+      record(
+        'T36 a learner under 18: no camera is asked for, no camera button, sound only, and the page says why',
+        entered &&
+          mine.length === 1 &&
+          !mine[0]?.video &&
+          Boolean(mine[0]?.audio) &&
+          Boolean(stream) &&
+          stream.getVideoTracks().length === 0 &&
+          !page.has('[aria-label="Turn camera off"]') &&
+          !page.has('[aria-label="Turn camera on"]') &&
+          page.has('[aria-label="Mute microphone"]') &&
+          page.text().includes('Your camera stays off on Tutorlage because you are under 18'),
+        `in call=${entered}, requests for media=${mine.length}, video asked=${Boolean(mine[0]?.video)}, camera button=${page.has('[aria-label="Turn camera off"]')}, note shown=${page.text().includes('under 18')}`,
+      );
+      page.unmount();
+      await sleep(200);
+    }
+
+    // T37. An adult, for contrast: a camera is asked for and the camera button is there.
+    {
+      const api = newApi();
+      window.fetch = fakeFetch(api);
+      const askedBefore = asked.length;
+      const page = mountPage();
+      const entered = await inCall(page);
+      const mine = asked.slice(askedBefore);
+      record(
+        'T37 an adult is asked for a camera and gets the camera button',
+        entered && mine.length === 1 && Boolean(mine[0]?.video) && page.has('[aria-label="Turn camera off"]'),
+        `in call=${entered}, video asked=${Boolean(mine[0]?.video)}, camera button=${page.has('[aria-label="Turn camera off"]')}`,
+      );
+      page.unmount();
+      await sleep(200);
+    }
+
+    // T38. A server that does not say (an old answer, or a failure): the safe reading is no camera.
+    {
+      const api = newApi();
+      const plain = fakeFetch(api);
+      window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const response = await plain(input, init);
+        const text = await response.clone().text();
+        try {
+          const body = JSON.parse(text) as Record<string, unknown>;
+          delete body.cameraAllowed;
+          return new Response(JSON.stringify(body), { status: response.status, headers: { 'Content-Type': 'application/json' } });
+        } catch {
+          return response;
+        }
+      }) as typeof fetch;
+      const askedBefore = asked.length;
+      const page = mountPage();
+      const entered = await inCall(page);
+      const mine = asked.slice(askedBefore);
+      record(
+        'T38 an answer that does not say whether the camera is allowed means no camera',
+        entered && mine.length === 1 && !mine[0]?.video && !page.has('[aria-label="Turn camera off"]'),
+        `in call=${entered}, video asked=${Boolean(mine[0]?.video)}`,
+      );
+      page.unmount();
+      await sleep(200);
+    }
+
     // T30. Through fetch, the page runs asked for nothing but /api/rooms/ (anything else was refused and logged). This does
     // not cover other ways out (for example a WebSocket), which the stand-ins above are meant to make unnecessary.
     const stray = allApis.flatMap((api) => api.unexpected);
@@ -961,6 +1049,43 @@ async function main() {
   const dIn = await waitFor(() => connectedTo(a, 'dddd') && connectedTo(d, 'aaaa'), 20000);
   record('T34b once D is listed, A and D connect', dIn);
   await d.call!.stop();
+
+  // 5d. A learner under 18 (CEO, 17 Oct 2026): their video is never shown. C is flagged "no video" at A: C's picture is taken
+  // out of C's stream (their sound stays), and B, who is not flagged, still shows a picture.
+  a.call!.setRoster(['bbbb', 'cccc'], ['cccc']);
+  await sleep(500);
+  const cAtA = a.remote.get('cccc')?.stream;
+  const bAtA = a.remote.get('bbbb')?.stream;
+  record(
+    'T35 a person flagged "no video" (a learner under 18): A shows none of their picture but still hears them; others are unaffected',
+    Boolean(cAtA && cAtA.getVideoTracks().length === 0 && cAtA.getAudioTracks().length === 1 && bAtA && bAtA.getVideoTracks().length === 1),
+    `C at A: ${cAtA?.getVideoTracks().length} video, ${cAtA?.getAudioTracks().length} audio; B at A: ${bAtA?.getVideoTracks().length} video`,
+  );
+  // A newcomer flagged before they arrive: their video track is dropped when it arrives (nothing to remove afterwards).
+  const e = makePerson('eeee', transportFor);
+  a.call!.setRoster(['bbbb', 'cccc', 'eeee'], ['cccc', 'eeee']);
+  await e.call!.start();
+  const eIn = await waitFor(() => connectedTo(a, 'eeee') && connectedTo(e, 'aaaa'), 20000);
+  const eAtA = a.remote.get('eeee')?.stream;
+  record(
+    'T35b a flagged newcomer: A connects, hears them, and never gets their picture',
+    eIn && Boolean(eAtA && eAtA.getVideoTracks().length === 0 && eAtA.getAudioTracks().length === 1),
+    `E at A: ${eAtA?.getVideoTracks().length} video, ${eAtA?.getAudioTracks().length} audio`,
+  );
+  await e.call!.stop();
+  // The sender's own side: someone told "no camera" sends none, even though the stream they hold has a picture.
+  const g = makePerson('gggg', transportFor, false, false);
+  a.call!.setRoster(['bbbb', 'cccc', 'gggg']);
+  await g.call!.start();
+  const gIn = await waitFor(() => connectedTo(a, 'gggg') && connectedTo(g, 'aaaa'), 20000);
+  const gAtA = a.remote.get('gggg')?.stream;
+  const aAtG = g.remote.get('aaaa')?.stream;
+  record(
+    'T35c a sender told "no camera" sends no picture although its stream holds one, and still receives A\'s picture and sound',
+    gIn && Boolean(gAtA && gAtA.getVideoTracks().length === 0 && gAtA.getAudioTracks().length === 1 && aAtG && aAtG.getVideoTracks().length === 1),
+    `G at A: ${gAtA?.getVideoTracks().length} video, ${gAtA?.getAudioTracks().length} audio; A at G: ${aAtG?.getVideoTracks().length} video`,
+  );
+  await g.call!.stop();
 
   // 6. Everyone leaves cleanly.
   await Promise.all([a.call!.stop(), b2.call!.stop(), c.call!.stop()]);

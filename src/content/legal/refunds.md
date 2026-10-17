@@ -1,8 +1,7 @@
 > **The short version.**
 > - If no tutor accepts, you are never charged.
-> - Cancel within 7 days of being charged, before the session starts: full refund.
-> - Booked further ahead? You can still cancel (§3).
-> - If the tutor cancels or does not turn up: full refund.
+> - We refund in full when the tutor cancels or does not turn up, when something on our side stops the session, when you were charged by mistake, or when a report about the tutor is upheld (§2).
+> - Every other case is decided one by one, fairly. There are no fixed deadlines for asking (§3).
 > - Refunds always go back to your card.
 
 ## 1. If no tutor accepts your request
@@ -11,34 +10,33 @@
 - A request stays open for up to 48 hours, or until 30 minutes after the start time you asked for, whichever comes first. If no tutor accepts by then, the request expires and **you are not charged**.
 - The R1 check Paystack makes to save your card is refunded straight away, whatever happens.
 
-## 2. Cancelling within 7 days (cooling-off)
+## 2. When we always refund in full
 
-- You may cancel a booked session **for any reason within 7 days of being charged** (when the tutor accepted), as long as **the session has not started**. You get a **full refund**.
-- Once the session starts with your agreement, the cooling-off right for it ends.
-- **How**: cancel from your sessions list in the app.
+- **The tutor cancels, at any time, or does not turn up.**
+- **The session cannot take place, or cannot be finished,** because of a failure on Tutorlage's side or the tutor's (for example our video room is down), and it is not re-arranged to suit you.
+- **You were charged by mistake, or twice.**
+- **A report about the tutor's conduct in the session is upheld.**
 
-## 3. Cancelling a session booked further ahead
+## 3. Every other case: decided one by one
 
-If your session is more than 7 days after you were charged, you can still cancel it after the 7 days, until it starts. Email support@tutorlage.com and we will cancel it for you:
-- **more than 24 hours before the session**: full refund;
-- **less than 24 hours before**: we may keep a cancellation charge of up to **50% of the price**, paid to the tutor for the time they held for you, and refund the rest;
-- **no charge at all** if you cannot attend because of the death or hospitalisation of the person the session was for. Tell us at support@tutorlage.com.
+There is no fixed cancellation window and no fixed percentage. When you ask to cancel, or you report a problem, we look at what happened and decide what is fair, and we tell you the outcome. What we weigh:
+- how much notice you gave before the session;
+- whether the tutor could use the time they held for you;
+- what happened in the session, if it took place;
+- whether something outside anyone's control disrupted it (load-shedding, a network or power outage).
 
-## 4. If the tutor cancels or does not turn up
+We may refund in full, refund part (the rest goes to the tutor for the time they held), or, where the session took place as booked, not refund.
 
-- **If the tutor cancels** a booked session, at any time, you are refunded in full.
-- **If the tutor does not turn up**, or the session does not happen as booked:
-  - use **Report a problem** on the session in the app, or email support@tutorlage.com, within **14 days**;
-  - the session is not marked complete while your report is open;
-  - where the tutor did not attend, you are refunded in full;
-  - for other problems, we look at what happened and tell you the outcome.
-- **What does not count against you**: a session disrupted by load-shedding or an outage is handled the same way, and you are not charged for a session that could not take place.
+## 4. What we do not refund
 
-## 5. Problems with a completed session
-
-- If something went wrong in a session that did take place, report it within **14 days**, and we will look into it and tell you the outcome.
-- Where we agree a refund is due, we start it straight away.
 - We do not refund because a learner did not get a particular mark.
+- We do not refund a session that took place as booked because you changed your mind afterwards, unless the law requires it.
+
+## 5. How to ask
+
+- **To cancel a session:** where the app lets you cancel from your sessions list, that cancellation and its refund are handled for you. Otherwise email support@tutorlage.com as early as you can, and tell us which session.
+- **To report a problem with a session:** use **Report a problem** on the session in the app, or email support@tutorlage.com, as soon as you can. The session is not marked complete while your report is open.
+- We start any refund we agree straight away.
 
 ## 6. Disputing a charge with your bank
 
@@ -50,7 +48,7 @@ If your session is more than 7 days after you were charged, you can still cancel
 - Refunds go **back to the card you paid with**, through Paystack. Never as a credit or balance on Tutorlage.
 - We tell you when Paystack has processed your refund. After that it **can take up to 10 business days** to reach your account, depending on your bank.
 - If Paystack needs your bank details to complete a refund, we will contact you.
-- For a cooling-off cancellation, you will always have your money back within 30 days.
+- A refund we have agreed is never left waiting more than 30 days.
 - The full amount you paid is refunded. Paystack's fee on the original payment is Tutorlage's cost, not yours.
 
 ## 8. Your statutory rights

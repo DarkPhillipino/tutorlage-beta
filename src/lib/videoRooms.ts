@@ -28,6 +28,9 @@ export interface RoomJoin {
   channel: string;
   // Only filled for people who are in the call.
   iceServers: IceServer[];
+  // May this person's own camera be used? Only an adult's (server/cameraRule.ts). Read with `cameraIsAllowed`, never as
+  // `!== false`: anything but a clear yes means no camera, so a child is never filmed because an answer was missing.
+  cameraAllowed?: boolean;
 }
 
 export interface RoomPerson {
@@ -35,6 +38,8 @@ export interface RoomPerson {
   name: string;
   status: MemberStatus;
   isHost: boolean;
+  // false for a learner under 18: nobody shows their video (see `cameraIsAllowed`).
+  cameraAllowed?: boolean;
 }
 
 export interface RoomState {
@@ -43,9 +48,13 @@ export interface RoomState {
   isHost: boolean;
   maxParticipants: number;
   relayOnly: boolean;
+  cameraAllowed?: boolean;
   participants: RoomPerson[];
   iceServers: IceServer[];
 }
+
+// The camera rule on the page's side: a camera is used, and a person's video shown, only when the server said yes.
+export const cameraIsAllowed = (answer: { cameraAllowed?: boolean } | null | undefined): boolean => answer?.cameraAllowed === true;
 
 // One of a tutor's own open rooms (not a session room).
 export interface MyRoom {

@@ -4,6 +4,7 @@ import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { hasRelay, iceConfigFromEnv, iceServersFor, relayConfigured } from './iceServers';
+import { isAdultDateOfBirth } from './cameraRule';
 import type { IceServer } from './iceServers';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
@@ -1019,8 +1020,26 @@ interface JoinedRow {
   session_id: string | null;
 }
 
-function joinAnswer(row: JoinedRow, iceServers: IceServer[]) {
+// Whose camera may be used (server/cameraRule.ts): only an adult's. Anyone not found, or with no date of birth on file, gets
+// no camera, and so does everyone if the lookup fails (said in the log): the safe way round for children.
+async function cameraAllowedFor(ids: string[]): Promise<Map<string, boolean>> {
+  const allowed = new Map<string, boolean>(ids.map((id) => [id, false]));
+  if (ids.length === 0) return allowed;
+  const { data, error } = await db.from('profiles').select('id, date_of_birth').in('id', ids);
+  if (error) {
+    console.error('Video rooms: could not read dates of birth, so nobody gets a camera this time:', error);
+    return allowed;
+  }
+  for (const row of (data ?? []) as { id: string; date_of_birth: string | null }[]) {
+    allowed.set(row.id, isAdultDateOfBirth(row.date_of_birth));
+  }
+  return allowed;
+}
+
+function joinAnswer(row: JoinedRow, iceServers: IceServer[], cameraAllowed: boolean) {
   return {
+    // false for a learner under 18: their page opens no camera and shows no camera button; the others never show their video.
+    cameraAllowed,
     roomId: row.room_id,
     code: row.code,
     status: row.member_status,
@@ -1173,7 +1192,8 @@ app.post('/api/rooms/:code/join', rateLimit(30, 60_000), async (req, res) => {
   }
   const ice = row.member_status === 'admitted' ? await iceOrFail(res, row.relay_only) : [];
   if (ice === null) return;
-  res.json(joinAnswer(row, ice));
+  const camera = await cameraAllowedFor([user.id]);
+  res.json(joinAnswer(row, ice, camera.get(user.id) === true));
 });
 
 // Who is in the room, as this person may see it, plus fresh connection settings if they are in the call.
@@ -1213,13 +1233,22 @@ app.get('/api/rooms/:code/state', rateLimit(120, 60_000), async (req, res) => {
   const wantIce = req.query.ice === '1' && mine?.status === 'admitted';
   const ice = wantIce ? await iceOrFail(res, room.relay_only) : [];
   if (ice === null) return;
+  const camera = await cameraAllowedFor([...new Set([user.id, ...people.map((p) => p.profile_id)])]);
   res.json({
     roomId: room.id,
     status: mine?.status ?? 'waiting',
     isHost: mine?.is_host ?? false,
     maxParticipants: room.max_participants,
     relayOnly: room.relay_only,
-    participants: people.map((p) => ({ id: p.profile_id, name: p.full_name, status: p.status, isHost: p.is_host })),
+    // The caller's own camera, and in the list whose video may be shown (a learner under 18's never is).
+    cameraAllowed: camera.get(user.id) === true,
+    participants: people.map((p) => ({
+      id: p.profile_id,
+      name: p.full_name,
+      status: p.status,
+      isHost: p.is_host,
+      cameraAllowed: camera.get(p.profile_id) === true,
+    })),
     iceServers: ice,
   });
 });

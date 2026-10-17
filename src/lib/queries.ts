@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient';
 import { updateOwnLearnerRow } from './institutionSave';
 import type { WaitlistEntry } from './waitlist';
 import { mapMyTutorRow, isMissingDatabaseFunction, type MyTutor } from './keepOrSwap';
+import { documentsNeverAccepted } from './accountRules';
 import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, AvailableSessionRequest, StudentSession, TutorManagedSession, StudentSessionDetail, WaitingRequest, PriceLevel, PayoutAccount, ProblemReason, AppNotification } from '../types';
 
 // Model 3 (backlog 12a): the price levels a student can book right now for
@@ -157,22 +158,31 @@ export async function fetchCurrentPolicyVersions(): Promise<PolicyVersions | nul
 
 export interface AccountGateState {
   dateOfBirth: string | null; // yyyy-mm-dd
+  // The documents this person has NEVER accepted (any version): the only thing that stops them at the gate. A document they
+  // accepted in an older version is not here: a changed version is announced in the notification bell and never blocks anyone
+  // (CEO, 17 Oct 2026: "stop signing me out when new tos is created ... simply send a notification").
   pendingDocuments: ('terms' | 'privacy')[];
   hasGuardian: boolean; // a learner account a parent/guardian created
 }
 
 export async function fetchAccountGateState(userId: string): Promise<AccountGateState> {
-  const [dob, pending, links] = await Promise.all([
+  const [dob, pending, accepted, links] = await Promise.all([
     supabase.rpc('my_date_of_birth'),
     supabase.rpc('my_pending_acceptances'),
+    // RLS "Users view own acceptances": the person's own records only.
+    supabase.from('policy_acceptances').select('document').eq('profile_id', userId),
     supabase.from('parent_student_links').select('id', { count: 'exact', head: true }).eq('student_id', userId),
   ]);
   if (dob.error) throw dob.error;
   if (pending.error) throw pending.error;
+  if (accepted.error) throw accepted.error;
   if (links.error) throw links.error;
   return {
     dateOfBirth: (dob.data as string | null) ?? null,
-    pendingDocuments: ((pending.data ?? []) as { document: 'terms' | 'privacy' }[]).map((row) => row.document),
+    pendingDocuments: documentsNeverAccepted(
+      ((pending.data ?? []) as { document: 'terms' | 'privacy' }[]).map((row) => row.document),
+      ((accepted.data ?? []) as { document: 'terms' | 'privacy' }[]).map((row) => row.document),
+    ),
     hasGuardian: (links.count ?? 0) > 0,
   };
 }

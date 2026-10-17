@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Info } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { isBusinessInfoComplete } from '../lib/businessInfo';
 import { MarkdownText } from '../lib/miniMarkdown';
 import termsText from '../content/legal/terms.md?raw';
@@ -14,13 +14,10 @@ import refundsText from '../content/legal/refunds.md?raw';
 // the new version the next time they sign in.
 //
 // One product (CEO, 16 Oct 2026): these replaced the "tester notice" (version 2026-10-phase1-c) on 16 Oct 2026.
-export const LEGAL_VERSION = '2026-10-16';
-const LAST_UPDATED = '16 October 2026';
-
-// The closed test (CEO, 14 and 16 Oct 2026): payments run in Paystack's test mode until the Registered Business upgrade is
-// through, and the data of the closed test is deleted. Set to false the day real payments start; the box then disappears
-// and nothing else changes. (The deletion row in the Privacy Policy, §14, stays until its date has passed.)
-const CLOSED_TEST = true;
+export const LEGAL_VERSION = '2026-10-17';
+const LAST_UPDATED = '17 October 2026';
+// (17 Oct 2026: the "closed test" box that sat above the text was removed at the CEO's request. The closed-test data deletion
+// promise stays in the Privacy Policy, §14, last row.)
 
 const DOCUMENTS = {
   terms: { title: 'Terms of Service', text: termsText },
@@ -63,18 +60,6 @@ export default function LegalPage({ document }: { document: LegalDocument }) {
         </div>
         <h1 className="text-2xl font-extrabold text-[#0F172A] tracking-tight mb-1">Tutorlage {title}</h1>
         <p className="text-xs text-slate-400 mb-4">Version {LEGAL_VERSION} · Last updated {LAST_UPDATED}</p>
-
-        {CLOSED_TEST && (
-          <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3" data-testid="closed-test-box">
-            <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-900 leading-relaxed">
-              <strong>Closed test until 28 October 2026.</strong> Tutorlage is being tested by a small group. Payments run in
-              Paystack's test mode, so no real money moves and no tutor is paid, even when a screen says "paid". Please use made-up
-              details for any child you add and made-up bank account numbers for tutor payouts. Accounts and information from the
-              closed test are deleted by 27 November 2026 (Privacy Policy, §14). Everything else in this document applies as written.
-            </p>
-          </div>
-        )}
 
         <MarkdownText source={text} />
 
