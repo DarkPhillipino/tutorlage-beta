@@ -891,7 +891,7 @@ async function pageChecks() {
           !page.has('[aria-label="Turn camera off"]') &&
           !page.has('[aria-label="Turn camera on"]') &&
           page.has('[aria-label="Mute microphone"]') &&
-          page.text().includes('Your camera stays off on Tutorlage because you are under 18'),
+          page.text().includes('Your camera stays off on Tutorlage: a learner under 18 is never on camera, and a parent or guardian joins with sound only'),
         `in call=${entered}, requests for media=${mine.length}, video asked=${Boolean(mine[0]?.video)}, camera button=${page.has('[aria-label="Turn camera off"]')}, note shown=${page.text().includes('under 18')}`,
       );
       page.unmount();

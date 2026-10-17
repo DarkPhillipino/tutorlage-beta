@@ -2,7 +2,7 @@
 // the room page and call use the answer. Run: npx tsx scripts/dev/camera-rule-test.ts
 // (The in-browser checks T35 to T38 of scripts/dev/room-loopback.html cover the page and the call themselves.)
 import fs from 'node:fs';
-import { adultCutoff, isAdultDateOfBirth } from '../../server/cameraRule';
+import { adultCutoff, isAdultDateOfBirth, mayUseCamera } from '../../server/cameraRule';
 
 let failures = 0;
 const check = (name: string, ok: boolean, detail = '') => {
@@ -30,9 +30,14 @@ check('the clock is UTC, like the database: 23:30 UTC is still that UTC day', ad
 
 // ---- how the server uses it ---------------------------------------------------------------------------------------------------
 const server = fs.readFileSync(new URL('../../server/index.ts', import.meta.url), 'utf8');
-check('the server imports the rule', /import \{ isAdultDateOfBirth \} from '\.\/cameraRule'/.test(server));
-check('everyone starts as "no camera" and only a readable adult date of birth changes that',
-  /new Map<string, boolean>\(ids\.map\(\(id\) => \[id, false\]\)\)/.test(server) && /allowed\.set\(row\.id, isAdultDateOfBirth\(row\.date_of_birth\)\)/.test(server));
+// A parent or guardian account (CEO, 17 Oct 2026: "i thought we had placed a restriction on parent accounts (students under18) in terms of
+// showing their face"): the child's session is run from it, so it never uses a camera either, whatever its date of birth.
+check('a parent or guardian account never gets a camera, even with an adult date of birth', !mayUseCamera('1980-05-05', 'parent', today) && !mayUseCamera('1996-01-31', 'parent', today));
+check('a tutor or an adult learner with an adult date of birth still does', mayUseCamera('1996-01-31', 'tutor', today) && mayUseCamera('1996-01-31', 'student', today));
+check('a learner under 18, a missing date, a missing role: no camera for a child, and an adult with no role on file still follows the date', !mayUseCamera('2010-03-04', 'student', today) && !mayUseCamera(null, 'tutor', today) && !mayUseCamera('', undefined, today) && mayUseCamera('1996-01-31', null, today));
+check('the server imports the rule', /import \{ mayUseCamera \} from '\.\/cameraRule'/.test(server));
+check('everyone starts as "no camera" and only a readable adult date of birth on a non-parent account changes that',
+  /new Map<string, boolean>\(ids\.map\(\(id\) => \[id, false\]\)\)/.test(server) && /select\('id, date_of_birth, role'\)/.test(server) && /allowed\.set\(row\.id, mayUseCamera\(row\.date_of_birth, row\.role\)\)/.test(server));
 check('if the lookup fails nobody gets a camera, and it is logged', /could not read dates of birth, so nobody gets a camera/.test(server) && /if \(error\) \{[\s\S]{0,200}return allowed;/.test(server));
 check('the join answer carries the caller\'s answer, and only a clear true counts', /joinAnswer\(row, ice, camera\.get\(user\.id\) === true\)/.test(server) && /function joinAnswer\(row: JoinedRow, iceServers: IceServer\[\], cameraAllowed: boolean\)/.test(server));
 check('the state answer carries it for the caller and for every person listed', /cameraAllowed: camera\.get\(user\.id\) === true,/.test(server) && /cameraAllowed: camera\.get\(p\.profile_id\) === true,/.test(server));

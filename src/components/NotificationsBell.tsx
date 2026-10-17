@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, Loader2 } from 'lucide-react';
 import { AppNotification } from '../types';
 import { fetchMyNotifications, markNotificationsRead } from '../lib/queries';
@@ -20,11 +20,14 @@ export const NotificationsBell: React.FC<NotificationsBellProps> = ({ onOpenNoti
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  const loadedOnce = useRef(false);
   const load = useCallback(async () => {
     if (!user) return;
-    setIsLoading(true);
+    // The spinner is for the first load only: the 20-second refreshes happen quietly.
+    if (!loadedOnce.current) setIsLoading(true);
     try {
       setItems(await fetchMyNotifications(user.id));
+      loadedOnce.current = true;
     } catch (err) {
       console.error('fetchMyNotifications failed:', err);
     } finally {
@@ -32,11 +35,23 @@ export const NotificationsBell: React.FC<NotificationsBellProps> = ({ onOpenNoti
     }
   }, [user]);
 
-  // Load on sign-in, then every two minutes so new ones show without a reload.
+  // Load on sign-in, then every 20 seconds while the page is open (CEO, 17 Oct 2026: a tutor's acceptance should be told at once;
+  // it used to be every two minutes) and the moment the person comes back to the tab, so new ones show without a reload.
   useEffect(() => {
     load();
-    const timer = window.setInterval(load, 120_000);
-    return () => window.clearInterval(timer);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, 20_000);
+    const onBack = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    window.addEventListener('focus', onBack);
+    document.addEventListener('visibilitychange', onBack);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onBack);
+      document.removeEventListener('visibilitychange', onBack);
+    };
   }, [load]);
 
   const unread = items.filter((n) => !n.readAt);

@@ -27,3 +27,13 @@ export function isAdultDateOfBirth(dateOfBirth: string | null | undefined, today
   if (month < 1 || month > 12 || day < 1 || day > 31) return false;
   return dateOfBirth <= adultCutoff(today);
 }
+
+// May this account use a camera in a video room? Only an adult's, and NEVER a parent or guardian account (CEO, 17 Oct 2026, after
+// joining a room as a parent: "i thought we had placed a restriction on parent accounts (students under18) in terms of showing
+// their face"). A parent account is the account a child's session is run from, and the child is often on the parent's phone or
+// computer, so a parent's camera could show the child; it joins with sound only, like the child's own account. A learner's own
+// account is covered by the date of birth (under 18: no camera). Tutors and adult learners are unchanged.
+export function mayUseCamera(dateOfBirth: string | null | undefined, role: string | null | undefined, today: Date = new Date()): boolean {
+  if (role === 'parent') return false;
+  return isAdultDateOfBirth(dateOfBirth, today);
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './lib/AuthContext';
 import { Header } from './components/Header';
@@ -26,7 +26,7 @@ import { LinkedLearner, fetchMyLearners } from './lib/guardian';
 
 import { BookingFormState, SuggestionItem, UserAccount, PriceLevel, Institution, AppNotification } from './types';
 import { toIsoDate } from './lib/format';
-import { fetchUpcomingStudentSessions, fetchStudentGradeLevel, fetchStudentInstitution, updateStudentInstitution, fetchPriceLevelById } from './lib/queries';
+import { fetchUpcomingStudentSessions, fetchUpcomingTutorSessions, fetchStudentGradeLevel, fetchStudentInstitution, updateStudentInstitution, fetchPriceLevelById } from './lib/queries';
 import { defaultBookAgainSchedule, type MyTutor } from './lib/keepOrSwap';
 import type { BookAgainLearner } from './components/MyTutorsPanel';
 import { rememberInstitution, recallInstitution } from './lib/institutionMemory';
@@ -69,17 +69,43 @@ export default function App() {
     setUserAccount(prev => ({ ...prev, name: profile.fullName, email: profile.email }));
   }, [profile]);
 
-  // A guardian's upcoming count is their learners' sessions (backlog 7k).
+  // The "You have N upcoming sessions" line in the dark banner (CEO, 17 Oct 2026). A guardian's count is their learners' sessions
+  // (backlog 7k); a TUTOR's is the sessions they will run (it used to read the learner side with the tutor's id, so a tutor always
+  // saw "no upcoming sessions"). Upcoming means booked and not over yet, so a session that has just started counts. It is read
+  // again every 30 seconds while the page is open and the moment the person comes back to the tab, so a session a tutor has just
+  // accepted shows up without a reload.
   const role = profile?.role;
+  const refreshUpcoming = useCallback(() => {
+    if (!user || !role) return;
+    const sessions =
+      role === 'tutor'
+        ? fetchUpcomingTutorSessions(user.id)
+        : (role === 'parent'
+            ? fetchMyLearners(user.id).then((learners) => learners.map((l) => l.id))
+            : Promise.resolve([user.id])
+          ).then(fetchUpcomingStudentSessions);
+    sessions
+      .then((found) => setUserAccount((prev) => (prev.upcomingSessions === found.length ? prev : { ...prev, upcomingSessions: found.length })))
+      .catch((err) => console.error('upcoming sessions count failed:', err));
+  }, [user, role]);
+  useEffect(() => {
+    refreshUpcoming();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refreshUpcoming();
+    }, 30_000);
+    const onBack = () => {
+      if (document.visibilityState === 'visible') refreshUpcoming();
+    };
+    window.addEventListener('focus', onBack);
+    document.addEventListener('visibilitychange', onBack);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onBack);
+      document.removeEventListener('visibilitychange', onBack);
+    };
+  }, [refreshUpcoming]);
   useEffect(() => {
     if (!user || !role) return;
-    const learnerIds = role === 'parent'
-      ? fetchMyLearners(user.id).then((learners) => learners.map((l) => l.id))
-      : Promise.resolve([user.id]);
-    learnerIds
-      .then(fetchUpcomingStudentSessions)
-      .then((sessions) => setUserAccount(prev => ({ ...prev, upcomingSessions: sessions.length })))
-      .catch((err) => console.error('fetchUpcomingStudentSessions failed:', err));
     fetchStudentGradeLevel(user.id)
       .then((gradeLevel) => setUserAccount(prev => ({ ...prev, gradeLevel: gradeLevel ?? '' })))
       .catch((err) => console.error('fetchStudentGradeLevel failed:', err));
@@ -333,6 +359,7 @@ export default function App() {
             tutorId={user!.id}
             onOpenMenu={() => openManageAccount('profile')}
             onViewTeachingProfile={() => openManageAccount('teaching')}
+            onOpenSessions={openSessionsPage}
           />
         ) : view === 'tiers' ? (
           <LevelSelectionPage

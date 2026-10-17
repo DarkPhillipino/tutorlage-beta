@@ -11,6 +11,8 @@ import { PayoutAccountPanel } from './PayoutAccountPanel';
 
 interface AvailableRequestsQueueProps {
   tutorId: string;
+  // Called after a request is accepted and the session is booked, so the page can show the new session straight away.
+  onAccepted?: () => void;
 }
 
 // The tutor-facing side of anonymous matching: a browsable list of
@@ -25,7 +27,7 @@ interface AvailableRequestsQueueProps {
 // Accepting charges the learner's saved card (backlog 7a), split so the
 // tutor's share goes straight to their payout account — so a tutor needs one
 // before they can accept a paid request.
-export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ tutorId }) => {
+export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ tutorId, onAccepted }) => {
   const [requests, setRequests] = useState<AvailableSessionRequest[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -74,9 +76,10 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
       setRequests((prev) => prev.filter((r) => r.id !== request.id));
       setNotice(
         result.status === 'booked'
-          ? { kind: 'booked', text: 'Booked. The session is in Your Sessions — add the meeting link there before it starts.' }
+          ? { kind: 'booked', text: 'Booked. It is under "Your upcoming sessions" on this page: start the video call from there when it is time.' }
           : { kind: 'confirming', text: result.message },
       );
+      if (result.status === 'booked') onAccepted?.();
     } catch (e) {
       // Someone else may have just claimed it — refresh so this tutor
       // isn't left staring at a request that's no longer really available.

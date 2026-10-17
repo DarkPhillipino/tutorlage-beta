@@ -4,6 +4,7 @@ import { Menu, MapPin, Loader2, CheckCircle2, Circle, Sparkles, UserX, AlertCirc
 import { TutorDashboardData, SubTierDefinition } from '../types';
 import { fetchTutorDashboard, fetchSubTierDefinitions, updateTutorProfile } from '../lib/queries';
 import { AvailableRequestsQueue } from './AvailableRequestsQueue';
+import { TutorNextSessions } from './TutorNextSessions';
 import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
 import { TutorDocumentsReminder } from './TutorOnboardingGate';
@@ -12,12 +13,14 @@ interface TeachGoScreenProps {
   tutorId: string;
   onOpenMenu: () => void;
   onViewTeachingProfile: () => void;
+  // Opens the "Sessions & history" page (a tutor sees the sessions they have to run there).
+  onOpenSessions: () => void;
 }
 
 // Each tip must be true of the app as built (backlog 7aw replaced three that
 // weren't: no 15-minute rule exists, and subjects have no descriptions).
 const TIPS = [
-  'Add your meeting link as soon as you accept. The learner sees it with the session.',
+  'Start the video call from "Your upcoming sessions" when it is time. It opens 15 minutes before the session starts.',
   'Mark the session complete when it ends. Otherwise it completes by itself 48 hours later, unless a problem was reported.',
   'Only add subjects and grades you could teach confidently.',
 ];
@@ -27,7 +30,9 @@ interface ProgressCriterion {
   met: boolean;
 }
 
-export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMenu, onViewTeachingProfile }) => {
+export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMenu, onViewTeachingProfile, onOpenSessions }) => {
+  // Bumped when the tutor accepts a request, so the session shows under "Your upcoming sessions" at once.
+  const [sessionsVersion, setSessionsVersion] = useState(0);
   const [tutor, setTutor] = useState<TutorDashboardData | null>(null);
   const [nextSubTier, setNextSubTier] = useState<SubTierDefinition | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -153,6 +158,9 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
             )}
           </div>
 
+          {/* The sessions this tutor has accepted, each with "Start video call" (CEO, 17 Oct 2026). Nothing shows when there are none. */}
+          <TutorNextSessions tutorId={tutorId} refreshKey={sessionsVersion} onOpenSessions={onOpenSessions} />
+
           {/* Tier progress */}
           {nextSubTier ? (
             <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-slate-200">
@@ -192,7 +200,7 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
               while online, so GO does what the screen says (backlog 7aw:
               until 2026-10-03 the list showed whether online or not). */}
           {tutor.isDispatchActive ? (
-            <AvailableRequestsQueue tutorId={tutor.id} />
+            <AvailableRequestsQueue tutorId={tutor.id} onAccepted={() => setSessionsVersion((v) => v + 1)} />
           ) : (
             <p className="text-xs text-slate-500 text-center">Tap GO to see and accept waiting requests.</p>
           )}

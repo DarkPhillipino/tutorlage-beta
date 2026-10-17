@@ -47,7 +47,9 @@ const withoutVideo = (people: RoomPerson[], selfId: string) =>
   people.filter((p) => p.id !== selfId && !cameraIsAllowed(p)).map((p) => p.id);
 
 // Camera and microphone. Falls back to audio only, then to nothing, and says why. A learner under 18 (allowCamera false) is
-// never asked for a camera at all: the browser's camera permission is not even requested.
+// never asked for a camera at all: the browser's camera permission is not even requested. The same goes for a parent or guardian
+// account (CEO, 17 Oct 2026): a child's session is run from it, so the server says "no camera" for it too, and this note covers both.
+const NO_CAMERA_NOTE = 'Your camera stays off on Tutorlage: a learner under 18 is never on camera, and a parent or guardian joins with sound only.';
 async function getLocalMedia(allowCamera: boolean): Promise<{ stream: MediaStream | null; note: string | null }> {
   if (!navigator.mediaDevices?.getUserMedia) {
     return { stream: null, note: "This browser can't use a camera or microphone here. You can still see and hear the others." };
@@ -55,11 +57,11 @@ async function getLocalMedia(allowCamera: boolean): Promise<{ stream: MediaStrea
   if (!allowCamera) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-      return { stream, note: 'Your camera stays off on Tutorlage because you are under 18. You can speak and hear everyone, and see those who use their camera.' };
+      return { stream, note: `${NO_CAMERA_NOTE} You can speak and hear everyone, and see those who use their camera.` };
     } catch {
       return {
         stream: null,
-        note: "Tutorlage couldn't use your microphone (check the browser's permission for this site). You can still see and hear the others. Your camera stays off on Tutorlage because you are under 18.",
+        note: `Tutorlage couldn't use your microphone (check the browser's permission for this site). You can still see and hear the others. ${NO_CAMERA_NOTE}`,
       };
     }
   }

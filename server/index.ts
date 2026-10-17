@@ -4,7 +4,7 @@ import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { hasRelay, iceConfigFromEnv, iceServersFor, relayConfigured } from './iceServers';
-import { isAdultDateOfBirth } from './cameraRule';
+import { mayUseCamera } from './cameraRule';
 import type { IceServer } from './iceServers';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
@@ -1020,18 +1020,19 @@ interface JoinedRow {
   session_id: string | null;
 }
 
-// Whose camera may be used (server/cameraRule.ts): only an adult's. Anyone not found, or with no date of birth on file, gets
-// no camera, and so does everyone if the lookup fails (said in the log): the safe way round for children.
+// Whose camera may be used (server/cameraRule.ts): only an adult's, and never a parent or guardian account's (a child's session is
+// run from it). Anyone not found, or with no date of birth on file, gets no camera, and so does everyone if the lookup fails (said
+// in the log): the safe way round for children.
 async function cameraAllowedFor(ids: string[]): Promise<Map<string, boolean>> {
   const allowed = new Map<string, boolean>(ids.map((id) => [id, false]));
   if (ids.length === 0) return allowed;
-  const { data, error } = await db.from('profiles').select('id, date_of_birth').in('id', ids);
+  const { data, error } = await db.from('profiles').select('id, date_of_birth, role').in('id', ids);
   if (error) {
     console.error('Video rooms: could not read dates of birth, so nobody gets a camera this time:', error);
     return allowed;
   }
-  for (const row of (data ?? []) as { id: string; date_of_birth: string | null }[]) {
-    allowed.set(row.id, isAdultDateOfBirth(row.date_of_birth));
+  for (const row of (data ?? []) as { id: string; date_of_birth: string | null; role: string | null }[]) {
+    allowed.set(row.id, mayUseCamera(row.date_of_birth, row.role));
   }
   return allowed;
 }

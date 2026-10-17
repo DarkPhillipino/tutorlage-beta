@@ -4,6 +4,7 @@ import type { WaitlistEntry } from './waitlist';
 import { mapMyTutorRow, isMissingDatabaseFunction, type MyTutor } from './keepOrSwap';
 import { documentsNeverAccepted } from './accountRules';
 import type { LadderRow } from './ladderCopy';
+import { isUpcomingSession, upcomingLookbackIso } from './sessionTiming';
 import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, AvailableSessionRequest, StudentSession, TutorManagedSession, StudentSessionDetail, WaitingRequest, PriceLevel, PayoutAccount, ProblemReason, AppNotification } from '../types';
 
 // Model 3 (backlog 12a): the price levels a student can book right now for
@@ -692,19 +693,23 @@ export async function fetchUpcomingTutorSessions(tutorId: string): Promise<Tutor
       student_subject_enrollments ( subject_name )
     `)
     .eq('tutor_id', tutorId)
-    .gte('scheduled_start', new Date().toISOString())
+    .eq('status', 'scheduled')
+    .gte('scheduled_start', upcomingLookbackIso())
     .order('scheduled_start');
 
   if (error) throw error;
 
-  return ((data ?? []) as unknown as TutorSessionRow[]).map((row) => ({
-    id: row.id,
-    studentName: row.profiles?.full_name ?? 'Student',
-    subjectName: row.student_subject_enrollments?.subject_name ?? null,
-    scheduledStart: row.scheduled_start,
-    durationHours: Number(row.duration_hours),
-    status: row.status,
-  }));
+  // Upcoming = booked and not over yet, so a session that has just started still counts (lib/sessionTiming.ts).
+  return ((data ?? []) as unknown as TutorSessionRow[])
+    .map((row) => ({
+      id: row.id,
+      studentName: row.profiles?.full_name ?? 'Student',
+      subjectName: row.student_subject_enrollments?.subject_name ?? null,
+      scheduledStart: row.scheduled_start,
+      durationHours: Number(row.duration_hours),
+      status: row.status,
+    }))
+    .filter((s) => isUpcomingSession(s));
 }
 
 // Updates the signed-in tutor's own editable profile fields (RLS: "Tutors
@@ -1115,19 +1120,24 @@ export async function fetchUpcomingStudentSessions(studentIds: string[]): Promis
       student_subject_enrollments ( subject_name )
     `)
     .in('student_id', studentIds)
-    .gte('scheduled_start', new Date().toISOString())
+    .eq('status', 'scheduled')
+    .gte('scheduled_start', upcomingLookbackIso())
     .order('scheduled_start');
 
   if (error) throw error;
 
-  return ((data ?? []) as unknown as StudentSessionRow[]).map((row) => ({
-    id: row.id,
-    tutorName: row.tutor_profiles?.profiles?.full_name ?? 'Tutor',
-    subjectName: row.student_subject_enrollments?.subject_name ?? null,
-    scheduledStart: row.scheduled_start,
-    durationHours: Number(row.duration_hours),
-    status: row.status,
-  }));
+  // Upcoming = booked and not over yet: a session that has just started (an "as soon as possible" one is booked at the time
+  // it was requested) still counts, and a cancelled one never does (lib/sessionTiming.ts).
+  return ((data ?? []) as unknown as StudentSessionRow[])
+    .map((row) => ({
+      id: row.id,
+      tutorName: row.tutor_profiles?.profiles?.full_name ?? 'Tutor',
+      subjectName: row.student_subject_enrollments?.subject_name ?? null,
+      scheduledStart: row.scheduled_start,
+      durationHours: Number(row.duration_hours),
+      status: row.status,
+    }))
+    .filter((s) => isUpcomingSession(s));
 }
 
 // --- Session lifecycle (backlog 7m and item 10) -------------------------------

@@ -77,7 +77,7 @@ const guards: { name: string; ok: (s: Sources) => boolean }[] = [
   },
   {
     name: 'App renders the sessions page and the banner opens it',
-    ok: (s) => /view === 'sessions'/.test(s.app) && /<SessionsHistoryPage/.test(s.app) && /onOpenSessions=\{openSessionsPage\}/.test(s.app),
+    ok: (s) => /view === 'sessions'/.test(s.app) && /<SessionsHistoryPage/.test(s.app) && /<SubHeaderBanner[\s\S]{0,300}onOpenSessions=\{openSessionsPage\}/.test(s.app),
   },
   {
     name: 'the sessions page shows the full history (the panel is told it is the page)',
@@ -158,7 +158,8 @@ const breakages: { guard: string; file: keyof typeof FILES; from: string | RegEx
   { guard: 'the header passes the handler to the bell', file: 'header', from: '<NotificationsBell onOpenNotification={onOpenNotification} />', to: '<NotificationsBell />' },
   { guard: 'the "upcoming sessions" line in the banner opens the page', file: 'banner', from: 'onClick={onOpenSessions}', to: 'onClick={undefined}' },
   { guard: 'App opens the sessions page for a notification (Teach only for a tutor request)', file: 'app', from: 'onOpenNotification={handleOpenNotification}', to: '' },
-  { guard: 'App renders the sessions page and the banner opens it', file: 'app', from: 'onOpenSessions={openSessionsPage}', to: '' },
+  // (The Teach screen is also given openSessionsPage, so the banner's own line is the one removed.)
+  { guard: 'App renders the sessions page and the banner opens it', file: 'app', from: /onOpenSessions=\{openSessionsPage\}(?=\r?\n {6}\/>)/, to: '' },
   { guard: 'the sessions page shows the full history (the panel is told it is the page)', file: 'page', from: 'onBookAgain={onBookAgain} page />', to: 'onBookAgain={onBookAgain} />' },
   { guard: 'a request is never sent while the box and the searched subject differ', file: 'prices', from: 'if (searchIsStale) {', to: 'if (false) {' },
   { guard: 'updating the search clears the chosen price level', file: 'prices', from: 'if (selectedLevel) onClearLevel();', to: '' },

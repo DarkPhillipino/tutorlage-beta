@@ -9,6 +9,7 @@ import { fetchMyLearners, type LinkedLearner } from '../lib/guardian';
 import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
 import { openSessionRoom, sessionRoomWindow } from '../lib/videoRooms';
+import { roomOpensAt } from '../lib/sessionTiming';
 import type { MyTutor } from '../lib/keepOrSwap';
 import { KeepOrSwapChoice } from './KeepOrSwapChoice';
 import { MyTutorsPanel, type BookAgainLearner } from './MyTutorsPanel';
@@ -295,10 +296,11 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
 // the start and stays until an hour after the session should have ended; the server applies the same rule and also
 // decides who may enter (the session's tutor, its learner and the learner's linked guardian; nobody waits in a lobby).
 // It asks the server to find or make the session's room, then goes to /room/<code>, which joins it.
-export const SessionRoomControl: React.FC<{ sessionId: string; scheduledStart: string; durationHours: number }> = ({
+export const SessionRoomControl: React.FC<{ sessionId: string; scheduledStart: string; durationHours: number; isTutor?: boolean }> = ({
   sessionId,
   scheduledStart,
   durationHours,
+  isTutor = false,
 }) => {
   const navigate = useNavigate();
   const [now, setNow] = useState(() => Date.now());
@@ -314,7 +316,7 @@ export const SessionRoomControl: React.FC<{ sessionId: string; scheduledStart: s
   const roomTiming = sessionRoomWindow(scheduledStart, durationHours, now);
   if (roomTiming === 'over') return null;
   if (roomTiming === 'early') {
-    return <p className="text-[11px] text-slate-500">The Tutorlage video room opens 15 minutes before the session starts.</p>;
+    return <p className="text-[11px] text-slate-500">The video call opens at {roomOpensAt(scheduledStart)}, 15 minutes before the session starts.</p>;
   }
 
   const handleOpen = async () => {
@@ -337,7 +339,7 @@ export const SessionRoomControl: React.FC<{ sessionId: string; scheduledStart: s
         className="inline-flex items-center gap-1.5 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer"
       >
         {isOpening ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Video className="w-3.5 h-3.5" />}
-        Join video room
+        {isTutor ? 'Start video call' : 'Join video call'}
       </button>
       {error && (
         <div className="flex items-center gap-1.5 text-[11px] text-rose-600 font-semibold">
