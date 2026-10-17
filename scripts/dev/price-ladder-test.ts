@@ -82,9 +82,10 @@ check('when the counts are unknown no count is shown and every level can still b
   const unknown = renderToStaticMarkup(React.createElement(PriceLadder, { rows: ROWS, available: null, selectedId: null, onSelect: () => undefined, currencySymbol: () => 'R' }));
   return !/tutors? can take this|No tutor at this level yet/.test(unknown) && (unknown.match(/data-level="/g) ?? []).length === 16;
 })());
-check('a note says each tally counts every tutor at that level or higher (shown when the counts are known, not when they are not)',
-  html.includes('counts every tutor at that level or higher') &&
-    !renderToStaticMarkup(React.createElement(PriceLadder, { rows: ROWS, available: null, selectedId: null, onSelect: () => undefined, currencySymbol: () => 'R' })).includes('counts every tutor'));
+check('no note above the ladder explains the tallies (CEO, 17 Oct 2026: a buyer finds it obvious), with the counts known or not',
+  !html.includes('counts every tutor') && !/<p class="text-\[11px\] text-slate-500 leading-relaxed">/.test(html.slice(0, html.indexOf('Rising Tutors'))) &&
+    !renderToStaticMarkup(React.createElement(PriceLadder, { rows: ROWS, available: null, selectedId: null, onSelect: () => undefined, currencySymbol: () => 'R' })).includes('counts every tutor') &&
+    !/TALLY_NOTE/.test(read('src/lib/ladderCopy.ts').replace(/\/\/.*$/gm, '') + read('src/components/PriceLadder.tsx')));
 // Proved on the database on 17 Oct 2026 (rolled back; tutors at 1A, 2A and 3C teaching one subject: 1A=3, 1B to 2A=2, 2B to 3C=1,
 // nothing above), and the sources agree: the tally counts every tutor whose rate is at or above the level's, the tutor's request
 // list shows requests at or below their own level, and accepting is refused only when the request is for a higher level.
@@ -114,6 +115,9 @@ check('no line tells people they cannot pick the tutor, or that the first to acc
   !/You don't pick the tutor/.test(prices + level) && !/first to accept is matched/.test(prices + level) && !/cannot pick who accepts/.test(terms));
 check('the ladder reads the minimums from the database\'s own table, in one read', /from\('sub_tier_definitions'\)[\s\S]{0,400}min_hours, min_rating, min_repeat_rate_pct, min_written_reviews, min_distinct_students_uplift, required_grade_uplift_pct/.test(queries) && /ladderCache/.test(queries));
 check('the credential lines are read from credential_definitions (the admin app sets them), not written in the page', /from\('credential_definitions'\)[\s\S]{0,200}entry_sub_tier_id/.test(queries) && /credentials: credentialsByLevel\.get/.test(queries) && !/CREDENTIAL_ROUTES/.test(read('src/lib/ladderCopy.ts') + read('src/components/PriceLadder.tsx')));
+check('nothing sits between the "Choose a price level" heading and the first tier for an ordinary request; only booking someone again has a line, saying who the request goes to (CEO, 17 Oct 2026)',
+  !/You pay exactly the price shown/.test(prices) && !/MENU_HEADLINE/.test(prices) && /\{bookAgain && \(\s*<p className="text-xs text-slate-600 mt-1 leading-relaxed">/.test(prices) &&
+    /This request goes to \$\{bookAgain\.firstName\}\. Choose the price level/.test(prices));
 check('the counts come from the same database function the old page used', /fetchAvailablePriceLevels\(\{ subject: appliedSubject/.test(prices));
 check('the waiting-list prompt is still on the dead end when nobody teaches the subject', /FEATURES\.tutorWaitlist && waitlistLearnerId && appliedSubject\.trim\(\) !== ''/.test(prices));
 

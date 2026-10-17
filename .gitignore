@@ -1,6 +1,9 @@
 node_modules/
 build/
 dist/
+# The Windows installer for the admin app (built by admin/desktop: npm run dist). Large; never committed.
+admin/desktop/installer/
+admin/desktop/release/
 coverage/
 .DS_Store
 *.log

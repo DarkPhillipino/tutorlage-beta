@@ -1,0 +1,47 @@
+{
+  "name": "tutorlage-admin-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tutorlage Admin as a Windows desktop app",
+  "author": "Tutorlage",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron . --smoke",
+    "dist": "npm --prefix .. run build && electron-builder --win nsis --config.electronDist=node_modules/electron/dist"
+  },
+  "build": {
+    "appId": "com.tutorlage.admin",
+    "productName": "Tutorlage Admin",
+    "directories": {
+      "output": "installer"
+    },
+    "files": [
+      "main.cjs",
+      "icon.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "app-dist"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tutorlage Admin",
+      "runAfterFinish": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3"
+  }
+}

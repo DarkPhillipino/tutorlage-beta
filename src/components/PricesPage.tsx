@@ -5,7 +5,6 @@ import { fetchTutors, createSessionRequest, fetchPriceLadder, fetchAvailablePric
 import { PriceLadder } from './PriceLadder';
 import { chosenLevelLine } from '../lib/ladderCopy';
 import type { LadderRow } from '../lib/ladderCopy';
-import { MENU_HEADLINE } from '../lib/priceLevelCopy';
 import { initializePayment } from '../lib/payments';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate, describeDate } from '../lib/format';
@@ -496,12 +495,13 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   <h3 className="text-base font-extrabold text-[#0F172A]">
                     {bookAgain ? KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName) : 'Choose a price level'}
                   </h3>
-                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                    {bookAgain
-                      ? `This request goes to ${bookAgain.firstName}. Choose the price level (the same as last time, or lower, because ${bookAgain.firstName} can only take levels up to their own).`
-                      : MENU_HEADLINE}{' '}
-                    You pay exactly the price shown, and only when a tutor accepts.
-                  </p>
+                  {/* No explanatory line under the heading for an ordinary request (CEO, 17 Oct 2026: a consumer finds it obvious and it
+                      lowers the chance of a purchase). Booking someone again keeps its line: it says who the request goes to. */}
+                  {bookAgain && (
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      {`This request goes to ${bookAgain.firstName}. Choose the price level (the same as last time, or lower, because ${bookAgain.firstName} can only take levels up to their own).`}
+                    </p>
+                  )}
                 </div>
                 {ladderError ? (
                   <div className="text-center py-10 px-4">
