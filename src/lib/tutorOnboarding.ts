@@ -12,15 +12,28 @@
 // The ID or passport copy is kept linked to the tutor's profile so that, if a crime is reported to have been
 // committed through Tutorlage, the police can be given the profile and ID details with the evidence.
 //
+// The CEO's addition (17 Oct 2026): every document that proves qualification or experience is asked for here too (all of
+// them optional, because only some tutors have them), and the same documents can be added at any time afterwards from the
+// Teaching tab (VerificationDocumentsPanel), for example experience on another tutoring platform that was forgotten at
+// sign-up. What the review team sees decides the level a tutor starts at (admin app: a credential, or a level assigned).
+//
 // The wording below is a DRAFT for legal's review (Drake/legal/drafts/tutor-documents-page-copy-DRAFT.md): it
 // has to agree with the privacy policy's section 7 and 8 before this is switched on (FEATURES.tutorOnboarding).
 
 export type TutorTrack = 'beginner' | 'experienced';
 
 // The values of the database's doc_type enum that this flow uses.
-export type OnboardingDocumentType = 'identity_doc' | 'subject_results' | 'police_clearance' | 'proof_of_experience' | 'sace_certificate';
+export type OnboardingDocumentType =
+  | 'identity_doc'
+  | 'subject_results'
+  | 'police_clearance'
+  | 'proof_of_experience'
+  | 'sace_certificate'
+  | 'teaching_qualification'
+  | 'practicum_letter'
+  | 'marking_appointment_letter';
 
-export type RequirementKey = 'identity' | 'results' | 'police' | 'experience' | 'sace';
+export type RequirementKey = 'identity' | 'results' | 'police' | 'experience' | 'sace' | 'qualification' | 'practicum' | 'marking';
 
 export interface Requirement {
   key: RequirementKey;
@@ -42,12 +55,16 @@ export const TRACK_COPY: Record<TutorTrack, { title: string; blurb: string; need
   beginner: {
     title: 'Beginner tutor',
     blurb: "I'm a student or recent graduate, or I haven't tutored or taught before. I'll show my results.",
-    needs: 'ID or passport, proof of your results, and a police clearance certificate.',
+    needs:
+      'ID or passport, proof of your results, and a police clearance certificate. A teaching qualification or practicum letter is optional, ' +
+      'but it can start you at a higher level.',
   },
   experienced: {
     title: 'Experienced tutor or teacher',
     blurb: "I've tutored or taught before, at a school, a university, a tutoring company or privately.",
-    needs: 'ID or passport, a police clearance certificate, and proof of your experience. A SACE certificate is optional.',
+    needs:
+      'ID or passport, a police clearance certificate, and proof of your experience. A teaching qualification, a SACE certificate and an ' +
+      'exam marking letter are optional, but they can start you at a higher level.',
   },
 };
 
@@ -88,8 +105,10 @@ const EXPERIENCE: Requirement = {
   documentType: 'proof_of_experience',
   title: 'Proof of your experience',
   help:
-    'Show us you have taught or tutored before. Add a web link (for example a school, company or tutoring profile page), ' +
-    'or a photo or document such as a reference letter or an employment letter. You can add more than one.',
+    'Show us you have taught or tutored before. Add a web link (for example a school, company or tutoring profile page, including ' +
+    'your profile on another tutoring platform), or a photo or document such as a reference letter, an employment letter or a ' +
+    'screenshot of your hours and ratings elsewhere. A letter that says how many years you have taught helps us place you at the ' +
+    'right level. You can add more than one.',
   required: true,
   accepts: 'file-or-link',
   needsIssueDate: false,
@@ -105,8 +124,42 @@ const SACE: Requirement = {
   needsIssueDate: false,
 };
 
+const QUALIFICATION: Requirement = {
+  key: 'qualification',
+  documentType: 'teaching_qualification',
+  title: 'Teaching qualification (optional)',
+  help:
+    'A teaching degree (for example a B.Ed), a PGCE or a Higher Certificate in Education: a photo or scan of the certificate or of your ' +
+    'official academic record. Qualified teachers start at a higher level.',
+  required: false,
+  accepts: 'file',
+  needsIssueDate: false,
+};
+
+const PRACTICUM: Requirement = {
+  key: 'practicum',
+  documentType: 'practicum_letter',
+  title: 'Teaching practicum letter (optional)',
+  help: 'If you are a student teacher who has completed your classroom practicum, add the letter from your university or school that confirms it.',
+  required: false,
+  accepts: 'file',
+  needsIssueDate: false,
+};
+
+const MARKING: Requirement = {
+  key: 'marking',
+  documentType: 'marking_appointment_letter',
+  title: 'Exam marking or moderation letter (optional)',
+  help: 'If you mark or moderate NSC, IEB or Cambridge exam papers, add your appointment letter.',
+  required: false,
+  accepts: 'file',
+  needsIssueDate: false,
+};
+
 export function requirementsFor(track: TutorTrack): Requirement[] {
-  return track === 'beginner' ? [IDENTITY, RESULTS, POLICE] : [IDENTITY, POLICE, EXPERIENCE, SACE];
+  return track === 'beginner'
+    ? [IDENTITY, RESULTS, POLICE, QUALIFICATION, PRACTICUM]
+    : [IDENTITY, POLICE, EXPERIENCE, QUALIFICATION, SACE, MARKING];
 }
 
 export function isTutorTrack(value: unknown): value is TutorTrack {
@@ -272,14 +325,18 @@ export const ONBOARDING_COPY = {
     'linked to your tutor profile. If a crime is reported to have been committed through Tutorlage and we have reason to believe it, ' +
     'we may give the police your tutor profile and ID details together with the evidence. Only you and the Tutorlage team that checks ' +
     'documents can see your documents.',
+  levelNote:
+    'What you show us here also decides the level you start at, and so the hourly price you can charge. A teaching qualification, years ' +
+    'of teaching and your record on other tutoring platforms can start you above the first level. If you forget something, you can add it ' +
+    'at any time under Teaching in your account.',
   consent:
     'I agree that Tutorlage may keep these documents, including my police clearance certificate, and use them to check who I am, to ' +
-    'decide whether I can tutor, and, if a crime is reported to have been committed through Tutorlage, to give the police my tutor ' +
-    'profile and ID details together with the evidence.',
+    'decide whether I can tutor and what level I start at, and, if a crime is reported to have been committed through Tutorlage, to give ' +
+    'the police my tutor profile and ID details together with the evidence.',
   consentNeeded: 'Tick the box to agree before you upload your documents.',
   notApprovedYet: 'You cannot be approved or accept requests until every required document is uploaded.',
   submitted: 'Thank you. We will check your documents and let you know when you are approved.',
 } as const;
 
 // The version recorded with the tutor's consent: change it whenever ONBOARDING_COPY.consent or whyId changes.
-export const ONBOARDING_CONSENT_VERSION = '2026-10-13-draft';
+export const ONBOARDING_CONSENT_VERSION = '2026-10-17';

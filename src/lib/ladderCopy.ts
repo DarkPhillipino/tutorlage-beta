@@ -17,17 +17,14 @@ export interface LadderRow {
   minReviews: number;
   minUpliftStudents: number;
   requiredUpliftPct: number;
+  // What can start a tutor at this level without the record above (the credential route): the names of the credentials that the
+  // admin app sets to this level (credential_definitions.label). Empty for a level no credential reaches.
+  credentials: string[];
 }
 
-// Where a credential can start a tutor higher than their record would (the credential route; 1A, 3D and the held 4C and 4D have none).
-// Marketing's wording, which is true of everyone who could accept at that level (Drake/marketing-gtm/pricing-menu-copy.md).
-export const CREDENTIAL_ROUTES: Record<string, string> = {
-  '2C': 'A qualified teacher, or a student teacher who has completed their classroom practicum, can also be at this level.',
-  '3A': 'A qualified teacher who teaches this subject to matric classes can also be at this level.',
-  '3C': 'A teacher who heads this subject at their school can also be at this level.',
-  '4A': 'Someone who marks NSC, IEB or Cambridge exam papers can also be at this level.',
-  '4B': 'Someone who moderates or examines for an exam board can also be at this level.',
-};
+// The line above them. The list itself is read from the database, so the page always agrees with what the admin app sets
+// (CEO, 17 Oct 2026: the tiers and what starts a tutor at one are defined in the admin app).
+export const CREDENTIAL_LEAD = 'A tutor can also start at this level with:';
 
 // 4.80 reads "4.8", 4.85 reads "4.85" (trailing zeros dropped).
 const trim = (n: number) => String(Number(n.toFixed(2)));

@@ -48,16 +48,18 @@ async function main() {
   // ---- Part A: what each kind of tutor must give ----------------------------------------------------------------
   const beginner = requirementsFor('beginner');
   const experienced = requirementsFor('experienced');
-  check('beginner: ID, results, police clearance, in that order', beginner.map((r) => r.key).join() === 'identity,results,police');
-  check('beginner: all three are required', beginner.every((r) => r.required));
-  check('experienced: ID, police clearance, experience, SACE', experienced.map((r) => r.key).join() === 'identity,police,experience,sace');
-  check('experienced: only the SACE certificate is optional', experienced.filter((r) => !r.required).map((r) => r.key).join() === 'sace');
+  check('beginner: ID, results, police clearance, then the two optional teaching documents, in that order', beginner.map((r) => r.key).join() === 'identity,results,police,qualification,practicum');
+  check('beginner: the first three are required, the teaching qualification and practicum letter are optional', beginner.filter((r) => r.required).map((r) => r.key).join() === 'identity,results,police' && beginner.filter((r) => !r.required).map((r) => r.key).join() === 'qualification,practicum');
+  check('experienced: ID, police clearance, experience, then the three optional documents', experienced.map((r) => r.key).join() === 'identity,police,experience,qualification,sace,marking');
+  check('experienced: the teaching qualification, SACE certificate and exam marking letter are optional', experienced.filter((r) => !r.required).map((r) => r.key).join() === 'qualification,sace,marking');
+  check('both kinds are asked for the teaching qualification (CEO, 17 Oct 2026: every document that proves qualification or experience at sign-up)', [beginner, experienced].every((list) => list.some((r) => r.documentType === 'teaching_qualification')));
+  check('the experience help names another tutoring platform and a letter that says how many years they taught', /another tutoring platform/.test(experienced.find((r) => r.key === 'experience')?.help ?? '') && /how many years/.test(experienced.find((r) => r.key === 'experience')?.help ?? ''));
   check('experienced: proof of experience accepts a link as well as a file', experienced.find((r) => r.key === 'experience')?.accepts === 'file-or-link');
   check('nothing else accepts a link', [...beginner, ...experienced].filter((r) => r.accepts === 'file-or-link').length === 1);
   check('only the police clearance asks for an issue date', [...beginner, ...experienced].filter((r) => r.needsIssueDate).every((r) => r.key === 'police'));
   check('both kinds are asked for ID and police clearance', ['identity', 'police'].every((k) => beginner.some((r) => r.key === k) && experienced.some((r) => r.key === k)));
   check('a beginner is not asked for experience, an experienced tutor is not asked for results', !beginner.some((r) => r.key === 'experience') && !experienced.some((r) => r.key === 'results'));
-  check('the documents map to the database types', requirementsFor('beginner').map((r) => r.documentType).join() === 'identity_doc,subject_results,police_clearance' && experienced.map((r) => r.documentType).join() === 'identity_doc,police_clearance,proof_of_experience,sace_certificate');
+  check('the documents map to the database types', requirementsFor('beginner').map((r) => r.documentType).join() === 'identity_doc,subject_results,police_clearance,teaching_qualification,practicum_letter' && experienced.map((r) => r.documentType).join() === 'identity_doc,police_clearance,proof_of_experience,teaching_qualification,sace_certificate,marking_appointment_letter');
   check('isTutorTrack accepts the two kinds only', isTutorTrack('beginner') && isTutorTrack('experienced') && !isTutorTrack('expert') && !isTutorTrack(null) && !isTutorTrack(undefined));
 
   // ---- the 6-month rule ------------------------------------------------------------------------------------------
@@ -150,6 +152,9 @@ async function main() {
   check('the explanation says who can see the documents', /Only you and/.test(ONBOARDING_COPY.whyId));
   check('the police help says "issued in the last 6 months" (never "no less than")', /issued in the last 6 months/.test(requirementsFor('beginner')[2].help) && ![...beginner, ...experienced, ...Object.values(TRACK_COPY).map((t) => ({ help: t.blurb }))].some((r) => /no less than/i.test(r.help)));
   check('the SACE certificate is labelled optional', experienced.find((r) => r.key === 'sace')?.title.includes('optional') === true);
+  check('every optional document says so in its title', [...beginner, ...experienced].filter((r) => !r.required).every((r) => r.title.includes('optional')));
+  check('the page says what is shown decides the starting level, and that anything forgotten can be added later under Teaching', /level you start at/.test(ONBOARDING_COPY.levelNote) && /any time under Teaching/.test(ONBOARDING_COPY.levelNote));
+  check('the consent covers using the documents to set the starting level, and its version was changed with it', /what level I start at/.test(ONBOARDING_COPY.consent) && ONBOARDING_CONSENT_VERSION === '2026-10-17');
   check('both kinds of tutor have a title, a description and a list of what they need', Object.values(TRACK_COPY).every((t) => t.title && t.blurb && t.needs));
   check('what each kind needs matches the requirements (names every required document)', /police/.test(TRACK_COPY.beginner.needs) && /results/.test(TRACK_COPY.beginner.needs) && /experience/.test(TRACK_COPY.experienced.needs) && /optional/.test(TRACK_COPY.experienced.needs));
 
@@ -347,6 +352,11 @@ async function main() {
   check('C4b a tutor from before the feature (not-needed) or a finished one is never shown the pages', /stage !== 'not-needed' && stage !== 'complete'/.test(gate));
   check('C4c the reminder only shows when the switch is on', /const enabled = FEATURES\.tutorOnboarding;/.test(gate));
   check('C4d the two pages (and the photo shrinker) are loaded only when a tutor reaches them, not shipped to everyone', /lazy\(\(\) => import\('\.\/TutorTypePage'\)/.test(gate) && /lazy\(\(\) => import\('\.\/TutorDocumentsPage'\)/.test(gate) && !/^import .* from '\.\/TutorDocumentsPage'/m.test(gate) && !/^import .* from '\.\/TutorTypePage'/m.test(gate));
+  const panel = source('src/components/VerificationDocumentsPanel.tsx');
+  check('C4e after sign-up a tutor can add proof of experience as a file or a link, from the Teaching tab (CEO, 17 Oct 2026)', /value: 'proof_of_experience'/.test(panel) && /addLinkDocument\(supabase, tutorId, normaliseLink\(linkText\)\)/.test(panel) && /linkProblem\(linkText\)/.test(panel) && /documentType === 'proof_of_experience'/.test(panel));
+  check('C4f ...and the Teaching tab shows that panel', /FEATURES\.verificationDocuments && <VerificationDocumentsPanel tutorId=\{tutor\.id\} \/>/.test(source('src/components/TeachingProfilePanel.tsx')));
+  check('C4g every document the sign-up pages ask for can also be added after sign-up', [...beginner, ...experienced].every((r) => new RegExp(`value: '${r.documentType}'`).test(panel)));
+  check('C4h the sign-up page shows the level note', /\{ONBOARDING_COPY\.levelNote\}/.test(source('src/components/TutorDocumentsPage.tsx')));
   check('C5 the Teach screen shows the reminder', /<TutorDocumentsReminder tutorId=\{tutorId\} \/>/.test(source('src/components/TeachGoScreen.tsx')));
   const createAccount = source('src/pages/CreateAccount.tsx');
   check('C6 the sign-up page only mentions the document steps when the switch is on', /FEATURES\.tutorOnboarding\s*\?\s*"Next, you'll tell us/.test(createAccount) && /role === 'tutor' && FEATURES\.tutorOnboarding && \(/.test(createAccount));

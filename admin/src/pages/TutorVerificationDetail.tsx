@@ -6,6 +6,7 @@ import { useAdminAuth } from '../lib/AuthContext';
 import { TutorVerificationDetail as TutorDetail, DocumentType } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { getErrorMessage } from '../lib/errors';
+import { TutorLevelCard } from '../components/TutorLevelCard';
 import { POLICE_MAX_AGE_MONTHS, TRACK_COPY, formatIsoLong, policeExpiresOn, requirementStatuses, todayIsoSAST } from '../lib/tutorOnboarding';
 
 const hostOf = (link: string) => {
@@ -303,6 +304,8 @@ export const TutorVerificationDetail: React.FC = () => {
           </div>
         )}
       </div>
+
+      <TutorLevelCard tutorId={tutor.id} documents={tutor.documents} />
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 mb-4">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Subjects Claimed</h2>

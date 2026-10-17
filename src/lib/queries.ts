@@ -1565,6 +1565,20 @@ export async function fetchPriceLadder(): Promise<LadderRow[]> {
     )
     .order('max_allowed_rate');
   if (error) throw error;
+  // What can start a tutor at each level (the admin app sets it). A failed read just means no credential lines are shown.
+  const credentialsByLevel = new Map<string, string[]>();
+  try {
+    const { data: defs } = await supabase
+      .from('credential_definitions')
+      .select('label, entry_sub_tier_id')
+      .not('entry_sub_tier_id', 'is', null)
+      .order('label');
+    for (const def of (defs ?? []) as { label: string; entry_sub_tier_id: string }[]) {
+      credentialsByLevel.set(def.entry_sub_tier_id, [...(credentialsByLevel.get(def.entry_sub_tier_id) ?? []), def.label]);
+    }
+  } catch {
+    // no credential lines
+  }
   const rows = (data ?? []).map((row) => {
     const tier = (row as any).tier_definitions as { public_name: string; positioning_quote: string | null; currency_code: string } | null;
     return {
@@ -1580,6 +1594,7 @@ export async function fetchPriceLadder(): Promise<LadderRow[]> {
       minReviews: row.min_written_reviews ?? 0,
       minUpliftStudents: row.min_distinct_students_uplift ?? 0,
       requiredUpliftPct: Number(row.required_grade_uplift_pct ?? 0),
+      credentials: credentialsByLevel.get(row.id as string) ?? [],
     } satisfies LadderRow;
   });
   if (rows.length > 0) ladderCache = rows;

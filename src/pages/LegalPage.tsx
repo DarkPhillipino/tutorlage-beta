@@ -10,11 +10,11 @@ import refundsText from '../content/legal/refunds.md?raw';
 // The Terms of Service, Privacy Policy and Refund Policy. Public (not behind sign-in) so anyone can read them before
 // signing up. The text lives in src/content/legal/*.md, one file each: edit it there, then raise LEGAL_VERSION and
 // set current_terms_version and current_privacy_version on the database to the same value (the CEO's yes; publish the
-// page first, confirm it is live, then change the two rows, never the rows first). Everyone is then asked to accept
-// the new version the next time they sign in.
+// page first, confirm it is live, then change the two rows, never the rows first). Everyone then gets a notice in the
+// app that the terms were updated (CEO, 17 Oct 2026: nobody is signed out or stopped by a change).
 //
 // One product (CEO, 16 Oct 2026): these replaced the "tester notice" (version 2026-10-phase1-c) on 16 Oct 2026.
-export const LEGAL_VERSION = '2026-10-17';
+export const LEGAL_VERSION = '2026-10-17-b';
 const LAST_UPDATED = '17 October 2026';
 // (17 Oct 2026: the "closed test" box that sat above the text was removed at the CEO's request. The closed-test data deletion
 // promise stays in the Privacy Policy, §14, last row.)

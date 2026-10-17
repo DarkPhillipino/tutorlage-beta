@@ -3,7 +3,7 @@ import { Check, ChevronRight } from 'lucide-react';
 import { PriceLevel } from '../types';
 import { formatRate } from '../lib/format';
 import {
-  CREDENTIAL_ROUTES,
+  CREDENTIAL_LEAD,
   FIRST_LEVEL_LINE,
   LadderRow,
   MINIMUMS_LEAD,
@@ -43,7 +43,6 @@ export const PriceLadder: React.FC<PriceLadderProps> = ({ rows, available, selec
             {tier.members.map((row) => {
               const tutors = available ? (available.get(row.id) ?? 0) : null;
               const lines = requirementLines(row);
-              const credential = CREDENTIAL_ROUTES[row.id];
               const chosen = selectedId === row.id;
               const availability = availabilityLine(tutors);
               return (
@@ -93,7 +92,16 @@ export const PriceLadder: React.FC<PriceLadderProps> = ({ rows, available, selec
                         </ul>
                       </>
                     )}
-                    {credential && <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">{credential}</p>}
+                    {row.credentials.length > 0 && (
+                      <div className="mt-1.5 text-[11px] text-slate-500 leading-relaxed" data-credentials={row.id}>
+                        <p>{CREDENTIAL_LEAD}</p>
+                        <ul className="list-disc pl-4">
+                          {row.credentials.map((label) => (
+                            <li key={label}>{label}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     {availability && (
                       <p className={`text-[11px] font-bold mt-2 ${tutors && tutors > 0 ? 'text-[#15803D]' : 'text-slate-400'}`}>{availability}</p>
                     )}

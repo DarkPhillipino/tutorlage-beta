@@ -215,12 +215,13 @@ export const TutorDocumentsPage: React.FC<TutorDocumentsPageProps> = ({
       <div className="w-full max-w-xl mx-auto bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
         <p className="text-xs font-bold text-[#15803D] uppercase tracking-wider mb-2">Step 3 of 3 · Tutor sign-up</p>
         <h1 className="font-serif text-3xl text-[#0F172A] mb-1">{ONBOARDING_COPY.documentsTitle}</h1>
-        <p className="text-sm text-slate-500 mb-5">
+        <p className="text-sm text-slate-500 mb-3">
           You chose <span className="font-bold text-[#0F172A]">{TRACK_COPY[track].title}</span>.{' '}
           <button type="button" onClick={onChangeType} className="font-bold text-[#15803D] hover:underline cursor-pointer">
             Change
           </button>
         </p>
+        <p className="text-xs text-slate-600 leading-relaxed bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 mb-5">{ONBOARDING_COPY.levelNote}</p>
 
         {/* Why the ID is kept, and the agreement. Nothing can be uploaded before it is ticked. */}
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-4 mb-4">

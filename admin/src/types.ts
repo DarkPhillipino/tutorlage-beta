@@ -196,3 +196,60 @@ export interface Phase1Metrics {
   ratingsCount: number;
   averageRating: number | null;
 }
+
+// ---- Levels, tiers and credentials (CEO, 17 Oct 2026: set from the admin app) ----
+
+// One of the four tiers (a group of levels). "Share" is Tutorlage's commission, used when a level has none of its own.
+export interface TierConfig {
+  id: number;
+  publicName: string;
+  quote: string;
+  minRate: number;
+  maxRate: number;
+  sharePct: number;
+  currencyCode: string;
+}
+
+// One of the 16 levels (1A to 4D) with its price and the minimums a tutor must have reached to be at it.
+export interface LevelConfig {
+  id: string;
+  tierId: number;
+  price: number;
+  minHours: number;
+  minRating: number;
+  minRepeatPct: number;
+  minReviews: number;
+  minStudents: number;
+  uplift: number;
+  sharePct: number;
+}
+
+// What can start a tutor at a level. entrySubTier is empty only for "level assigned by Tutorlage".
+export interface CredentialConfig {
+  code: string;
+  label: string;
+  entrySubTier: string | null;
+  recencyYears: number | null;
+  description: string | null;
+  heldBy: number;
+}
+
+export interface TutorCredentialRow {
+  id: string;
+  code: string;
+  label: string;
+  // The level this credential gives this tutor: the one chosen for them, or the credential's own.
+  level: string | null;
+  obtainedOn: string | null;
+  note: string | null;
+  documentId: string | null;
+  status: string;
+}
+
+export interface TutorLevelInfo {
+  currentLevel: string | null;
+  floorLevel: string | null;
+  frozen: boolean;
+  freezeReason: string | null;
+  credentials: TutorCredentialRow[];
+}

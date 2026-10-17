@@ -4,9 +4,8 @@ import fs from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PriceLadder } from '../../src/components/PriceLadder';
-import { CREDENTIAL_ROUTES, availabilityLine, chosenLevelLine, requirementLines } from '../../src/lib/ladderCopy';
+import { CREDENTIAL_LEAD, availabilityLine, chosenLevelLine, requirementLines } from '../../src/lib/ladderCopy';
 import type { LadderRow } from '../../src/lib/ladderCopy';
-import { LEVEL_DESCRIPTIONS } from '../../src/lib/priceLevelCopy';
 
 let failures = 0;
 const check = (name: string, ok: boolean, detail = '') => {
@@ -30,9 +29,21 @@ const DATA: [string, number, number, number, number, number, number, number, num
   ['3A', 3, 400, 160, 4.9, 75, 12, 5, 10], ['3B', 3, 460, 210, 4.92, 78, 15, 6, 12], ['3C', 3, 530, 270, 4.93, 82, 20, 8, 15], ['3D', 3, 600, 350, 4.95, 85, 25, 10, 20],
   ['4A', 4, 650, 360, 4.95, 85, 25, 10, 20], ['4B', 4, 720, 420, 4.96, 88, 30, 12, 22], ['4C', 4, 800, 500, 4.97, 90, 35, 15, 25], ['4D', 4, 1200, 600, 4.98, 92, 40, 20, 25],
 ];
+// credential_definitions as read on 17 Oct 2026 (the admin app sets which level each starts a tutor at): label by level.
+const CREDENTIALS: Record<string, string[]> = {
+  '2A': ['Higher Certificate in Education'],
+  '2C': ['Qualified teacher with a teaching degree or PGCE', 'SACE-registered qualified teacher', 'Student teacher with a completed supervised practicum'],
+  '2D': ['Qualified teacher with 2 or more years in the classroom'],
+  '3A': ['Qualified teacher with 3 or more years in the classroom', 'SACE-registered teacher of this subject at FET/matric phase'],
+  '3B': ['Qualified teacher with 4 or more years in the classroom'],
+  '3C': ['Head of department or subject head (or equivalent)'],
+  '4A': ['NSC, IEB or Cambridge exam marker (last 5 years)'],
+  '4B': ['Exam moderator, chief marker or examiner'],
+};
 const ROWS: LadderRow[] = DATA.map(([id, tier, price, hours, rating, repeat, reviews, students, uplift]) => ({
   id, tierId: tier, tierName: T[tier - 1][1], tierQuote: T[tier - 1][2], price, currencyCode: 'ZAR',
   minHours: hours, minRating: rating, minRepeatRatePct: repeat, minReviews: reviews, minUpliftStudents: students, requiredUpliftPct: uplift,
+  credentials: CREDENTIALS[id] ?? [],
 }));
 const row = (id: string) => ROWS.find((r) => r.id === id)!;
 
@@ -49,10 +60,6 @@ check('4D is the strictest: 600 hours, 4.98, 92%, 40 reviews, 25% for 20 learner
 check('ratings drop a trailing zero (4.80 reads 4.8) and keep two places (4.85)', requirementLines(row('1B'))[1].includes('4.8 or') && requirementLines(row('1C'))[1].includes('4.85'));
 check('every level above the first has a hours line and a rating line', ROWS.filter((r) => r.id !== '1A').every((r) => requirementLines(r).length >= 2));
 check('each level asks for at least as many hours as the one below it (the ladder only climbs)', ROWS.every((r, i) => i === 0 || r.minHours >= ROWS[i - 1].minHours));
-check('credential routes are given for exactly 2C, 3A, 3C, 4A and 4B, and marketing\'s copy says the same for those levels',
-  JSON.stringify(Object.keys(CREDENTIAL_ROUTES).sort()) === JSON.stringify(['2C', '3A', '3C', '4A', '4B']) &&
-    /qualified teacher/.test(LEVEL_DESCRIPTIONS['2C']) && /qualified teacher/.test(LEVEL_DESCRIPTIONS['3A']) && /heads this subject/.test(LEVEL_DESCRIPTIONS['3C']) &&
-    /exam papers/.test(LEVEL_DESCRIPTIONS['4A']) && /Moderates or examines/.test(LEVEL_DESCRIPTIONS['4B']));
 check('availability in words: none, one, many, unknown', availabilityLine(0) === 'No tutor at this level yet' && availabilityLine(1) === '1 tutor can take this' && availabilityLine(3) === '3 tutors can take this' && availabilityLine(null) === null);
 check('the chosen-level line: with none it says the request waits and nobody is charged unless a tutor accepts', /waits up to 48 hours/.test(chosenLevelLine(0)) && /charged only if a tutor accepts/.test(chosenLevelLine(0)) && chosenLevelLine(1) === '1 tutor at this level or above can take this request' && chosenLevelLine(5) === '5 tutors at this level or above can take this request');
 
@@ -85,6 +92,13 @@ check('the database counts every tutor at or above a level towards it, the reque
   /select count\(\*\)::integer from eligible_tutors e where e\.tutor_rate >= s\.max_allowed_rate/.test(read('supabase/migrations/20260930160000_model3_pricing_levels.sql')) &&
     /s\.max_allowed_rate <= ts\.max_allowed_rate/.test(read('supabase/migrations/20261014200000_keep_or_swap.sql')) &&
     /if v_tutor\.tutor_rate < v_level_rate then/.test(read('supabase/migrations/20261014200000_keep_or_swap.sql')));
+check('what can start a tutor at a level is listed under it, from the rows (eight levels have a credential; the others none)',
+  (html.match(/data-credentials="/g) ?? []).length === 8 && ['2A', '2C', '2D', '3A', '3B', '3C', '4A', '4B'].every((id) => html.includes(`data-credentials="${id}"`)) &&
+    (html.match(new RegExp(CREDENTIAL_LEAD, 'g')) ?? []).length === 8 && Object.values(CREDENTIALS).flat().every((label) => html.includes(label.replace(/&/g, '&amp;'))));
+check('a level that no credential reaches shows no credential line', (() => {
+  const none = renderToStaticMarkup(React.createElement(PriceLadder, { rows: ROWS.map((r) => ({ ...r, credentials: [] })), available: null, selectedId: null, onSelect: () => undefined, currencySymbol: () => 'R' }));
+  return !none.includes(CREDENTIAL_LEAD);
+})());
 check('the minimums lead line is on every level but the first', (html.match(/To be at this level a tutor has:/g) ?? []).length === 15 && html.includes('No minimum yet'));
 
 // ---- the source -----------------------------------------------------------------------------------------------------------------------
@@ -99,6 +113,7 @@ check('Search re-runs the search on the same page instead of opening a second pa
 check('no line tells people they cannot pick the tutor, or that the first to accept is matched, on the request pages (CEO, 17 Oct 2026)',
   !/You don't pick the tutor/.test(prices + level) && !/first to accept is matched/.test(prices + level) && !/cannot pick who accepts/.test(terms));
 check('the ladder reads the minimums from the database\'s own table, in one read', /from\('sub_tier_definitions'\)[\s\S]{0,400}min_hours, min_rating, min_repeat_rate_pct, min_written_reviews, min_distinct_students_uplift, required_grade_uplift_pct/.test(queries) && /ladderCache/.test(queries));
+check('the credential lines are read from credential_definitions (the admin app sets them), not written in the page', /from\('credential_definitions'\)[\s\S]{0,200}entry_sub_tier_id/.test(queries) && /credentials: credentialsByLevel\.get/.test(queries) && !/CREDENTIAL_ROUTES/.test(read('src/lib/ladderCopy.ts') + read('src/components/PriceLadder.tsx')));
 check('the counts come from the same database function the old page used', /fetchAvailablePriceLevels\(\{ subject: appliedSubject/.test(prices));
 check('the waiting-list prompt is still on the dead end when nobody teaches the subject', /FEATURES\.tutorWaitlist && waitlistLearnerId && appliedSubject\.trim\(\) !== ''/.test(prices));
 

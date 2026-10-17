@@ -33,7 +33,7 @@ We collect only what we need for the purposes in §4.
 - **From a parent or guardian**, for a learner under 18 (§6).
 - **From Google**, if you choose "Sign in with Google": your name, email address and profile picture link.
 - **From Paystack**: the details of your saved card listed in §2, and whether a tutor's bank account was confirmed.
-- **From tutors' own documents**: ID or passport copies, police clearance certificates, proof of results or experience and, if a tutor chooses to add it, proof of SACE registration (§7).
+- **From tutors' own documents**: ID or passport copies, police clearance certificates, proof of results or experience and, if a tutor chooses to add them, teaching qualifications, practicum and exam marking letters and proof of SACE registration (§7).
 - **From parents and guardians, or adult learners**: school results, if they choose to give them (§6).
 - **From other users**: ratings of a tutor, and problem or safety reports that mention you.
 
@@ -48,7 +48,7 @@ We collect only what we need for the purposes in §4.
 | Checking a tutor's identity, eligibility and bank account | (b) the agreement with the tutor; (f) our legitimate interest in a safe, honest marketplace |
 | Training and testing Tier 1 tutor candidates, and deciding whether they qualify | (b) the agreement with the candidate. Anonymised answers are also used to check that the test is fair: (f) legitimate interest |
 | Measuring a learner's progress with a tutor from their school results, showing it to the parent or learner, and counting it towards the tutor's level (§10) | (a) consent: the parent or guardian's prior consent for a learner under 18 (s 35(1)(a)), or the adult learner's own |
-| Checking tutors' ID, police clearances and, where a tutor chooses to add it, their SACE registration | (a) the tutor's consent (for a police clearance, also s 27(1)(a)), §7 |
+| Checking tutors' ID, police clearances and, where a tutor chooses to add them, their qualifications, experience and SACE registration, and using these to set the level a tutor starts at | (a) the tutor's consent (for a police clearance, also s 27(1)(a)), §7 |
 | Handling safety reports and protecting learners | (c) legal obligations (reporting duties); (d) protecting the learner's legitimate interests; (f) our legitimate interests |
 | Keeping records for tax, accounting and consumer law | (c) legal obligations |
 | Security, preventing fraud and abuse, and keeping the site working (technical data) | (f) legitimate interest |
@@ -84,6 +84,7 @@ We will ask your consent before using your information for a purpose not listed 
 ## 7. Tutor screening (special personal information)
 
 - Every tutor gives us a **photo of their ID or passport**, a **police clearance certificate** issued in the last 6 months, and **proof of their school results or of their experience** (a beginner gives results; an experienced tutor or teacher gives experience). A tutor registered with **SACE** (the South African Council for Educators) **may** also give us their SACE certificate; it is optional, and nobody is refused for not having one. We ask for a new police clearance **every 6 months**.
+- A tutor may also give us documents that show their **qualifications and experience**: a **teaching qualification** (for example a B.Ed, a PGCE or a Higher Certificate in Education), a **teaching practicum letter**, an **exam marking or moderation letter**, and letters or links that show their **experience**, including their profile on another tutoring platform. These are optional, and a tutor can add them when they sign up or at any time afterwards. We use them to decide which level a tutor starts at (§10).
 - We check each document before the tutor may accept requests. If a clearance expires, the tutor cannot accept new requests until they give us a current one.
 - A police clearance is information about criminal behaviour, which POPIA treats as **special personal information**. We process it with the tutor's consent. **If you do not agree, you cannot tutor on Tutorlage.** Only the staff who check documents can see them, and we record each time one is opened.
 - **Why we keep your ID.** So that every tutor is a real person we can identify. If a crime is reported to have been committed through Tutorlage and we have reason to believe it, we may give the police your tutor profile and ID details together with the evidence. Our safeguarding lead decides, writes down the reason, and shares only what the police need. Where the law requires us to report (for example a sexual offence against a child), we report to the police whatever your agreement says.
@@ -129,6 +130,7 @@ We will ask your consent before using your information for a purpose not listed 
   - repeat bookings;
   - reviews;
   - learner progress, where measured: the change in learners' school marks for the subject, from the report cards and marks parents (or adult learners) give us, counted only after Tutorlage has checked them.
+- A tutor can also **start at a higher level** because of a verified credential, for example a teaching qualification, years of classroom teaching, heading a subject at a school, or marking or moderating exam papers. Our staff check the document first. A member of our staff can also **set a level for one tutor**, and must write down the reason; it can be changed or removed later. A tutor's level is the higher of what they have earned on Tutorlage and what their credentials give them.
 - Tutors can see the criteria for the next level, and their progress towards it, in the app.
 - Tutors may ask us how their level was worked out, and ask a person to review it, at support@tutorlage.com.
 - Matching a request to tutors (by subject, grade and level) is also automatic, but it does not decide anything about the learner beyond who can accept.
@@ -172,7 +174,7 @@ We will ask your consent before using your information for a purpose not listed 
 | Bookings, payments, refunds and the session records behind them | **7 years** after the end of the financial year they fall in, because they are part of the company's accounting records |
 | Acceptance and consent records | While the account is open plus 5 years, as evidence of what was agreed |
 | Learners' school results | While the learner's account is open and consent stands. Deleted within 90 days of the account closing or consent being withdrawn. A mark that has counted towards a tutor's level is then kept only as an anonymous number |
-| Tutors' ID copies, police clearances, proof of results or experience, and SACE certificates (if given) | While the person tutors on Tutorlage plus 3 years. Longer if a safety report or an investigation involves them, until it is closed and the time for a claim has passed |
+| Tutors' ID copies, police clearances, proof of results or experience, teaching qualifications and letters (if given), and SACE certificates (if given) | While the person tutors on Tutorlage plus 3 years. Longer if a safety report or an investigation involves them, until it is closed and the time for a claim has passed |
 | Tier 1 training and test records | While the person tutors on Tutorlage (or 2 years after their last attempt, if they do not qualify). Answers are then kept only anonymously, to check the test is fair |
 | Video room records (who joined which room and when) | Deleted 30 days after the room closes. No audio or video is ever kept |
 | Problem reports and safety reports | 5 years, or longer where a report concerns a learner under 18 and the law or an investigation requires it |

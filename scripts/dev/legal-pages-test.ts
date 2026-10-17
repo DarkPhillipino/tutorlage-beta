@@ -136,6 +136,10 @@ function partBSections(text: string): Set<string> {
   check('privacy: the Information Officer and the Regulator\'s complaint route are named', /Information Officer\*\*: \*\*Pakiso Daniel Setunku/.test(p) && p.includes('POPIAComplaints@inforegulator.org.za'));
   check('privacy: the closed-test deletion promise is kept (CEO, 16 Oct 2026): 27 November 2026', /27 November 2026/.test(p) && /28 October 2026/.test(p));
   check('privacy: video room records, ID copies for tutors, school results and the waiting list are all covered', ['Video room records', 'photo of their ID or passport', 'school results', 'Requests to be told when a tutor is available'].every((s) => p.includes(s)));
+  check('privacy: the optional qualification and experience documents (teaching qualification, practicum letter, exam marking letter, experience on another platform) are listed, with when they can be added, and in the retention table (CEO, 17 Oct 2026)',
+    ['teaching qualification', 'teaching practicum letter', 'exam marking or moderation letter', 'another tutoring platform', 'at any time afterwards'].every((s) => p.includes(s)) && /\| Tutors' ID copies[^\n]*teaching qualifications and letters/.test(p));
+  check('privacy: a level can start higher from a verified credential, and staff can set one tutor\'s level with a written reason (automated decisions, section 10)',
+    /start at a higher level\*\* because of a verified credential/.test(p) && /set a level for one tutor\*\*, and must write down the reason/.test(p));
   check('privacy: Cloudflare is named as carrying the video calls, with no recording', /Cloudflare\*\*[^\n]*relays video calls[^\n]*does not record or keep it/.test(p));
   check('privacy: every provider the product uses is listed', ['Supabase', 'Paystack', 'Cloudflare', 'Resend', 'GitHub', 'Google'].every((s) => p.includes(`**${s}**`)));
   check('refunds: no charge if nobody accepts; the R1 check is refunded; refunds go back to the card', /you are not charged/.test(r) && /R1 check/.test(r) && /back to the card you paid with/.test(r));

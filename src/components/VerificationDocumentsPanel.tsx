@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FileCheck2, Upload, Loader2, AlertCircle } from 'lucide-react';
+import { FileCheck2, Upload, Loader2, AlertCircle, Link2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { getErrorMessage } from '../lib/errors';
+import { linkProblem, normaliseLink } from '../lib/tutorOnboarding';
+import { addLinkDocument, isLinkUrl } from '../lib/tutorOnboardingData';
 
 // Backlog 7h: tutors upload the documents Tutorlage checks before verifying
 // them — identity, screening clearances (the CEO's 2026-09-30 decision:
@@ -9,6 +11,9 @@ import { getErrorMessage } from '../lib/errors';
 // credentials. Files go to the private 'tutor-documents' bucket under the
 // tutor's own folder; only the tutor and active admins can read them. Status
 // is set by Tutorlage's review, never by the tutor (guard trigger).
+//
+// CEO, 17 Oct 2026: whatever proves qualification or experience can be added here at any time after sign-up, for example
+// experience on another tutoring platform that was forgotten at sign-up. Proof of experience can be a link as well as a file.
 const DOCUMENT_TYPES: { value: string; label: string }[] = [
   { value: 'identity_doc', label: 'ID document or passport' },
   { value: 'nrso_clearance', label: 'Sex offenders register clearance (NRSO)' },
@@ -18,7 +23,8 @@ const DOCUMENT_TYPES: { value: string; label: string }[] = [
   { value: 'matric_certificate', label: 'Matric certificate' },
   { value: 'university_transcript', label: 'University transcript' },
   { value: 'practicum_letter', label: 'Teaching practicum letter' },
-  { value: 'teaching_qualification', label: 'Teaching qualification' },
+  { value: 'teaching_qualification', label: 'Teaching qualification (degree, PGCE or Higher Certificate)' },
+  { value: 'proof_of_experience', label: 'Proof of experience (including another tutoring platform)' },
   { value: 'sace_certificate', label: 'SACE registration' },
   { value: 'marking_appointment_letter', label: 'Exam marking or moderation appointment' },
   { value: 'proof_of_address', label: 'Proof of address' },
@@ -36,16 +42,27 @@ const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 interface UploadedDocument {
   id: string;
   documentType: string;
+  // The web address, for a document added as a link; null for an uploaded file.
+  link: string | null;
   status: string | null;
   adminNotes: string | null;
   uploadedAt: string;
 }
+
+const hostOf = (link: string) => {
+  try {
+    return new URL(link).hostname.replace(/^www\./, '');
+  } catch {
+    return link;
+  }
+};
 
 export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tutorId }) => {
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [documentType, setDocumentType] = useState(DOCUMENT_TYPES[0].value);
   const [isUploading, setIsUploading] = useState(false);
+  const [linkText, setLinkText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [reloadCount, setReloadCount] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -54,7 +71,7 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
     setIsLoading(true);
     supabase
       .from('tutor_verification_documents')
-      .select('id, document_type, status, admin_notes, uploaded_at')
+      .select('id, document_type, document_url, status, admin_notes, uploaded_at')
       .eq('tutor_id', tutorId)
       .order('uploaded_at', { ascending: false })
       .then(({ data, error: loadError }) => {
@@ -65,6 +82,7 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
             (data ?? []).map((d) => ({
               id: d.id,
               documentType: d.document_type,
+              link: isLinkUrl(d.document_url) ? d.document_url : null,
               status: d.status,
               adminNotes: d.admin_notes,
               uploadedAt: d.uploaded_at,
@@ -111,6 +129,25 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
     }
   };
 
+  const handleAddLink = async () => {
+    setError(null);
+    const problem = linkProblem(linkText);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setIsUploading(true);
+    try {
+      await addLinkDocument(supabase, tutorId, normaliseLink(linkText));
+      setLinkText('');
+      setReloadCount((c) => c + 1);
+    } catch (e) {
+      setError(getErrorMessage(e, 'We could not save that link. Please try again.'));
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div>
       <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -121,6 +158,10 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
         <p className="text-[11px] text-slate-500">
           Tutorlage checks these before you can accept requests. Only you and Tutorlage's review team can see them.
         </p>
+        <p className="text-[11px] text-slate-500">
+          Forgot something at sign-up? Add it here at any time. Your teaching qualification, your years of teaching and your experience on
+          other tutoring platforms can start you at a higher level.
+        </p>
 
         {isLoading ? (
           <div className="flex items-center text-slate-400 text-xs">
@@ -130,7 +171,10 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
           <ul className="space-y-1.5">
             {documents.map((d) => (
               <li key={d.id} className="flex items-center justify-between gap-2 text-xs">
-                <span className="font-semibold text-[#0F172A] truncate">{TYPE_LABELS[d.documentType] ?? d.documentType}</span>
+                <span className="font-semibold text-[#0F172A] truncate">
+                  {TYPE_LABELS[d.documentType] ?? d.documentType}
+                  {d.link && <span className="font-normal text-slate-500"> · link to {hostOf(d.link)}</span>}
+                </span>
                 <span className={`shrink-0 font-bold ${d.status === 'verified' ? 'text-[#15803D]' : d.status === 'rejected' ? 'text-rose-600' : 'text-slate-500'}`}>
                   {STATUS_LABELS[d.status ?? 'pending'] ?? d.status}
                 </span>
@@ -172,6 +216,38 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
           </button>
         </div>
         <p className="text-[10px] text-slate-400">PDF, JPG or PNG, up to 5 MB.</p>
+
+        {documentType === 'proof_of_experience' && (
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 mb-1" htmlFor="experience-link">
+              Or paste a link, for example your profile on another tutoring platform
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="experience-link"
+                type="url"
+                inputMode="url"
+                value={linkText}
+                disabled={isUploading}
+                onChange={(e) => {
+                  setLinkText(e.target.value);
+                  setError(null);
+                }}
+                placeholder="https://"
+                className="flex-1 min-w-0 bg-slate-100 text-xs font-semibold text-[#0F172A] placeholder-slate-400 rounded-lg px-2.5 py-2 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleAddLink}
+                disabled={isUploading || !linkText.trim()}
+                className="flex items-center justify-center gap-1.5 bg-[#0F172A] hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer shrink-0"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                Add link
+              </button>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="flex items-center gap-1.5 text-[11px] text-rose-600 font-semibold">
