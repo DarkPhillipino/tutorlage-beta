@@ -50,7 +50,7 @@ Nothing in these Terms makes Tutorlage, a tutor and a learner each other's emplo
 
 1. **Your request.** You choose a subject, grade, date and time and a price level. Before you send anything, the booking screen shows the price you will pay and when you will be charged. You can change the details or go back.
 2. **Saving your card.** When you send the request, our payment processor, Paystack, saves your card with a R1 check. The R1 is refunded straight away.
-3. **A tutor accepts.** The request goes to approved tutors who teach the subject and grade at your chosen level or above, and the first to accept is matched with you. Paystack then charges your saved card the price you saw.
+3. **A tutor accepts.** The request goes to approved tutors who teach the subject and grade at your chosen level or above. When one accepts, Paystack charges your saved card the price you saw.
 4. **The agreement for that session is made when the charge succeeds.** We confirm it on screen and in your sessions list.
 5. **The session.** It takes place online at the booked time, in Tutorlage's own video room or through a meeting link (for example Google Meet, Teams or Zoom) that the tutor adds to the session. It lasts the booked length (currently one hour). Where a tutor uses another service's meeting link, that service's own terms apply to it.
 6. **Your record.** Every booking, its price, its status and any refund stays in your sessions list. Paystack sends a receipt for each charge.
