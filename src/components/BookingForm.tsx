@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MapPin, Clock, ChevronDown, ArrowRight, Circle, Square, Search, Sparkles, GraduationCap } from 'lucide-react';
 import { BookingFormState } from '../types';
 import { fetchSubjectSuggestions } from '../lib/queries';
-import { describeDate } from '../lib/format';
+import { describeSchedule } from '../lib/requestSchedule';
 
 interface BookingFormProps {
   formState: BookingFormState;
@@ -80,9 +80,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
         >
           <Clock className="w-4 h-4 text-[#0F172A]" />
           <span>
-            {formState.scheduleType === 'now' 
-              ? 'Schedule session' 
-              : `Scheduled: ${describeDate(formState.scheduledDate)}, ${formState.scheduledTime || '14:00'}`}
+            {formState.scheduleType === 'now' ? 'Schedule session' : describeSchedule(formState)}
           </span>
           <ChevronDown className="w-4 h-4 text-slate-600" />
         </button>

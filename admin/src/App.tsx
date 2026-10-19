@@ -14,6 +14,8 @@ import { Phase1Numbers } from './pages/Phase1Numbers';
 import { SchoolResults } from './pages/SchoolResults';
 import { Tier1 } from './pages/Tier1';
 import { Levels } from './pages/Levels';
+import { SubjectApprovals } from './pages/SubjectApprovals';
+import { Curricula } from './pages/Curricula';
 
 export default function App() {
   return (
@@ -39,6 +41,8 @@ export default function App() {
         <Route path="school-results" element={<SchoolResults />} />
         <Route path="tier1" element={<Tier1 />} />
         <Route path="levels" element={<Levels />} />
+        <Route path="subject-approvals" element={<SubjectApprovals />} />
+        <Route path="curricula" element={<Curricula />} />
       </Route>
     </Routes>
   );

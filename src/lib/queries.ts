@@ -5,24 +5,22 @@ import { mapMyTutorRow, isMissingDatabaseFunction, type MyTutor } from './keepOr
 import { documentsNeverAccepted } from './accountRules';
 import type { LadderRow } from './ladderCopy';
 import { isUpcomingSession, upcomingLookbackIso } from './sessionTiming';
-import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, AvailableSessionRequest, StudentSession, TutorManagedSession, StudentSessionDetail, WaitingRequest, PriceLevel, PayoutAccount, ProblemReason, AppNotification } from '../types';
+import { requestStartIso } from './requestSchedule';
+import { askAvailablePriceLevels, type PriceLevelSearch } from './priceLevelCall';
+import { competencyStatus } from './subjectApproval';
+import { Institution, Tutor, TutorSubjectCompetency, TierDefinition, TutorDashboardData, TutorReview, TutorAvailabilitySlot, SubTierDefinition, UserProfile, TutorSession, AvailableSessionRequest, StudentSession, TutorManagedSession, StudentSessionDetail, WaitingRequest, PriceLevel, PayoutAccount, ProblemReason, AppNotification, SchoolCurriculum } from '../types';
 
 // Model 3 (backlog 12a): the price levels a student can book right now for
 // this search — only levels with at least one matching verified tutor at or
 // above them. Computed in the database (available_price_levels) so counts
 // don't depend on which tutor rows the browser is allowed to read.
-export async function fetchAvailablePriceLevels(params: {
-  subject: string;
-  gradeLevel: string;
-  institutionId: string | null;
-}): Promise<PriceLevel[]> {
-  const { data, error } = await supabase.rpc('available_price_levels', {
-    p_subject: params.subject,
-    p_grade: params.gradeLevel,
-    p_institution: params.institutionId,
-  });
-  if (error) throw error;
-  return ((data ?? []) as {
+// 19 Oct 2026: the counts can also take the start (ISO), the length in hours and the curriculum the learner follows, and then
+// count only tutors who teach that curriculum and are free for the whole session. Until the migration that adds those arguments
+// is applied the database only knows the three old values: when it says the six-value function is missing, ask again with the
+// three, so the page works before and after.
+export async function fetchAvailablePriceLevels(params: PriceLevelSearch): Promise<PriceLevel[]> {
+  const data = await askAvailablePriceLevels((fn, args) => supabase.rpc(fn, args), params);
+  return (data as {
     level_id: string;
     tier_id: number;
     tier_name: string;
@@ -36,6 +34,23 @@ export async function fetchAvailablePriceLevels(params: {
     price: Number(row.price),
     currencyCode: row.currency_code,
     tutors: row.tutors,
+  }));
+}
+
+// The curricula a school follows: its own plus any an admin added (database function school_curricula). A learner whose school
+// follows more than one is asked which one they are following. Before the migration that adds the function there is nothing to
+// ask, so a missing function is "no question", not an error.
+export async function fetchSchoolCurricula(institutionId: string | null): Promise<SchoolCurriculum[]> {
+  if (!institutionId) return [];
+  const { data, error } = await supabase.rpc('school_curricula', { p_institution: institutionId });
+  if (error) {
+    if (isMissingDatabaseFunction(error)) return [];
+    throw error;
+  }
+  return ((data ?? []) as { curriculum_id: string; code: string; name: string }[]).map((row) => ({
+    id: row.curriculum_id,
+    code: row.code,
+    name: row.name,
   }));
 }
 
@@ -496,6 +511,7 @@ interface TutorDashboardRow {
     curriculum: string;
     min_grade_level: string;
     max_grade_level: string;
+    verification_status: string | null;
   }[];
   tier_definitions: { id: number; public_name: string; min_rate: number; max_rate: number } | null;
   institution_id: string | null;
@@ -526,7 +542,7 @@ export async function fetchTutorDashboard(tutorId: string): Promise<TutorDashboa
       qualified_uplift_students_count,
       institution_id,
       profiles!tutor_profiles_id_fkey ( full_name, avatar_url ),
-      tutor_subject_competencies ( id, subject_name, curriculum, min_grade_level, max_grade_level ),
+      tutor_subject_competencies ( id, subject_name, curriculum, min_grade_level, max_grade_level, verification_status ),
       tier_definitions!tutor_profiles_current_tier_id_fkey ( id, public_name, min_rate, max_rate ),
       schools_institutions ( id, name )
     `)
@@ -573,6 +589,7 @@ export async function fetchTutorDashboard(tutorId: string): Promise<TutorDashboa
       curriculum: c.curriculum,
       minGradeLevel: c.min_grade_level,
       maxGradeLevel: c.max_grade_level,
+      verificationStatus: competencyStatus(c.verification_status),
     })),
   };
 }
@@ -740,13 +757,13 @@ export async function addTutorSubjectCompetency(
   competency: { subjectName: string; curriculum: string; minGradeLevel: string; maxGradeLevel: string }
 ): Promise<TutorSubjectCompetency> {
   // verification_status defaults to 'pending', which the "Public can view
-  // verified tutor competencies" RLS policy hides from search entirely —
-  // there's no per-subject admin review queue built (only the tutor's
-  // overall is_verified flag has one), so a subject a tutor adds would
-  // otherwise be permanently invisible to students. Auto-verifying here is a
-  // deliberate pilot-scoped decision: the tutor's own document verification
-  // is the real trust gate; per-subject review is a possible later
-  // refinement, not required for launch.
+  // verified tutor competencies" RLS policy hides from search entirely, so
+  // before the 19 Oct 2026 approval migration a subject a tutor added had to be
+  // stored as 'verified' to be seen at all (the tutor's own document
+  // verification was the trust gate). That migration makes the database store
+  // every tutor-added subject as 'pending' whatever is sent here, and an admin
+  // approves it (admin_review_tutor_subject). The status is therefore read back
+  // from the stored row, never assumed: the editor's wording follows it.
   const { data, error } = await supabase
     .from('tutor_subject_competencies')
     .insert({
@@ -757,7 +774,7 @@ export async function addTutorSubjectCompetency(
       max_grade_level: competency.maxGradeLevel,
       verification_status: 'verified',
     })
-    .select('id, subject_name, curriculum, min_grade_level, max_grade_level')
+    .select('id, subject_name, curriculum, min_grade_level, max_grade_level, verification_status')
     .single();
 
   if (error) throw error;
@@ -768,7 +785,25 @@ export async function addTutorSubjectCompetency(
     curriculum: data.curriculum,
     minGradeLevel: data.min_grade_level,
     maxGradeLevel: data.max_grade_level,
+    verificationStatus: competencyStatus(data.verification_status),
   };
+}
+
+// The reason an admin gave for not approving a subject, by subject id. The notes live in their own table, tutor_subject_reviews,
+// because the subject table is readable by the public; the database lets a tutor read only the reviews of their own subjects, so no
+// filter is needed here. A separate, tolerant read: the table only exists once the 19 Oct 2026 migration is applied, so a failure
+// here means "no reasons yet", never an error on the Teaching tab, and no main query selects from it.
+export async function fetchSubjectReviewNotes(): Promise<Record<string, string>> {
+  const { data, error } = await supabase.from('tutor_subject_reviews').select('competency_id, review_note');
+  if (error) {
+    console.error('fetchSubjectReviewNotes failed:', error);
+    return {};
+  }
+  const notes: Record<string, string> = {};
+  for (const row of (data ?? []) as { competency_id: string; review_note: string | null }[]) {
+    if (row.review_note) notes[row.competency_id] = row.review_note;
+  }
+  return notes;
 }
 
 // Logs a subject a tutor typed that isn't on the official `subjects` list —
@@ -846,8 +881,11 @@ export async function createSessionRequest(params: {
   institutionId?: string | null;
   scheduleType: 'now' | 'scheduled';
   scheduledDate: string; // ISO date, e.g. from BookingFormState.scheduledDate
-  scheduledTime: string; // "HH:MM"
+  scheduledTime: string; // "HH:MM", South African time
   durationHours?: number;
+  // The curriculum the learner follows, when their school follows several. Sent only when set, so a request still works on a
+  // database without the 19 Oct 2026 migration; empty means any curriculum of the school.
+  curriculumId?: string | null;
   paystackReference: string;
   // "Book again" (keep or swap, master 7aa): address the request to a tutor the learner has had a session with. The
   // database checks that (and the level, the subject and the 3-waiting limit) and refuses with a plain sentence if not.
@@ -864,12 +902,12 @@ export async function createSessionRequest(params: {
     scheduledDate,
     scheduledTime,
     durationHours = 1,
+    curriculumId = null,
     paystackReference,
     requestedTutorId = null,
   } = params;
 
-  const requestedStart =
-    scheduleType === 'now' ? new Date().toISOString() : new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString();
+  const requestedStart = requestStartIso(scheduleType, scheduledDate, scheduledTime);
 
   let enrollmentId: string | null = null;
   if (subjectName.trim() && gradeLevel.trim()) {
@@ -896,6 +934,8 @@ export async function createSessionRequest(params: {
       paystack_reference: paystackReference,
       // Only sent when set, so an ordinary request still works on a database without the keep-or-swap migration.
       ...(requestedTutorId ? { requested_tutor_id: requestedTutorId } : {}),
+      // Same for the curriculum answer (session_requests.curriculum_id exists only after the 19 Oct 2026 migration).
+      ...(curriculumId ? { curriculum_id: curriculumId } : {}),
     })
     .select('id, requested_start, charged_amount')
     .single();

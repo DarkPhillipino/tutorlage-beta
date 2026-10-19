@@ -25,7 +25,8 @@ import { FEATURES } from './lib/features';
 import { LinkedLearner, fetchMyLearners } from './lib/guardian';
 
 import { BookingFormState, SuggestionItem, UserAccount, PriceLevel, Institution, AppNotification } from './types';
-import { toIsoDate } from './lib/format';
+import { describeDate, toIsoDate } from './lib/format';
+import { DEFAULT_SESSION_HOURS, describeLength } from './lib/requestSchedule';
 import { fetchUpcomingStudentSessions, fetchUpcomingTutorSessions, fetchStudentGradeLevel, fetchStudentInstitution, updateStudentInstitution, fetchPriceLevelById } from './lib/queries';
 import { defaultBookAgainSchedule, type MyTutor } from './lib/keepOrSwap';
 import type { BookAgainLearner } from './components/MyTutorsPanel';
@@ -48,6 +49,8 @@ export default function App() {
     scheduleType: 'now',
     scheduledDate: toIsoDate(new Date()),
     scheduledTime: '14:00',
+    durationHours: DEFAULT_SESSION_HOURS,
+    curriculumId: null,
   });
 
   // User Account State. Name/email come from the real signed-in profile;
@@ -127,7 +130,7 @@ export default function App() {
     if (!user || !role || (role !== 'parent' && !savesOnOwnProfile(role))) return;
     const learnerId = role === 'parent' ? bookingFor?.id ?? null : user.id;
     // Start empty so switching learner never carries the previous learner's institution over.
-    setFormState(prev => ({ ...prev, institution: '', institutionId: null }));
+    setFormState(prev => ({ ...prev, institution: '', institutionId: null, curriculumId: null }));
     setUserAccount(prev => ({ ...prev, institution: '' }));
     if (!learnerId) return;
     let cancelled = false;
@@ -273,7 +276,13 @@ export default function App() {
   };
 
   const handleSelectInstitution = (institution: Institution) => {
-    setFormState(prev => ({ ...prev, institution: institution.name, institutionId: institution.id }));
+    // A different school may follow different curricula, so the answer to "which curriculum are you following?" is asked again.
+    setFormState(prev => ({
+      ...prev,
+      institution: institution.name,
+      institutionId: institution.id,
+      curriculumId: prev.institutionId === institution.id ? prev.curriculumId : null,
+    }));
     setUserAccount(prev => ({ ...prev, institution: institution.name }));
     // 7cq/7cv: keep it where it can be kept, and say only what really happened. A learner's (or an admin's own)
     // goes on their own profile and is announced only after the database confirms a row changed; a guardian's is
@@ -300,14 +309,20 @@ export default function App() {
     showToast(`Grade level updated to "${gradeLevel}"`);
   };
 
-  const handleUpdateSchedule = (scheduleType: 'now' | 'scheduled', date?: string, time?: string) => {
+  const handleUpdateSchedule = (scheduleType: 'now' | 'scheduled', date?: string, time?: string, hours?: number) => {
     setFormState(prev => ({
       ...prev,
       scheduleType,
       scheduledDate: date || prev.scheduledDate,
       scheduledTime: time || prev.scheduledTime,
+      durationHours: hours || prev.durationHours,
     }));
-    showToast(scheduleType === 'now' ? 'Set to instant tutor matching' : `Scheduled for ${date || 'Today'} at ${time || '14:00'}`);
+    const length = describeLength(hours || formState.durationHours);
+    showToast(
+      scheduleType === 'now'
+        ? `Set to instant tutor matching for ${length}`
+        : `Scheduled for ${describeDate(date || toIsoDate(new Date()))} at ${time || '14:00'} for ${length}`,
+    );
   };
 
   // The picked format (1-on-1, Homework Help, etc.) is a teaching-style

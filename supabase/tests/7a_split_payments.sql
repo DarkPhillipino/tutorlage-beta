@@ -28,6 +28,9 @@ begin
   where id in (v_tutor, v_tutor2);
   insert into tutor_subject_competencies (tutor_id, subject_name, min_grade_level, max_grade_level, verification_status)
   values (v_tutor, 'Mathematics', 'Grade 8', 'Grade 12', 'verified'), (v_tutor2, 'Mathematics', 'Grade 8', 'Grade 12', 'verified');
+  -- A tutor with no weekly working hours cannot be matched (migration 20261019090000): both work every day all day.
+  insert into tutor_availability (tutor_id, day_of_week, start_time, end_time)
+    select x, d, '00:00', '24:00' from unnest(array[v_tutor, v_tutor2]) x, generate_series(0, 6) d;
 
   -- The learner sends requests (as the browser does): R50 for an hour at level 1A.
   perform set_config('request.jwt.claims', json_build_object('sub', v_learner, 'role','authenticated')::text, true);
@@ -44,6 +47,8 @@ begin
   insert into session_requests (student_id, requested_by_profile_id, requested_start, duration_hours, paystack_reference, min_sub_tier_id, enrollment_id)
   values (v_learner, v_learner, now() + interval '2 days', 1, 'ta_3', '1A', v_enr) returning id into q3;
   reset role;
+  -- q2 is for a different day than q1, which the same tutor accepts first: one tutor cannot be in two places.
+  update session_requests set requested_start = requested_start + interval '1 day' where id = q2;
   select payment_status, charged_amount into s, num from session_requests where id = q1;
   r := r || format('A1 new request starts %s at R%s (want initiated, 50.00)', s, num) || E'\n';
 

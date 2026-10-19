@@ -21,6 +21,9 @@ begin
   where id in (v_tutor, v_tutor2);
   insert into tutor_subject_competencies (tutor_id, subject_name, min_grade_level, max_grade_level, verification_status)
   values (v_tutor, 'Mathematics', 'Grade 8', 'Grade 12', 'verified'), (v_tutor2, 'Mathematics', 'Grade 8', 'Grade 12', 'verified');
+  -- A tutor with no weekly working hours cannot be matched (migration 20261019090000): both work every day all day.
+  insert into tutor_availability (tutor_id, day_of_week, start_time, end_time)
+    select x, d, '00:00', '24:00' from unnest(array[v_tutor, v_tutor2]) x, generate_series(0, 6) d;
 
   -- The tutor books for themselves. Through the site this fails earlier: the subject enrolment needs a
   -- student_profiles row, which a tutor account doesn't have. But session_requests.student_id only needs a

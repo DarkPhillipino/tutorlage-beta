@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Loader2, ScrollText } from 'lucide-react';
 import { fetchAuditLog } from '../lib/queries';
 import { AuditLogEntry } from '../types';
+import { auditKindDetail, auditKindLabel } from '../lib/subjectApprovals';
 
 const ACTION_LABELS: Record<string, string> = {
   tutor_approved: 'Tutor approved',
@@ -47,7 +48,9 @@ export const AuditLog: React.FC = () => {
           {entries.map((e) => (
             <div key={e.id} className="p-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm font-bold text-[#0F172A]">{ACTION_LABELS[e.action] ?? e.action}</div>
+                {/* Rows written by the 19 Oct 2026 functions carry a `kind` that says more than the action name (subject approved, a checklist line saved ...). */}
+                <div className="text-sm font-bold text-[#0F172A]">{auditKindLabel(e.metadata) ?? ACTION_LABELS[e.action] ?? e.action}</div>
+                {auditKindDetail(e.metadata) && <div className="text-xs text-slate-600 mt-0.5">{auditKindDetail(e.metadata)}</div>}
                 <div className="text-xs text-slate-500 mt-0.5">
                   {e.adminName ?? 'Unknown admin'} · {e.targetEntityType} <span className="font-mono text-[10px]">{e.targetEntityId.slice(0, 8)}</span>
                 </div>

@@ -118,8 +118,8 @@ check('the credential lines are read from credential_definitions (the admin app 
 check('nothing sits between the "Choose a price level" heading and the first tier for an ordinary request; only booking someone again has a line, saying who the request goes to (CEO, 17 Oct 2026)',
   !/You pay exactly the price shown/.test(prices) && !/MENU_HEADLINE/.test(prices) && /\{bookAgain && \(\s*<p className="text-xs text-slate-600 mt-1 leading-relaxed">/.test(prices) &&
     /This request goes to \$\{bookAgain\.firstName\}\. Choose the price level/.test(prices));
-check('the counts come from the same database function the old page used', /fetchAvailablePriceLevels\(\{ subject: appliedSubject/.test(prices));
-check('the waiting-list prompt is still on the dead end when nobody teaches the subject', /FEATURES\.tutorWaitlist && waitlistLearnerId && appliedSubject\.trim\(\) !== ''/.test(prices));
+check('the counts come from the same database function the old page used (19 Oct 2026: now also with the start, the length and the curriculum)', /const search = \{ subject: appliedSubject, gradeLevel, institutionId: formState\.institutionId, curriculumId: answeredCurriculumId \}/.test(prices) && /fetchAvailablePriceLevels\(\{\s*\.\.\.search,\s*start: requestStartIso/.test(prices));
+check('the waiting-list prompt is still on the dead end when nobody teaches the subject (but not when tutors exist and are only busy then)', /!noTutorFreeAtThatTime && FEATURES\.tutorWaitlist && waitlistLearnerId && appliedSubject\.trim\(\) !== ''/.test(prices));
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

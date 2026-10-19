@@ -238,7 +238,7 @@ begin
   insert into tutor_subject_competencies (tutor_id, subject_name, curriculum, min_grade_level, max_grade_level, verification_status)
   values (v_v, 'Life Sciences', 'caps', 'Grade 10', 'Grade 12', 'verified');
   select verification_status::text into t from tutor_subject_competencies where tutor_id = v_v and subject_name = 'Life Sciences';
-  r := r || format('P36 setting off (phase 1): self-added subject stays %s (want verified, unchanged behaviour)', t) || E'\n';
+  r := r || format('P36 setting off: the guard no longer depends on the setting (migration 20261019090000), a self-added subject is stored as %s (want pending)', t) || E'\n';
   reset role;
 
   -- Admin views.

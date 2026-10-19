@@ -1,8 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Trash2, GraduationCap, AlertCircle, Info } from 'lucide-react';
 import { TutorSubjectCompetency } from '../types';
-import { addTutorSubjectCompetency, deleteTutorSubjectCompetency, fetchSubjectSuggestions, fetchGradeLevelSuggestions, logSubjectCandidate } from '../lib/queries';
+import { addTutorSubjectCompetency, deleteTutorSubjectCompetency, fetchSubjectSuggestions, fetchGradeLevelSuggestions, logSubjectCandidate, fetchSubjectReviewNotes } from '../lib/queries';
 import { getErrorMessage } from '../lib/errors';
+import { competencyStatus, rejectedReasonLine, subjectAddedLine, subjectStatusLabel } from '../lib/subjectApproval';
+
+// The colours of the status shown beside each subject (waiting, approved, not approved).
+const STATUS_STYLE = {
+  pending: 'bg-amber-50 text-amber-700 border-amber-200',
+  under_review: 'bg-amber-50 text-amber-700 border-amber-200',
+  verified: 'bg-emerald-50 text-[#15803D] border-emerald-200',
+  rejected: 'bg-rose-50 text-rose-700 border-rose-200',
+} as const;
 
 // Curriculum is a fixed Postgres enum (see CLAUDE.md's routing table), not a
 // reference table — hardcoded here the same way TIER_ICONS is hardcoded in
@@ -27,9 +36,25 @@ interface SubjectCompetencyEditorProps {
 // is the thing that actually makes a tutor show up in subject-filtered
 // search (see fetchTutors in queries.ts): with zero rows here, no subject
 // search will ever match, no matter how complete the rest of the profile is.
+// Since 19 Oct 2026 a subject the tutor adds waits for Tutorlage to approve it
+// (the database stores it as pending); each subject shows where it stands, and
+// a subject that was not approved shows the reason an admin gave.
 export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = ({ tutorId, subjects, onChange }) => {
   const [subjectOptions, setSubjectOptions] = useState<string[]>([]);
   const [gradeLevelOptions, setGradeLevelOptions] = useState<string[]>([]);
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+
+  const rejectedIds = subjects.filter((s) => s.verificationStatus === 'rejected').map((s) => s.id).join(',');
+  useEffect(() => {
+    if (!rejectedIds) return;
+    let cancelled = false;
+    fetchSubjectReviewNotes().then((notes) => {
+      if (!cancelled) setReviewNotes(notes);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [rejectedIds]);
 
   const [subjectName, setSubjectName] = useState('');
   const [curriculum, setCurriculum] = useState(CURRICULUM_OPTIONS[0].value);
@@ -77,10 +102,9 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
     }
 
     // Self-expanding taxonomy: a subject not on the official list isn't
-    // blocked — it's added to the tutor's profile right away (so they can
-    // start teaching it immediately) and separately logged as a candidate
-    // for the official list, rather than making the tutor wait on approval
-    // before they can use it at all.
+    // blocked — it's added to the tutor's profile (waiting for Tutorlage to
+    // approve it, like every subject) and separately logged as a candidate
+    // for the official list.
     const isKnownSubject = subjectOptions.some((s) => s.toLowerCase() === trimmedName.toLowerCase());
 
     setIsSaving(true);
@@ -98,9 +122,11 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
         logSubjectCandidate(tutorId, trimmedName, curriculum).catch((e) =>
           console.error('logSubjectCandidate failed:', e)
         );
-        setCandidateNotice(
-          `"${trimmedName}" isn't on our official subject list yet — it's live on your profile now, and we've logged it for review.`
-        );
+      }
+      // The wording follows the status the database actually stored: approved rows are live, everything else waits.
+      const status = competencyStatus(competency.verificationStatus);
+      if (!isKnownSubject || status !== 'verified') {
+        setCandidateNotice(subjectAddedLine(trimmedName, status, isKnownSubject));
       }
     } catch (e) {
       setError(getErrorMessage(e, 'Could not add that subject.'));
@@ -135,11 +161,20 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
             <p className="text-xs text-slate-500">No subjects added yet — add one below so students searching for it can find you.</p>
           </div>
         ) : (
-          subjects.map((s) => (
+          subjects.map((s) => {
+            const status = competencyStatus(s.verificationStatus);
+            const reason = status === 'rejected' ? rejectedReasonLine(s.reviewNote ?? reviewNotes[s.id]) : null;
+            return (
             <div key={s.id} className="bg-white rounded-xl p-3 border border-slate-200 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-xs font-bold text-[#0F172A] truncate">{s.subjectName}</div>
                 <div className="text-[10px] text-slate-500 mt-0.5">{s.curriculum} · {s.minGradeLevel} - {s.maxGradeLevel}</div>
+                <div className="mt-1">
+                  <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_STYLE[status]}`}>
+                    {subjectStatusLabel(status)}
+                  </span>
+                </div>
+                {reason && <div className="text-[10px] text-rose-700 mt-1">{reason}</div>}
               </div>
               <button
                 onClick={() => handleDelete(s.id)}
@@ -150,7 +185,8 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

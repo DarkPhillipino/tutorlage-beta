@@ -1,13 +1,22 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, MapPin, Clock, ChevronDown, ShieldCheck, Search, Loader2, UserX, Tag, X, AlertTriangle, Users, CreditCard, GraduationCap } from 'lucide-react';
-import { BookingFormState, PriceLevel, SuggestionItem } from '../types';
-import { fetchTutors, createSessionRequest, fetchPriceLadder, fetchAvailablePriceLevels } from '../lib/queries';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, MapPin, Clock, ChevronDown, ShieldCheck, Search, Loader2, UserX, Tag, X, AlertTriangle, Users, CreditCard, GraduationCap, BookOpen } from 'lucide-react';
+import { BookingFormState, PriceLevel, SchoolCurriculum, SuggestionItem } from '../types';
+import { fetchTutors, createSessionRequest, fetchPriceLadder, fetchAvailablePriceLevels, fetchSchoolCurricula } from '../lib/queries';
+import {
+  CURRICULUM_QUESTION,
+  CURRICULUM_REQUIRED,
+  NO_TUTOR_FREE_HINT,
+  NO_TUTOR_FREE_TITLE,
+  curriculumQuestionNeeded,
+  describeSchedule,
+  requestStartIso,
+} from '../lib/requestSchedule';
 import { PriceLadder } from './PriceLadder';
 import { chosenLevelLine } from '../lib/ladderCopy';
 import type { LadderRow } from '../lib/ladderCopy';
 import { initializePayment } from '../lib/payments';
 import { getCurrencySymbol } from '../lib/currencies';
-import { formatRate, describeDate } from '../lib/format';
+import { formatRate } from '../lib/format';
 import { useAuth } from '../lib/AuthContext';
 import { getErrorMessage } from '../lib/errors';
 import { useAccountStatus } from './AccountGate';
@@ -65,9 +74,6 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   const waitlistLearnerId = isViewOnlyLearner ? null : isGuardian ? (learner?.id ?? null) : (user?.id ?? null);
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [tutorCount, setTutorCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [gradeLevelUnrecognized, setGradeLevelUnrecognized] = useState(false);
 
@@ -77,31 +83,106 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // tier is picked/cleared, or their account-level grade level changes.
   const [appliedSubject, setAppliedSubject] = useState(formState.subject);
 
+  // The curricula the learner's school follows. The question "Which curriculum are you following?" is asked only when there is
+  // more than one (CEO, 19 Oct 2026); the answer lives in formState (App clears it when the school changes) and narrows the
+  // tutors counted and, later, the tutors who may accept. A lookup that fails or is not there yet means no question.
+  const [curricula, setCurricula] = useState<SchoolCurriculum[]>([]);
   useEffect(() => {
-    setIsLoading(true);
-    setLoadError(false);
+    let cancelled = false;
+    setCurricula([]);
+    fetchSchoolCurricula(formState.institutionId)
+      .then((rows) => {
+        if (!cancelled) setCurricula(rows);
+      })
+      .catch((err) => console.error('fetchSchoolCurricula failed:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [formState.institutionId]);
+  const needsCurriculum = curriculumQuestionNeeded(curricula);
+  const answeredCurriculumId =
+    needsCurriculum && curricula.some((c) => c.id === formState.curriculumId) ? formState.curriculumId : null;
+  const curriculumUnanswered = needsCurriculum && !answeredCurriculumId;
+
+  // How many tutors can take this request. The database counts tutors approved for the subject, grade and curriculum who are
+  // also free for the whole date and length chosen (an instant request counts from now). `noneAtThatTime` is set when nobody is
+  // free but tutors do teach this: asked again without the time, so the page can say "no tutor is free at that time" instead of
+  // offering the waiting list. If the counts cannot be read the plain tutor search below supplies the number.
+  const [counts, setCounts] = useState<
+    { status: 'loading' } | { status: 'failed' } | { status: 'ok'; levels: PriceLevel[]; noneAtThatTime: boolean }
+  >({ status: 'loading' });
+  const timeKey = formState.scheduleType === 'now' ? 'now' : `${formState.scheduledDate}T${formState.scheduledTime}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    setCounts({ status: 'loading' });
+    const search = { subject: appliedSubject, gradeLevel, institutionId: formState.institutionId, curriculumId: answeredCurriculumId };
+    fetchAvailablePriceLevels({
+      ...search,
+      start: requestStartIso(formState.scheduleType, formState.scheduledDate, formState.scheduledTime),
+      hours: formState.durationHours,
+    })
+      .then(async (levels) => {
+        let noneAtThatTime = false;
+        if (levels.length === 0) {
+          try {
+            noneAtThatTime = (await fetchAvailablePriceLevels(search)).length > 0;
+          } catch (err) {
+            console.error('fetchAvailablePriceLevels (any time) failed:', err);
+          }
+        }
+        if (!cancelled) setCounts({ status: 'ok', levels, noneAtThatTime });
+      })
+      .catch((err) => {
+        console.error('fetchAvailablePriceLevels failed:', err);
+        if (!cancelled) setCounts({ status: 'failed' });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // The schedule is read through timeKey (it is "now" for an instant request, which must not re-run on every render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedSubject, gradeLevel, formState.institutionId, answeredCurriculumId, timeKey, formState.durationHours, retryCount]);
+
+  // The plain tutor search: the unrecognised-grade note, and the number of tutors only if the counts above could not be read.
+  const [fallbackCount, setFallbackCount] = useState(0);
+  const [fallbackLoading, setFallbackLoading] = useState(true);
+  const [fallbackFailed, setFallbackFailed] = useState(false);
+  useEffect(() => {
+    setFallbackLoading(true);
+    setFallbackFailed(false);
     fetchTutors({
       subject: appliedSubject,
       gradeLevel,
       institutionId: formState.institutionId ?? undefined,
     })
       .then(({ tutors, gradeLevelRecognized }) => {
-        setTutorCount(tutors.length);
+        setFallbackCount(tutors.length);
         setGradeLevelUnrecognized(!gradeLevelRecognized);
       })
       .catch((err) => {
         console.error('fetchTutors failed:', err);
-        setTutorCount(0);
-        setLoadError(true);
+        setFallbackCount(0);
+        setFallbackFailed(true);
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => setFallbackLoading(false));
   }, [appliedSubject, gradeLevel, retryCount, formState.institutionId]);
 
-  // The whole ladder (all 16 levels with their minimums), read once, and how many tutors can take a request at each level for
-  // this search. If the counts cannot be read the ladder still shows and every level can still be chosen.
+  // Every tutor counted at the lowest level is also counted at the others, so the largest count is the number of tutors.
+  const countedTutors = counts.status === 'ok' ? counts.levels.reduce((most, l) => Math.max(most, l.tutors), 0) : null;
+  const tutorCount = countedTutors ?? fallbackCount;
+  const isLoading = counts.status === 'loading' || (counts.status === 'failed' && fallbackLoading);
+  const loadError = counts.status === 'failed' && fallbackFailed;
+  const noTutorFreeAtThatTime = counts.status === 'ok' && counts.noneAtThatTime;
+  const available = useMemo(
+    () => (counts.status === 'ok' ? new Map(counts.levels.map((l) => [l.id, l.tutors])) : null),
+    [counts],
+  );
+
+  // The whole ladder (all 16 levels with their minimums), read once. If the counts cannot be read the ladder still shows and
+  // every level can still be chosen.
   const [ladder, setLadder] = useState<LadderRow[]>([]);
   const [ladderError, setLadderError] = useState(false);
-  const [available, setAvailable] = useState<Map<string, number> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,21 +202,6 @@ export const PricesPage: React.FC<PricesPageProps> = ({
     };
   }, [retryCount]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchAvailablePriceLevels({ subject: appliedSubject, gradeLevel, institutionId: formState.institutionId })
-      .then((levels) => {
-        if (!cancelled) setAvailable(new Map(levels.map((l) => [l.id, l.tutors])));
-      })
-      .catch((err) => {
-        console.error('fetchAvailablePriceLevels failed:', err);
-        if (!cancelled) setAvailable(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [appliedSubject, gradeLevel, formState.institutionId, retryCount]);
-
   const searchIsStale = formState.subject !== appliedSubject;
 
   const handleApplySearch = () => {
@@ -146,9 +212,9 @@ export const PricesPage: React.FC<PricesPageProps> = ({
 
   // A pricing tier can't be reached before the search itself is filled out —
   // clicking Search with something missing jumps to the first unfilled
-  // field (subject → grade level → institution) instead of proceeding.
+  // field (subject → grade level → institution → curriculum, when asked) instead of proceeding.
   const subjectInputRef = useRef<HTMLInputElement>(null);
-  const [missingField, setMissingField] = useState<'subject' | 'gradeLevel' | 'institution' | null>(null);
+  const [missingField, setMissingField] = useState<'subject' | 'gradeLevel' | 'institution' | 'curriculum' | null>(null);
 
   const handleSearchClick = () => {
     if (!formState.subject.trim()) {
@@ -164,6 +230,10 @@ export const PricesPage: React.FC<PricesPageProps> = ({
     if (!formState.institution.trim()) {
       setMissingField('institution');
       onChangeInstitution();
+      return;
+    }
+    if (curriculumUnanswered) {
+      setMissingField('curriculum');
       return;
     }
     setMissingField(null);
@@ -182,13 +252,16 @@ export const PricesPage: React.FC<PricesPageProps> = ({
     if (missingField === 'gradeLevel' && gradeLevel.trim()) {
       setMissingField(null);
     }
-  }, [formState.institution, gradeLevel, missingField]);
+    if (missingField === 'curriculum' && !curriculumUnanswered) {
+      setMissingField(null);
+    }
+  }, [formState.institution, gradeLevel, missingField, curriculumUnanswered]);
 
   // A tier is required before Send Request can charge anything real. The
   // amount shown here is for display only — the database sets the real
-  // price on insert (guard_session_request_insert), and the payments server
-  // charges that stored amount, never a number sent from the browser.
-  const durationHours = 1;
+  // price on insert (guard_session_request_insert: price x length), and the
+  // payments server charges that stored amount, never a number sent from the browser.
+  const durationHours = formState.durationHours;
   const chargedAmount = selectedLevel ? selectedLevel.price * durationHours : null;
 
   // Creates the request (payment_status 'initiated', invisible to tutors),
@@ -209,6 +282,11 @@ export const PricesPage: React.FC<PricesPageProps> = ({
       );
       return;
     }
+    if (curriculumUnanswered) {
+      setMissingField('curriculum');
+      setSendError(CURRICULUM_REQUIRED);
+      return;
+    }
     setSendError(null);
     setIsSending(true);
     try {
@@ -226,6 +304,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
         scheduledDate: formState.scheduledDate,
         scheduledTime: formState.scheduledTime,
         durationHours,
+        curriculumId: answeredCurriculumId,
         paystackReference: reference,
         // "Book again": addressed to a tutor the learner has had; the database checks it and says why if it refuses.
         requestedTutorId: bookAgain?.tutorId ?? null,
@@ -397,6 +476,29 @@ export const PricesPage: React.FC<PricesPageProps> = ({
             <p className="text-xs font-semibold text-rose-600 mb-2">Select your institution to start searching.</p>
           )}
 
+          {/* Only a learner whose school follows more than one curriculum is asked which one (CEO, 19 Oct 2026). */}
+          {needsCurriculum && (
+            <>
+              <div className={`flex items-center px-4 py-3.5 rounded-xl bg-slate-100 mt-3 mb-1 border ${missingField === 'curriculum' ? 'border-rose-400 ring-2 ring-rose-200' : 'border-transparent'}`}>
+                <BookOpen className="w-4 h-4 mr-1.5 text-[#15803D] shrink-0" />
+                <select
+                  value={answeredCurriculumId ?? ''}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, curriculumId: e.target.value || null }))}
+                  aria-label={CURRICULUM_QUESTION}
+                  className="w-full bg-transparent text-[#0F172A] text-sm font-semibold focus:outline-none cursor-pointer"
+                >
+                  <option value="">{CURRICULUM_QUESTION}</option>
+                  {curricula.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              {missingField === 'curriculum' && (
+                <p className="text-xs font-semibold text-rose-600 mb-2">{CURRICULUM_REQUIRED}</p>
+              )}
+            </>
+          )}
+
           {/* Schedule button */}
           <button
             type="button"
@@ -405,11 +507,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
           >
             <span className="flex items-center space-x-2.5 text-sm font-semibold text-[#0F172A]">
               <Clock className="w-4 h-4 text-[#0F172A]" />
-              <span>
-                {formState.scheduleType === 'now'
-                  ? 'As soon as possible'
-                  : `Scheduled: ${describeDate(formState.scheduledDate)}, ${formState.scheduledTime || '14:00'}`}
-              </span>
+              <span>{describeSchedule(formState)}</span>
             </span>
             <ChevronDown className="w-4 h-4 text-slate-600" />
           </button>
@@ -476,11 +574,14 @@ export const PricesPage: React.FC<PricesPageProps> = ({
             ) : tutorCount === 0 && !addressed ? (
               <div className="text-center py-16 px-4">
                 <UserX className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm font-bold text-[#0F172A]">No tutor can take this request yet</p>
-                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                  {noTutorsMessage}
+                <p className="text-sm font-bold text-[#0F172A]">
+                  {noTutorFreeAtThatTime ? NO_TUTOR_FREE_TITLE : 'No tutor can take this request yet'}
                 </p>
-                {FEATURES.tutorWaitlist && waitlistLearnerId && appliedSubject.trim() !== '' && (
+                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                  {noTutorFreeAtThatTime ? NO_TUTOR_FREE_HINT : noTutorsMessage}
+                </p>
+                {/* Tutors do teach this, they are just busy then: waiting for one to appear would be wrong, so no waiting-list offer. */}
+                {!noTutorFreeAtThatTime && FEATURES.tutorWaitlist && waitlistLearnerId && appliedSubject.trim() !== '' && (
                   <WaitlistPrompt
                     learnerId={waitlistLearnerId}
                     subject={appliedSubject}
@@ -535,7 +636,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                 <p className="text-sm font-bold text-[#0F172A] mb-1">
                   {bookAgain
                     ? `This request goes to ${bookAgain.firstName}`
-                    : chosenLevelLine(selectedLevel.tutors)}
+                    : chosenLevelLine(available ? (available.get(selectedLevel.id) ?? 0) : selectedLevel.tutors)}
                 </p>
                 {isViewOnlyLearner ? (
                   <p className="text-xs text-slate-600 max-w-sm bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">

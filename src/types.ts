@@ -7,13 +7,28 @@ export interface Institution {
   institutionType: string;
 }
 
-// Mirrors public.tutor_subject_competencies for one tutor.
+// The review state of one subject a tutor teaches (public.tutor_subject_competencies.verification_status). 'verified' is
+// "approved by Tutorlage"; only an admin changes it (19 Oct 2026).
+export type CompetencyStatus = 'pending' | 'under_review' | 'verified' | 'rejected';
+
+// Mirrors public.tutor_subject_competencies for one tutor. verificationStatus is absent on a row read for the public tutor
+// search (those rows are all approved, and the search does not ask); reviewNote is the reason an admin gave when they did not
+// approve it, read separately and only on the tutor's own Teaching tab (lib/subjectApproval.ts).
 export interface TutorSubjectCompetency {
   id: string;
   subjectName: string;
   curriculum: string;
   minGradeLevel: string;
   maxGradeLevel: string;
+  verificationStatus?: CompetencyStatus;
+  reviewNote?: string | null;
+}
+
+// One curriculum a school follows (public.curricula, via the database function school_curricula).
+export interface SchoolCurriculum {
+  id: string;
+  code: string;
+  name: string;
 }
 
 // Mirrors public.tutor_profiles joined with public.profiles (name/avatar)
@@ -280,7 +295,9 @@ export interface BookingFormState {
   subject: string;
   scheduleType: 'now' | 'scheduled';
   scheduledDate: string;
-  scheduledTime: string;
+  scheduledTime: string; // "HH:MM", South African time (lib/requestSchedule.ts)
+  durationHours: number; // 1 to 3 in half-hours; the date and the length decide which tutors are free
+  curriculumId: string | null; // the answer to "which curriculum are you following?", asked only when the school follows several
 }
 
 export interface UserAccount {

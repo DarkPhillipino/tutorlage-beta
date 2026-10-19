@@ -45,6 +45,9 @@ begin
     (v_a, 'Mathematics', 'Grade 8', 'Grade 12', 'verified'), (v_b, 'Mathematics', 'Grade 8', 'Grade 12', 'verified'),
     (v_h, 'History', 'Grade 8', 'Grade 12', 'verified'), (v_u, 'Mathematics', 'Grade 8', 'Grade 12', 'verified'),
     (v_d, 'Mathematics', 'Grade 8', 'Grade 12', 'verified');
+  -- A tutor with no weekly working hours cannot be matched (migration 20261019090000), so every tutor here works every day all day.
+  insert into tutor_availability (tutor_id, day_of_week, start_time, end_time)
+    select x, d, '00:00', '24:00' from unnest(array[v_a, v_b, v_h, v_u, v_d]) x, generate_series(0, 6) d;
   insert into student_subject_enrollments (student_id, subject_name, grade_level) values (v_l, 'Mathematics', 'Grade 11') returning id into e_l;
   insert into student_subject_enrollments (student_id, subject_name, grade_level) values (v_c, 'Mathematics', 'Grade 9') returning id into e_c;
 
@@ -211,7 +214,7 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', v_p, 'role','authenticated')::text, true);
   set local role authenticated;
   insert into session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, paystack_reference, min_sub_tier_id)
-    values (v_c, e_c, v_p, now() + interval '3 days', 1, 'kos_qc', '1A') returning id into qc;
+    values (v_c, e_c, v_p, now() + interval '3 days 3 hours', 1, 'kos_qc', '1A') returning id into qc;   -- later than q1, which tutor A accepts: one tutor cannot be in two places
   reset role;
   set local role service_role;
   select public.record_card_verification('kos_qo', 100, 'ZAR', auth_ok, 'k@example.invalid') into t;
@@ -301,7 +304,7 @@ begin
   insert into session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, status, payment_status, paystack_reference, min_sub_tier_id, tier_id, charged_amount, requested_tutor_id, expires_at)
     values (v_l, e_l, v_l, now() + interval '3 days', 1, 'pending', 'card_verified', 'kos_wb', '1A', 1, 50, v_b, now() + interval '40 hours') returning id into qx;
   insert into session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, status, payment_status, paystack_reference, min_sub_tier_id, tier_id, charged_amount)
-    values (v_l, e_l, v_l, now() + interval '3 days', 1, 'pending', 'card_verified', 'kos_o2', '1A', 1, 50) returning id into qn;
+    values (v_l, e_l, v_l, now() + interval '3 days 3 hours', 1, 'pending', 'card_verified', 'kos_o2', '1A', 1, 50) returning id into qn;   -- later than qo, which tutor B accepts
   perform set_config('request.jwt.claims', json_build_object('sub', v_l, 'role','authenticated')::text, true);
   set local role authenticated;
   perform public.set_tutor_choice(v_l, v_b, 'avoid');

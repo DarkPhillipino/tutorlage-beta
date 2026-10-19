@@ -253,3 +253,53 @@ export interface TutorLevelInfo {
   freezeReason: string | null;
   credentials: TutorCredentialRow[];
 }
+
+// ---- Subject approvals and curricula (CEO, 19 Oct 2026; migration 20261019090000) ----
+// A subject a tutor declares (tutor_subject_competencies) waits for an admin to approve it against the checklist for its
+// curriculum. 'verified' is "approved".
+export type CompetencyStatus = 'pending' | 'under_review' | 'verified' | 'rejected';
+
+export interface SubjectApprovalRow {
+  id: string;
+  tutorId: string;
+  tutorName: string;
+  subjectName: string;
+  curriculum: string; // curriculum_type: caps, ieb, cambridge, tertiary, primary_caps, other
+  minGradeLevel: string;
+  maxGradeLevel: string;
+  status: CompetencyStatus;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  criteriaMet: string[]; // ids of the checklist lines that were ticked
+  addedAt: string;
+}
+
+// One line of the approval checklist for a curriculum (curriculum_criteria).
+export interface CriterionRow {
+  id: string;
+  curriculum: string;
+  sortOrder: number;
+  text: string;
+  required: boolean;
+  active: boolean;
+}
+
+// One row of public.curricula (the list a school's curricula are chosen from).
+export interface CurriculumOption {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface SchoolSearchResult {
+  id: string;
+  name: string;
+}
+
+// The curricula one school follows: its own plus the extras an admin added.
+export interface SchoolCurriculaInfo {
+  schoolId: string;
+  schoolName: string;
+  ownIds: string[]; // the school's own curriculum: always followed, cannot be removed here
+  chosenIds: string[]; // everything it follows now (own + extras)
+}
