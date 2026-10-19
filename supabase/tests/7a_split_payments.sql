@@ -30,7 +30,7 @@ begin
   values (v_tutor, 'Mathematics', 'Grade 8', 'Grade 12', 'verified'), (v_tutor2, 'Mathematics', 'Grade 8', 'Grade 12', 'verified');
   -- A tutor with no weekly working hours cannot be matched (migration 20261019090000): both work every day all day.
   insert into tutor_availability (tutor_id, day_of_week, start_time, end_time)
-    select x, d, '00:00', '24:00' from unnest(array[v_tutor, v_tutor2]) x, generate_series(0, 6) d;
+    select hrs.tid, dw.dn, '00:00', '24:00' from unnest(array[v_tutor, v_tutor2]) as hrs(tid), generate_series(0, 6) as dw(dn);
 
   -- The learner sends requests (as the browser does): R50 for an hour at level 1A.
   perform set_config('request.jwt.claims', json_build_object('sub', v_learner, 'role','authenticated')::text, true);

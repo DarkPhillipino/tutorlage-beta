@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { competencyStatus, rejectedReasonLine, subjectAddedLine, subjectStatusLabel } from '../../src/lib/subjectApproval';
-import { notificationTarget } from '../../src/lib/notificationTarget';
 import type { TutorSubjectCompetency } from '../../src/types';
 
 let failures = 0;
@@ -43,9 +42,6 @@ async function main() {
     /from\('tutor_subject_reviews'\)\.select\('competency_id, review_note'\)/.test(queries) && !/tutor_subject_competencies[\s\S]{0,80}review_note/.test(queries));
   check('a failure reading the reasons gives none instead of an error on the Teaching tab', /console\.error\('fetchSubjectReviewNotes failed:', error\);\s*return \{\};/.test(queries));
   check('a subject the tutor adds is sent as before, so the page works before the migration; the database decides what is stored', /verification_status: 'verified',\s*\}\)\s*\.select/.test(queries));
-
-  // ---- notices -------------------------------------------------------------------------------------------------------------------
-  check('the notices that a subject was approved or not approved open the Teach screen', notificationTarget('subject_approved') === 'teach' && notificationTarget('subject_rejected') === 'teach');
 
   // The editor's rows, rendered without the data layer (a pretend copy of the row markup is not needed: the label and style come from the lib).
   const sample: TutorSubjectCompetency[] = [{ id: 'a', subjectName: 'Physics', curriculum: 'caps', minGradeLevel: 'Grade 8', maxGradeLevel: 'Grade 12', verificationStatus: 'rejected', reviewNote: 'Not enough proof' }];

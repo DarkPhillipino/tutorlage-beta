@@ -263,7 +263,7 @@ begin
   set local role authenticated;
   select count(*) into v_cnt from available_requests_for_tutor();
   select count(*) into n from session_requests;
-  r := r || format('K20 a learner who is not a tutor sees nothing through the tutor function (%s) and no request in the table (%s) (want 0, 0)', v_cnt, n) || E'\n';
+  r := r || format('K20 a learner who is not a tutor sees nothing through the tutor function (%s) and the request table (%s) (want 0, 1: only the stranger''s own cancelled request kos_hi)', v_cnt, n) || E'\n';
   reset role;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_b, 'role','authenticated')::text, true);
@@ -327,7 +327,7 @@ begin
   set local role authenticated;
   begin
     insert into session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, paystack_reference, min_sub_tier_id, requested_tutor_id)
-      values (v_l, e_l, v_l, now() + interval '3 days', 1, 'kos_b3', '1A', v_b);
+      values (v_l, e_l, v_l, now() + interval '5 days', 1, 'kos_b3', '1A', v_b);   -- 5 days: B is busy at +3 days (K24), which would refuse it for the wrong reason
     r := r || 'K29 FAIL: addressed an avoided tutor' || E'\n';
   exception when others then r := r || format('K29 the learner cannot address a tutor they tried someone else instead of: %s', sqlerrm) || E'\n'; end;
   perform public.clear_tutor_choice(v_l, v_b);
@@ -384,7 +384,7 @@ begin
   set local role authenticated;
   begin
     insert into session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, paystack_reference, min_sub_tier_id, requested_tutor_id)
-      values (v_c, e_c, v_p, now() + interval '3 days', 1, 'kos_end2', '1A', v_a);
+      values (v_c, e_c, v_p, now() + interval '5 days', 1, 'kos_end2', '1A', v_a);   -- 5 days: A is busy at +3 days (K23), which would refuse it for the wrong reason
     r := r || 'K37 FAIL: addressed a tutor who ended the pairing' || E'\n';
   exception when others then r := r || format('K37 the parent cannot address the tutor who ended the pairing: %s', sqlerrm) || E'\n'; end;
   select count(*) into v_cnt from learner_tutor_choices;

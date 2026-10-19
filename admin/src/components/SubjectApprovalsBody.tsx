@@ -15,7 +15,7 @@ import { getErrorMessage } from '../lib/errors';
 
 // The Subject approvals screen (CEO, 19 Oct 2026): every subject a tutor has declared, the ones waiting first. An admin reads the
 // tutor's documents on their page (the name is a link), ticks the checklist for the subject's curriculum, writes a note and
-// approves or does not approve. The tutor is told either way; the database function writes the audit row.
+// approves or does not approve. The tutor gets no notice (CEO, 19 Oct 2026); the database function writes the audit row and the private review.
 
 export interface SubjectApprovalActions {
   review: (competencyId: string, decision: 'approve' | 'reject', reason: string, criteria: string[]) => Promise<void>;

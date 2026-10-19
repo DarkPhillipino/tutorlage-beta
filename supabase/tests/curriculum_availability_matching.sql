@@ -225,19 +225,21 @@ begin
   delete from sessions where tutor_id = v_a and scheduled_start = t10;
 
   -- ---- the price counts --------------------------------------------------------------------------------------------------------
+  -- (Since the best-fit-first migration 20261019120000 the counts are of tutors who could take the request once it has widened after 5
+  -- minutes: the school and the curriculum no longer narrow them; the subject, grade and free time still do. The wants below say so.)
   select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1);
-  r := r || format('M22 counts for the CAPS school, no time (old three-value call): %s (want 2: A, N)', n) || E'\n';
+  r := r || format('M22 counts for the CAPS school, no time (old three-value call): %s (want 3: A, B, N)', n) || E'\n';
   select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1, t10, 1);
-  r := r || format('M23 ... for Monday 10:00, 1 hour: %s (want 1: A; N has no hours)', n) || E'\n';
+  r := r || format('M23 ... for Monday 10:00, 1 hour: %s (want 2: A, B; N has no hours)', n) || E'\n';
   select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1, (mon + 6 + time '10:00') at time zone 'Africa/Johannesburg', 1);
-  r := r || format('M24 ... for a Sunday: %s (want 0)', n) || E'\n';
+  r := r || format('M24 ... for a Sunday: %s (want 1: B, who works every day)', n) || E'\n';
   select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s4, null, null, null);
   select coalesce(max(tutors), 0) into v_cnt from available_price_levels('Zorology', 'Grade 10', s4, null, null, c_ieb);
-  r := r || format('M25the mixed school: no answer=%s (want 3: A, N, B), answered IEB=%s (want 1: B)', n, v_cnt) || E'\n';
+  r := r || format('M25 the mixed school: no answer=%s (want 3: A, N, B), answered IEB=%s (want 3: the answer no longer narrows the counts)', n, v_cnt) || E'\n';
   select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s4, null, null, c_caps);
-  r := r || format('M25b the mixed school, answered CAPS: %s (want 2: A, N)', n) || E'\n';
+  r := r || format('M25b the mixed school, answered CAPS: %s (want 3: A, B, N)', n) || E'\n';
   select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 99', s1);
-  r := r || format('M26 a grade that is not in the list: %s (want 3: A, N, E)', n) || E'\n';
+  r := r || format('M26 a grade that is not in the list: %s (want 4: A, B, N, E)', n) || E'\n';
   select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s2, (mon + time '23:00') at time zone 'Africa/Johannesburg', 1.5);
   r := r || format('M27 the IEB school at 23:00 for 1.5 hours (across midnight): %s (want 1: B)', n) || E'\n';
   select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', null);
@@ -324,7 +326,7 @@ begin
   t := coalesce(public.request_fit_code(v_a, q4), 'ok');
   r := r || format('M43b the accept already in progress does not block itself when asked again: %s (want ok)', t) || E'\n';
   select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1, t13, 1);
-  r := r || format('M44 the price counts see the accept in progress: tutors for 13:00 = %s (want 0: A is being charged for 13:00-14:30)', n) || E'\n';
+  r := r || format('M44 the price counts see the accept in progress: tutors for 13:00 = %s (want 1: B; A is being charged for 13:00-14:30)', n) || E'\n';
 
   -- a request that "starts now" is judged from now: E works every day all day
   insert into student_subject_enrollments (student_id, subject_name, grade_level) values (v_l, 'Zorology', 'Grade 8') returning id into w;
@@ -456,8 +458,8 @@ begin
   select review_note || ' / ticks=' || cardinality(criteria_met) into t from tutor_subject_reviews where competency_id = comp_d;
   r := r || format('M56f an admin reads the review: %s (want Matric certificate seen / ticks=3)', coalesce(t, 'nothing')) || E'\n';
   reset role;
-  select count(*) into n from notifications where profile_id = v_d and type = 'subject_approved';
-  r := r || format('M57 the tutor is told: %s notice (want 1)', n) || E'\n';
+  select count(*) into n from notifications where profile_id = v_d and type in ('subject_approved', 'subject_rejected');
+  r := r || format('M57 approving writes no notice to the tutor (CEO, 19 Oct 2026): %s notices (want 0)', n) || E'\n';
   select count(*) into n from admin_audit_logs where admin_id = v_admin and target_entity_id = comp_d;
   r := r || format('M58 the approval is in the audit log: %s row (want 1)', n) || E'\n';
   t := coalesce(public.tutor_qualify_problem(v_d, 'Zorology', 'Grade 10', s1, null), 'ok');
@@ -473,8 +475,8 @@ begin
   select c.verification_status::text || ' / ' || coalesce(v.review_note, 'none') || ' / ticks=' || coalesce(cardinality(v.criteria_met)::text, 'none')
     into t from tutor_subject_competencies c left join tutor_subject_reviews v on v.competency_id = c.id where c.id = comp_x;
   r := r || format('M60 a rejected subject: the tutor reads the reason: %s (want rejected / Proof does not cover this subject / ticks=0)', t) || E'\n';
-  select count(*) into n from notifications where profile_id = v_d and type = 'subject_rejected';
-  r := r || format('M60b ... and is told: %s notice (want 1)', n) || E'\n';
+  select count(*) into n from notifications where profile_id = v_d and type in ('subject_approved', 'subject_rejected');
+  r := r || format('M60b ... and rejecting writes none either: %s notices (want 0)', n) || E'\n';
   reset role;
   t := coalesce(public.tutor_qualify_problem(v_d, 'Zorology2', 'Grade 10', s1, null), 'ok');
   r := r || format('M60c a rejected subject does not qualify: %s (want not_approved)', t) || E'\n';
@@ -488,15 +490,13 @@ begin
   exception when others then r := r || format('M61 no checklist and no note: %s', sqlerrm) || E'\n'; end;
   reset role;
 
-  -- the waiting list asks the same rule: nobody teaches Zorology at the university until the admin approves T
+  -- the waiting list asks the same counts. Since 20261019120000 they ignore the school and the curriculum, so a learner can only join when
+  -- nobody at all is approved for Zorology Grade 10: the approved ones are put back to pending for this part (the owner may), then T is approved.
+  update tutor_subject_competencies set verification_status = 'pending' where subject_name = 'Zorology' and verification_status = 'verified';
   perform set_config('request.jwt.claims', json_build_object('sub', v_l, 'role','authenticated')::text, true);
   set local role authenticated;
   w := public.join_tutor_waitlist(v_l, 'Zorology', 'Grade 10', s5);
-  r := r || format('M62 a learner at the university joins the waiting list (nobody there is approved): joined=%s (want true)', w is not null) || E'\n';
-  begin
-    perform public.join_tutor_waitlist(v_l, 'Zorology', 'Grade 10', s1);
-    r := r || 'M63 FAIL: joined although a tutor is available for the CAPS school' || E'\n';
-  exception when others then r := r || format('M63 joining is refused where a tutor is available: %s', sqlerrm) || E'\n'; end;
+  r := r || format('M62 a learner at the university joins the waiting list (nobody is approved for the subject): joined=%s (want true)', w is not null) || E'\n';
   reset role;
   perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role','authenticated')::text, true);
   set local role authenticated;
@@ -504,6 +504,13 @@ begin
   reset role;
   select count(*) into n from notifications where profile_id = v_l and type = 'tutor_available';
   r := r || format('M64 approving that tutor''s subject tells the learner who was waiting: %s notice (want 1)', n) || E'\n';
+  perform set_config('request.jwt.claims', json_build_object('sub', v_l, 'role','authenticated')::text, true);
+  set local role authenticated;
+  begin
+    perform public.join_tutor_waitlist(v_l, 'Zorology', 'Grade 10', s1);
+    r := r || 'M63 FAIL: joined although a tutor is available for any school now that a tutor is approved' || E'\n';
+  exception when others then r := r || format('M63 joining is refused where a tutor is available: %s', sqlerrm) || E'\n'; end;
+  reset role;
 
   -- ---- the checklist is editable data -------------------------------------------------------------------------------------------
   perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role','authenticated')::text, true);

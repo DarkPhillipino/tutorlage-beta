@@ -810,7 +810,6 @@ declare
   v_missing integer;
   v_unknown integer;
   v_has_criteria boolean;
-  v_label text;
 begin
   if not public.is_active_admin() then
     raise exception 'Admins only' using errcode = '42501';
@@ -822,7 +821,6 @@ begin
   if p_decision not in ('approve', 'reject') then
     raise exception 'Choose approve or reject';
   end if;
-  v_label := c.subject_name || ' (' || upper(replace(c.curriculum::text, '_', ' ')) || ', ' || c.min_grade_level || ' to ' || c.max_grade_level || ')';
 
   if p_decision = 'approve' then
     select exists (select 1 from public.curriculum_criteria where curriculum = c.curriculum and active) into v_has_criteria;
@@ -849,9 +847,6 @@ begin
     on conflict (competency_id) do update
       set reviewed_by = excluded.reviewed_by, reviewed_at = excluded.reviewed_at,
           review_note = excluded.review_note, criteria_met = excluded.criteria_met;
-    insert into public.notifications (profile_id, type, title, body)
-    values (c.tutor_id, 'subject_approved', 'Subject approved',
-            v_label || ' is approved. Learners can now be matched with you for it.');
     perform public.log_admin_event('tutor_approved', 'tutor_subject_competencies', p_competency,
       jsonb_build_object('kind', 'subject_approved', 'tutor_id', c.tutor_id, 'subject', c.subject_name,
                          'curriculum', c.curriculum, 'criteria_met', coalesce(p_criteria, '{}'), 'note', v_reason));
@@ -867,9 +862,6 @@ begin
     on conflict (competency_id) do update
       set reviewed_by = excluded.reviewed_by, reviewed_at = excluded.reviewed_at,
           review_note = excluded.review_note, criteria_met = excluded.criteria_met;
-    insert into public.notifications (profile_id, type, title, body)
-    values (c.tutor_id, 'subject_rejected', 'Subject not approved',
-            v_label || ' was not approved: ' || v_reason);
     perform public.log_admin_event('tutor_rejected', 'tutor_subject_competencies', p_competency,
       jsonb_build_object('kind', 'subject_rejected', 'tutor_id', c.tutor_id, 'subject', c.subject_name,
                          'curriculum', c.curriculum, 'reason', v_reason));

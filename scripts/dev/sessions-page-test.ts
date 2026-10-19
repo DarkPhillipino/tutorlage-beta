@@ -28,7 +28,6 @@ check('an unknown type goes to the sessions page', notificationTarget('something
 check('a request sent to a tutor goes to Teach', notificationTarget('request_for_you') === 'teach');
 check('its reminder goes to Teach', notificationTarget('request_for_you_reminder') === 'teach');
 check('a tutor\'s level notices (given, changed, frozen) go to Teach', ['tier_promotion', 'tier_demotion', 'tier_freeze'].every((t) => notificationTarget(t) === 'teach'));
-check('a tutor\'s subject notices (approved, not approved) go to Teach', ['subject_approved', 'subject_rejected'].every((t) => notificationTarget(t) === 'teach'));
 
 // ---- Part B -------------------------------------------------------------------------------------------------------
 const FILES = {

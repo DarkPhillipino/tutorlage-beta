@@ -6,8 +6,6 @@
 // opens the Terms in a new tab, so nobody loses their place. A tutor's level notices (a level given by an admin or earned, a
 // level change, a rate freeze: written by the database when the level really changes, types `tier_promotion`, `tier_demotion`
 // and `tier_freeze`) open the Teach screen, where the level is shown (CEO, 19 Oct 2026: tell a tutor when an admin gives them a level).
-// So do the notices that Tutorlage approved or did not approve one of a tutor's subjects (`subject_approved`, `subject_rejected`:
-// written by admin_review_tutor_subject, 19 Oct 2026); the Teach screen is where the tutor's subjects are.
 export type NotificationTarget = 'sessions' | 'teach' | 'terms';
 
 const TEACH_TYPES = new Set([
@@ -17,8 +15,6 @@ const TEACH_TYPES = new Set([
   'tier_promotion',
   'tier_demotion',
   'tier_freeze',
-  'subject_approved',
-  'subject_rejected',
 ]);
 const TERMS_TYPES = new Set(['terms_updated']);
 
