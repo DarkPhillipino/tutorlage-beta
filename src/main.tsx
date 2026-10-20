@@ -16,6 +16,7 @@ import TutorDocuments from './pages/TutorDocuments.tsx';
 import {FEATURES} from './lib/features.ts';
 import {AuthProvider} from './lib/AuthContext.tsx';
 import {RequireAuth} from './components/RequireAuth.tsx';
+import {AppErrorBoundary} from './components/ErrorBoundary.tsx';
 import {AccountGate} from './components/AccountGate.tsx';
 import {TutorOnboardingGate} from './components/TutorOnboardingGate.tsx';
 import {loadCurrencySymbols} from './lib/currencies.ts';
@@ -33,6 +34,8 @@ loadCurrencySymbols();
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter basename={BASE_PATH || '/'}>
+      {/* A screen that throws shows a plain "Something went wrong" page with a way out, not a blank white one. */}
+      <AppErrorBoundary homeHref={`${BASE_PATH}/`}>
       <AuthProvider>
         {/* Master 7cm: a password-reset link that landed on the wrong page is sent on to /reset-password. */}
         <RecoveryRedirect />
@@ -109,6 +112,7 @@ createRoot(document.getElementById('root')!).render(
           />
         </Routes>
       </AuthProvider>
+      </AppErrorBoundary>
     </BrowserRouter>
   </StrictMode>,
 );
