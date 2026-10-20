@@ -22,7 +22,7 @@ interface PriceLadderProps {
   currencySymbol: (code: string) => string;
 }
 
-// All 16 price levels, one card each, with the price and what a tutor at that level has achieved at the least (hours, rating,
+// The price levels it is given (all 16, minus any tier marked not shown to learners), one card each, with the price and what a tutor at that level has achieved at the least (hours, rating,
 // learners who come back, reviews, learners' progress) from the database's own rules. Choosing one pays exactly its price; any
 // tutor at that level or above may take the request (CEO, 17 Oct 2026).
 export const PriceLadder: React.FC<PriceLadderProps> = ({ rows, available, selectedId, onSelect, currencySymbol }) => {

@@ -22,6 +22,18 @@ export interface LadderRow {
   credentials: string[];
 }
 
+// Tiers whose price list is kept off the learner's ladder until a tutor is in the tier (CEO, 20 Oct 2026: "hide the distinction
+// strategists price list for the learners, we'll show it when tutors reach that stage"). The numbers are tier_definitions.id; 4 is
+// the top tier. Empty this list to show every tier at once.
+export const TIERS_HIDDEN_UNTIL_REACHED: readonly number[] = [4];
+
+// The ladder a learner sees: every level, except the levels of a hidden tier that no tutor is in yet. tutorsInTier is how many
+// tutors are in each tier (a tier missing from it counts as none, so an unreadable count keeps the tier hidden). The moment one
+// tutor reaches a hidden tier its levels appear, with no change to the code or the database.
+export function visibleLadder(rows: LadderRow[], tutorsInTier: ReadonlyMap<number, number>): LadderRow[] {
+  return rows.filter((row) => !TIERS_HIDDEN_UNTIL_REACHED.includes(row.tierId) || (tutorsInTier.get(row.tierId) ?? 0) > 0);
+}
+
 // The line above them. The list itself is read from the database, so the page always agrees with what the admin app sets
 // (CEO, 17 Oct 2026: the tiers and what starts a tutor at one are defined in the admin app).
 export const CREDENTIAL_LEAD = 'A tutor can also start at this level with:';

@@ -3,6 +3,7 @@ import { updateOwnLearnerRow } from './institutionSave';
 import type { WaitlistEntry } from './waitlist';
 import { mapMyTutorRow, isMissingDatabaseFunction, type MyTutor } from './keepOrSwap';
 import { documentsNeverAccepted } from './accountRules';
+import { TIERS_HIDDEN_UNTIL_REACHED, visibleLadder } from './ladderCopy';
 import type { LadderRow } from './ladderCopy';
 import { isUpcomingSession, upcomingLookbackIso } from './sessionTiming';
 import { requestStartIso } from './requestSchedule';
@@ -1603,8 +1604,9 @@ export async function fetchLearnersITaught(tutorId: string): Promise<TaughtLearn
   return [...seen.values()];
 }
 
-// All 16 price levels with their prices and the minimums a tutor must have reached to be at each (the ladder is public: the
-// same table fn_recalculate_tutor_tier reads). Shown in full on the request page (CEO, 17 Oct 2026). Read once and kept.
+// The price levels with their prices and the minimums a tutor must have reached to be at each (the ladder is public: the
+// same table fn_recalculate_tutor_tier reads). Shown on the request page (CEO, 17 Oct 2026), all 16 except the levels of a tier
+// kept off until a tutor reaches it (visibleLadder, 20 Oct 2026). Read once and kept.
 let ladderCache: LadderRow[] | null = null;
 export async function fetchPriceLadder(): Promise<LadderRow[]> {
   if (ladderCache) return ladderCache;
@@ -1615,6 +1617,23 @@ export async function fetchPriceLadder(): Promise<LadderRow[]> {
     )
     .order('max_allowed_rate');
   if (error) throw error;
+  // How many tutors are in each tier that stays off the ladder until someone reaches it (CEO, 20 Oct 2026; see
+  // TIERS_HIDDEN_UNTIL_REACHED). A learner can read verified tutors only, which is the right count. A failed read counts as none,
+  // so the tier stays hidden.
+  const tutorsInTier = new Map<number, number>();
+  await Promise.all(
+    TIERS_HIDDEN_UNTIL_REACHED.map(async (tierId) => {
+      try {
+        const { count, error: countError } = await supabase
+          .from('tutor_profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('current_tier_id', tierId);
+        if (!countError) tutorsInTier.set(tierId, count ?? 0);
+      } catch {
+        // none counted: the tier stays hidden
+      }
+    }),
+  );
   // What can start a tutor at each level (the admin app sets it). A failed read just means no credential lines are shown.
   const credentialsByLevel = new Map<string, string[]>();
   try {
@@ -1629,7 +1648,7 @@ export async function fetchPriceLadder(): Promise<LadderRow[]> {
   } catch {
     // no credential lines
   }
-  const rows = (data ?? []).map((row) => {
+  const allRows = (data ?? []).map((row) => {
     const tier = (row as any).tier_definitions as { public_name: string; positioning_quote: string | null; currency_code: string } | null;
     return {
       id: row.id as string,
@@ -1647,6 +1666,7 @@ export async function fetchPriceLadder(): Promise<LadderRow[]> {
       credentials: credentialsByLevel.get(row.id as string) ?? [],
     } satisfies LadderRow;
   });
+  const rows = visibleLadder(allRows, tutorsInTier);
   if (rows.length > 0) ladderCache = rows;
   return rows;
 }

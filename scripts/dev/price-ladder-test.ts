@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PriceLadder } from '../../src/components/PriceLadder';
-import { CREDENTIAL_LEAD, availabilityLine, chosenLevelLine, requirementLines } from '../../src/lib/ladderCopy';
+import { CREDENTIAL_LEAD, TIERS_HIDDEN_UNTIL_REACHED, availabilityLine, chosenLevelLine, requirementLines, visibleLadder } from '../../src/lib/ladderCopy';
 import type { LadderRow } from '../../src/lib/ladderCopy';
 
 let failures = 0;
@@ -114,6 +114,24 @@ check('Search re-runs the search on the same page instead of opening a second pa
 check('no line tells people they cannot pick the tutor, or that the first to accept is matched, on the request pages (CEO, 17 Oct 2026)',
   !/You don't pick the tutor/.test(prices + level) && !/first to accept is matched/.test(prices + level) && !/cannot pick who accepts/.test(terms));
 check('the ladder reads the minimums from the database\'s own table, in one read', /from\('sub_tier_definitions'\)[\s\S]{0,400}min_hours, min_rating, min_repeat_rate_pct, min_written_reviews, min_distinct_students_uplift, required_grade_uplift_pct/.test(queries) && /ladderCache/.test(queries));
+check("the top tier (4) is kept off the learner's ladder until a tutor is in it (CEO, 20 Oct 2026), and nothing else is", TIERS_HIDDEN_UNTIL_REACHED.length === 1 && TIERS_HIDDEN_UNTIL_REACHED[0] === 4);
+check('no tutor in tier 4 (or no count, or a count that failed): 12 levels, tiers 1 to 3, none of 4A to 4D', [new Map<number, number>(), new Map([[4, 0]]), new Map([[1, 9], [2, 4], [3, 1]])].every((counts) => {
+  const shown = visibleLadder(ROWS, counts);
+  return shown.length === 12 && shown.every((r) => r.tierId <= 3) && !shown.some((r) => /^4/.test(r.id));
+}));
+check('one tutor in tier 4: all 16 levels are back, with no change to the code or the database', visibleLadder(ROWS, new Map([[4, 1]])).length === 16 && visibleLadder(ROWS, new Map([[4, 7]])).length === 16);
+check('the page with tier 4 left out shows 12 levels, three tiers, and no Distinction Strategists text; with a tutor there it shows all four', (() => {
+  const draw = (rows: LadderRow[]) => renderToStaticMarkup(React.createElement(PriceLadder, { rows, available: null, selectedId: null, onSelect: () => undefined, currencySymbol: () => 'R' }));
+  const hidden = draw(visibleLadder(ROWS, new Map()));
+  const back = draw(visibleLadder(ROWS, new Map([[4, 1]])));
+  return (hidden.match(/data-level="/g) ?? []).length === 12 && !hidden.includes('Distinction Strategists') && !/data-level="4[A-D]"/.test(hidden) && hidden.includes('Subject Specialists') &&
+    (back.match(/data-level="/g) ?? []).length === 16 && back.includes('Distinction Strategists');
+})());
+check('fetchPriceLadder counts the tutors in the hidden tier (verified tutors only, as the learner can read) and filters with visibleLadder; a failed count keeps the tier hidden; no tier name or database column is added for it',
+  /from\('tutor_profiles'\)\s*\.select\('id', \{ count: 'exact', head: true \}\)\s*\.eq\('current_tier_id', tierId\)/.test(queries) &&
+    /const rows = visibleLadder\(allRows, tutorsInTier\)/.test(queries) && /if \(!countError\) tutorsInTier\.set\(tierId, count \?\? 0\)/.test(queries) &&
+    !/Strategists/.test(queries + prices + read('src/components/PriceLadder.tsx') + read('src/lib/ladderCopy.ts').replace(/\/\/.*$/gm, '')) &&
+    !fs.existsSync(new URL('supabase/migrations/20261020090000_tier_shown_to_learners.sql', root)));
 check('the credential lines are read from credential_definitions (the admin app sets them), not written in the page', /from\('credential_definitions'\)[\s\S]{0,200}entry_sub_tier_id/.test(queries) && /credentials: credentialsByLevel\.get/.test(queries) && !/CREDENTIAL_ROUTES/.test(read('src/lib/ladderCopy.ts') + read('src/components/PriceLadder.tsx')));
 check('an ordinary request has no heading and no line above the ladder; only booking someone again has a heading and a line, saying who the request goes to (CEO, 17 and 19 Oct 2026)',
   !/Choose a price level/.test(prices) && !/You pay exactly the price shown/.test(prices) && !/MENU_HEADLINE/.test(prices) &&
