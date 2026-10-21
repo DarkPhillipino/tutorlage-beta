@@ -19,6 +19,7 @@ import { SchoolResultsPanel } from './components/SchoolResultsPanel';
 import { SessionsHistoryPage } from './components/SessionsHistoryPage';
 import { LearnerGradeModal } from './components/LearnerGradeModal';
 import { notificationTarget } from './lib/notificationTarget';
+import { setErrorScreen } from './lib/errorLog';
 import { siteUrl } from './lib/siteUrl';
 import { useAccountStatus } from './components/AccountGate';
 import { FEATURES } from './lib/features';
@@ -151,6 +152,11 @@ export default function App() {
 
   // Page / view state
   const [view, setView] = useState<'home' | 'prices' | 'tiers' | 'teach' | 'about' | 'sessions'>('home');
+  // Most of the app is one address, so the error log (src/lib/errorLog.ts) is told which view is showing. No clean-up on purpose:
+  // a clean-up could run before the error boundary logs the very crash that unmounted this screen, and the label would be lost.
+  useEffect(() => {
+    setErrorScreen(view);
+  }, [view]);
   const [selectedLevel, setSelectedLevel] = useState<PriceLevel | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<SuggestionItem | null>(null);
 

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FileCheck2, Upload, Loader2, AlertCircle, Link2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { getErrorMessage } from '../lib/errors';
-import { linkProblem, normaliseLink } from '../lib/tutorOnboarding';
+import { POLICE_MAX_AGE_MONTHS, addMonthsIso, formatIsoLong, linkProblem, normaliseLink, policeCertificateProblem, todayIsoSAST } from '../lib/tutorOnboarding';
 import { addLinkDocument, isLinkUrl } from '../lib/tutorOnboardingData';
 
 // Backlog 7h: tutors upload the documents Tutorlage checks before verifying
@@ -47,6 +47,8 @@ interface UploadedDocument {
   status: string | null;
   adminNotes: string | null;
   uploadedAt: string;
+  // The date on a police clearance certificate (yyyy-mm-dd); null for other documents.
+  issuedOn: string | null;
 }
 
 const hostOf = (link: string) => {
@@ -63,6 +65,8 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
   const [documentType, setDocumentType] = useState(DOCUMENT_TYPES[0].value);
   const [isUploading, setIsUploading] = useState(false);
   const [linkText, setLinkText] = useState('');
+  // Police clearance only (CEO, 21 Oct 2026): accepting a request needs a certificate issued in the last 6 months, so the date is asked for here too.
+  const [issuedOn, setIssuedOn] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [reloadCount, setReloadCount] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -71,7 +75,7 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
     setIsLoading(true);
     supabase
       .from('tutor_verification_documents')
-      .select('id, document_type, document_url, status, admin_notes, uploaded_at')
+      .select('id, document_type, document_url, status, admin_notes, uploaded_at, issued_on')
       .eq('tutor_id', tutorId)
       .order('uploaded_at', { ascending: false })
       .then(({ data, error: loadError }) => {
@@ -86,6 +90,7 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
               status: d.status,
               adminNotes: d.admin_notes,
               uploadedAt: d.uploaded_at,
+              issuedOn: d.issued_on ?? null,
             }))
           );
         }
@@ -103,6 +108,14 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
       setError('That file is over 5 MB — try a smaller scan or photo.');
       return;
     }
+    const isPolice = documentType === 'police_clearance';
+    if (isPolice) {
+      const dateProblem = policeCertificateProblem(issuedOn);
+      if (dateProblem) {
+        setError(dateProblem);
+        return;
+      }
+    }
     setIsUploading(true);
     try {
       const extension = file.type === 'application/pdf' ? 'pdf' : file.type === 'image/png' ? 'png' : 'jpg';
@@ -115,11 +128,12 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
       // document_url holds the private storage path, not a public URL.
       const { error: insertError } = await supabase
         .from('tutor_verification_documents')
-        .insert({ tutor_id: tutorId, document_type: documentType, document_url: path });
+        .insert({ tutor_id: tutorId, document_type: documentType, document_url: path, ...(isPolice ? { issued_on: issuedOn } : {}) });
       if (insertError) {
         await supabase.storage.from('tutor-documents').remove([path]);
         throw insertError;
       }
+      if (isPolice) setIssuedOn('');
       setReloadCount((c) => c + 1);
     } catch (e) {
       setError(getErrorMessage(e, 'Upload failed — try again.'));
@@ -174,6 +188,9 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
                 <span className="font-semibold text-[#0F172A] truncate">
                   {TYPE_LABELS[d.documentType] ?? d.documentType}
                   {d.link && <span className="font-normal text-slate-500"> · link to {hostOf(d.link)}</span>}
+                  {d.documentType === 'police_clearance' && d.issuedOn && (
+                    <span className="font-normal text-slate-500"> · issued {formatIsoLong(d.issuedOn)}</span>
+                  )}
                 </span>
                 <span className={`shrink-0 font-bold ${d.status === 'verified' ? 'text-[#15803D]' : d.status === 'rejected' ? 'text-rose-600' : 'text-slate-500'}`}>
                   {STATUS_LABELS[d.status ?? 'pending'] ?? d.status}
@@ -215,6 +232,27 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
             Upload
           </button>
         </div>
+        {documentType === 'police_clearance' && (
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 mb-1" htmlFor="police-issued-on">
+              Date on the certificate (it must be from the last {POLICE_MAX_AGE_MONTHS} months)
+            </label>
+            <input
+              id="police-issued-on"
+              type="date"
+              value={issuedOn}
+              min={addMonthsIso(todayIsoSAST(), -POLICE_MAX_AGE_MONTHS) ?? undefined}
+              max={todayIsoSAST()}
+              disabled={isUploading}
+              onChange={(e) => {
+                setIssuedOn(e.target.value);
+                setError(null);
+              }}
+              className="bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none"
+            />
+            <p className="text-[10px] text-slate-400 mt-1">Enter this date first, then upload. You need a current certificate to accept requests.</p>
+          </div>
+        )}
         <p className="text-[10px] text-slate-400">PDF, JPG or PNG, up to 5 MB.</p>
 
         {documentType === 'proof_of_experience' && (

@@ -41,6 +41,10 @@ begin
   update profiles set date_of_birth = adult::date where id in (v_a, v_b, v_h, v_u, v_d);
   update tutor_profiles set current_tier_id = 1, current_sub_tier_id = '1A', institution_id = null where id in (v_a, v_b, v_h, v_u, v_d);
   update tutor_profiles set is_verified = true where id in (v_a, v_b, v_h, v_d);   -- U stays unapproved
+  -- A current police clearance certificate is needed to accept (migration 20261020180000): every approved tutor here has one.
+  insert into tutor_verification_documents (tutor_id, document_type, document_url, status, issued_on)
+    select x, 'police_clearance'::public.doc_type, 'fixture/police-' || x, 'verified'::public.verification_status, (now() at time zone 'Africa/Johannesburg')::date
+    from unnest(array[v_a, v_b, v_h, v_d]) x;
   insert into tutor_subject_competencies (tutor_id, subject_name, min_grade_level, max_grade_level, verification_status) values
     (v_a, 'Mathematics', 'Grade 8', 'Grade 12', 'verified'), (v_b, 'Mathematics', 'Grade 8', 'Grade 12', 'verified'),
     (v_h, 'History', 'Grade 8', 'Grade 12', 'verified'), (v_u, 'Mathematics', 'Grade 8', 'Grade 12', 'verified'),

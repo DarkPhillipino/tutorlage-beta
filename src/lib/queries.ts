@@ -621,15 +621,23 @@ export async function fetchSubTierDefinitions(tierId: number): Promise<SubTierDe
   }));
 }
 
-// Public reviews (RLS: "Public can view reviews" — qual true) for one tutor.
+// The public review list for one tutor. Since migration 20261020170000 the reviews table is no longer open to the public (it also holds
+// the learner's account id), so the list comes from public_tutor_reviews(), which returns only id, rating, comment and date. Until that
+// migration is applied the function does not exist and the table is still open, so the old read is used then; once it IS applied the old
+// read would show nothing, which is why the function is tried first.
 export async function fetchTutorReviews(tutorId: string): Promise<TutorReview[]> {
-  const { data, error } = await supabase
-    .from('reviews')
-    .select('id, rating, comment, created_at')
-    .eq('tutor_id', tutorId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
+  const viaFunction = await supabase.rpc('public_tutor_reviews', { p_tutor_id: tutorId });
+  let data = viaFunction.data as { id: string; rating: number; comment: string | null; created_at: string }[] | null;
+  if (viaFunction.error) {
+    if (!isMissingDatabaseFunction(viaFunction.error)) throw viaFunction.error;
+    const direct = await supabase
+      .from('reviews')
+      .select('id, rating, comment, created_at')
+      .eq('tutor_id', tutorId)
+      .order('created_at', { ascending: false });
+    if (direct.error) throw direct.error;
+    data = direct.data;
+  }
 
   return (data ?? []).map((row) => ({
     id: row.id,

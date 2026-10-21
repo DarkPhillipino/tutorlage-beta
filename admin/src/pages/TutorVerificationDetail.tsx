@@ -6,6 +6,7 @@ import { useAdminAuth } from '../lib/AuthContext';
 import { TutorVerificationDetail as TutorDetail, DocumentType } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { getErrorMessage } from '../lib/errors';
+import { approvalGapsSentence, describeApprovalError } from '../lib/approvalErrors';
 import { TutorLevelCard } from '../components/TutorLevelCard';
 import { POLICE_MAX_AGE_MONTHS, TRACK_COPY, formatIsoLong, policeExpiresOn, requirementStatuses, todayIsoSAST } from '../lib/tutorOnboarding';
 
@@ -128,7 +129,8 @@ export const TutorVerificationDetail: React.FC = () => {
       await approveTutor(tutorId, adminProfile.id);
       navigate('/verification');
     } catch (e) {
-      setError(getErrorMessage(e, 'Could not approve this tutor.'));
+      // The database refuses an approval without an ID document and a current police clearance certificate (migration 20261020180000).
+      setError(describeApprovalError(e, 'Could not approve this tutor.'));
     } finally {
       setIsFinalizing(false);
     }
@@ -194,6 +196,12 @@ export const TutorVerificationDetail: React.FC = () => {
   if (missingRequired.length > 0) {
     notReady.push(`Still missing: ${missingRequired.map((s) => `${s.requirement.title.toLowerCase()}${shortProblem(s.problem)}`).join('; ')}.`);
   }
+  // A tutor with NO onboarding record is held to the same two documents (CEO, 21 Oct 2026): the database now refuses them too, so say so here.
+  // (A tutor with a record that is not grandfathered is already covered by "Still missing" above.)
+  if (!onboarding) {
+    const gaps = approvalGapsSentence(tutor.documents.map((d) => ({ documentType: d.documentType, status: d.status, issuedOn: d.issuedOn })));
+    if (gaps) notReady.push(gaps);
+  }
   const blockApprove = notReady.length > 0;
 
   return (
@@ -249,9 +257,15 @@ export const TutorVerificationDetail: React.FC = () => {
       <div className="bg-white rounded-2xl p-6 border border-slate-200 mb-4">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Sign-up Documents</h2>
         {!onboarding ? (
-          <p className="text-xs text-slate-500">No document steps recorded for this tutor.</p>
+          <p className="text-xs text-slate-500">
+            No document steps recorded for this tutor. They still need an ID document and a police clearance certificate issued in the last 6 months before
+            you can approve them.
+          </p>
         ) : onboarding.grandfathered ? (
-          <p className="text-xs text-slate-500">Test-phase tutor: joined before the document steps, so no documents are required.</p>
+          <p className="text-xs text-slate-500">
+            Test-phase tutor: joined before the document steps, so no documents are required to approve them. They do need a police clearance certificate
+            issued in the last 6 months before they can accept requests.
+          </p>
         ) : (
           <div className="space-y-3">
             <div className="text-sm">

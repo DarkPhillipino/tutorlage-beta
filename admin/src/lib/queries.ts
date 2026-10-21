@@ -8,6 +8,7 @@ import {
 import { computeSessionOutcomes, SessionOutcomes } from './sessionOutcomes';
 import { groupWaitlistDemand, WaitlistDemand } from './waitlistDemand';
 import { countKeepOrSwap, KeepOrSwapCounts } from './keepOrSwapCounts';
+import { ClientErrorsResult, RawClientErrorRow, isMissingTable, mapClientError } from './clientErrors';
 
 // Every admin mutation below calls this alongside its main write — the
 // admin_audit_logs.action enum names exactly what needs logging
@@ -629,4 +630,20 @@ export async function fetchKeepOrSwapCounts(): Promise<KeepOrSwapCounts | null> 
     for (const p of (data ?? []) as { id: string; full_name: string | null }[]) names.set(p.id, p.full_name ?? '');
   }
   return countKeepOrSwap(rows, endedRows, names);
+}
+
+// ---- Error tracking (release gate OPS-ERRORS-01): what the public app reported when something crashed ----
+// Only an active admin can read public.client_errors (migration 20261020160000). A missing table is a plain 'not_set_up' result,
+// never an exception, so the page works before the migration is applied.
+export async function fetchClientErrors(limit = 300): Promise<ClientErrorsResult> {
+  const { data, error } = await supabase
+    .from('client_errors')
+    .select('id, kind, message, screen, details, browser, occurrences, signed_in_occurrences, first_seen, last_seen')
+    .order('last_seen', { ascending: false })
+    .limit(limit);
+  if (error) {
+    if (isMissingTable(error)) return { state: 'not_set_up' };
+    return { state: 'failed', message: error.message };
+  }
+  return { state: 'ok', rows: ((data ?? []) as RawClientErrorRow[]).map(mapClientError) };
 }

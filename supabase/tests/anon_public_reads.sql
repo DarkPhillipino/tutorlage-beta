@@ -32,13 +32,26 @@ begin
   -- not signed in: every public reference table reads without error
   perform set_config('request.jwt.claims', json_build_object('role','anon')::text, true);
   set local role anon;
-  foreach t in array array['tutor_profiles','credential_definitions','schools_institutions','subjects','tier_definitions',
-    'sub_tier_definitions','reviews','tutor_availability','tutor_languages','tutor_subject_competencies','countries',
+  foreach t in array array['credential_definitions','schools_institutions','subjects','tier_definitions',
+    'sub_tier_definitions','tutor_availability','tutor_languages','tutor_subject_competencies','countries',
     'currencies','curricula','languages','grade_levels'] loop
     begin
       execute format('select count(*) from (select * from public.%I where true limit 50) x', t) into n;
     exception when others then r := r || 'S1 FAIL anon read of ' || t || ': ' || sqlerrm || E'\n'; end;
   end loop;
+  -- tutor_profiles is read by explicit columns: since 20261020170000 five internal columns are hidden, so select * is refused.
+  -- reviews are read through public_tutor_reviews() when it exists (same migration), else from the table.
+  begin
+    select count(*) into n from (select id, headline, hourly_rate, currency_code, is_verified, avg_rating, total_reviews_count, teaching_mode,
+      is_dispatch_active, total_sessions_completed, current_tier_id, institution_id from public.tutor_profiles where true limit 50) x;
+  exception when others then r := r || 'S1 FAIL anon read of tutor_profiles: ' || sqlerrm || E'\n'; end;
+  begin
+    if to_regprocedure('public.public_tutor_reviews(uuid)') is not null then
+      select count(*) into n from public.public_tutor_reviews(v_vt);
+    else
+      select count(*) into n from (select id, rating, comment, created_at from public.reviews where true limit 50) x;
+    end if;
+  exception when others then r := r || 'S1 FAIL anon read of reviews: ' || sqlerrm || E'\n'; end;
   r := r || 'S1 anon read every public table (any failure listed above)' || E'\n';
   select count(*) into n from tutor_profiles where id = v_vt;
   r := r || format('S2 anon sees the verified tutor=%s (want 1)', n);

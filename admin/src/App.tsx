@@ -16,6 +16,7 @@ import { Tier1 } from './pages/Tier1';
 import { Levels } from './pages/Levels';
 import { SubjectApprovals } from './pages/SubjectApprovals';
 import { Curricula } from './pages/Curricula';
+import { ClientErrors } from './pages/ClientErrors';
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="levels" element={<Levels />} />
         <Route path="subject-approvals" element={<SubjectApprovals />} />
         <Route path="curricula" element={<Curricula />} />
+        <Route path="errors" element={<ClientErrors />} />
       </Route>
     </Routes>
   );

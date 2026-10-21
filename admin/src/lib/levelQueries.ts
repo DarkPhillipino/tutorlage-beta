@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { fetchTutorInternalFlags } from './tutorInternalFlags';
 import type { CredentialConfig, LevelConfig, TierConfig, TutorCredentialRow, TutorLevelInfo } from '../types';
 
 // The tiers, the 16 levels and the credentials that start a tutor at a level, plus who is at which level (CEO, 17 Oct 2026:
@@ -108,8 +109,9 @@ export async function recalculateAllLevels(): Promise<number> {
 // ---- one tutor ----
 
 export async function fetchTutorLevelInfo(tutorId: string): Promise<TutorLevelInfo> {
-  const [profileRes, credsRes, defsRes] = await Promise.all([
-    supabase.from('tutor_profiles').select('current_sub_tier_id, credential_floor_sub_tier_id, tier_frozen, freeze_reason').eq('id', tutorId).maybeSingle(),
+  const [profileRes, flags, credsRes, defsRes] = await Promise.all([
+    supabase.from('tutor_profiles').select('current_sub_tier_id').eq('id', tutorId).maybeSingle(),
+    fetchTutorInternalFlags(tutorId),
     supabase
       .from('tutor_credentials')
       .select('id, credential_code, document_id, status, obtained_on, assigned_sub_tier_id, note')
@@ -137,9 +139,9 @@ export async function fetchTutorLevelInfo(tutorId: string): Promise<TutorLevelIn
   });
   return {
     currentLevel: profile?.current_sub_tier_id ?? null,
-    floorLevel: profile?.credential_floor_sub_tier_id ?? null,
-    frozen: profile?.tier_frozen === true,
-    freezeReason: profile?.freeze_reason ?? null,
+    floorLevel: flags.credentialFloor,
+    frozen: flags.frozen,
+    freezeReason: flags.freezeReason,
     credentials,
   };
 }

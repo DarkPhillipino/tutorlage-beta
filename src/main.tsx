@@ -21,11 +21,18 @@ import {AccountGate} from './components/AccountGate.tsx';
 import {TutorOnboardingGate} from './components/TutorOnboardingGate.tsx';
 import {loadCurrencySymbols} from './lib/currencies.ts';
 import {BASE_PATH} from './lib/siteUrl.ts';
+import {installGlobalErrorLogging, setErrorSender} from './lib/errorLog.ts';
+import {sendClientError} from './lib/errorLogSender.ts';
 // Side-effect import: initializes i18next before anything renders.
 import './lib/i18n.ts';
 // Ignore missing type declarations for CSS side-effect import
 // @ts-ignore
 import './index.css';
+
+// Error tracking (release gate OPS-ERRORS-01): crashes and uncaught errors are reported, cleaned of personal data and limited per
+// page load, to the database's log_client_error. If the database does not have it yet, sending switches itself off quietly.
+setErrorSender(sendClientError);
+installGlobalErrorLogging();
 
 // Fire-and-forget: components render with the built-in ZAR fallback until
 // this resolves, so it doesn't need to block first paint.

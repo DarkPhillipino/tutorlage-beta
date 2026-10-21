@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Inbox, Check, X, Loader2, AlertCircle, CheckCircle2, Clock, Heart } from 'lucide-react';
+import { Inbox, Check, X, Loader2, AlertCircle, CheckCircle2, Clock, Heart, FileWarning } from 'lucide-react';
 import { AvailableSessionRequest, PayoutAccount } from '../types';
 import { declineSessionRequest, fetchAvailableRequests, fetchMyPayoutAccount } from '../lib/queries';
 import { acceptRequest } from '../lib/payments';
-import { getErrorMessage } from '../lib/errors';
 import { KEEP_OR_SWAP_COPY, describeKeepOrSwapError } from '../lib/keepOrSwap';
+import { clearanceBanner, describeAcceptError, type ClearanceStatus } from '../lib/clearance';
+import { fetchMyClearanceStatus } from '../lib/clearanceData';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate } from '../lib/format';
 import { PayoutAccountPanel } from './PayoutAccountPanel';
@@ -37,6 +38,8 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: 'booked' | 'confirming'; text: string } | null>(null);
   const [payoutAccount, setPayoutAccount] = useState<PayoutAccount | null | undefined>(undefined);
+  // Police clearance (migration 20261020180000): null until the database can say, and stays null while that migration is not applied.
+  const [clearance, setClearance] = useState<ClearanceStatus | null>(null);
   // Keep or swap: a request addressed to this tutor is declined (the learner is told; nothing is charged), after a confirm.
   const [confirmDeclineId, setConfirmDeclineId] = useState<string | null>(null);
   const [decliningId, setDecliningId] = useState<string | null>(null);
@@ -55,6 +58,11 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
       .finally(() => setIsLoading(false));
   }, [tutorId, retryCount]);
 
+  // Read again after every refused accept (retryCount), so a certificate added in the meantime lifts the notice.
+  useEffect(() => {
+    fetchMyClearanceStatus().then(setClearance);
+  }, [tutorId, retryCount]);
+
   useEffect(() => {
     fetchMyPayoutAccount(tutorId)
       .then(setPayoutAccount)
@@ -66,6 +74,7 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
 
   const visibleRequests = requests.filter((r) => !dismissedIds.has(r.id));
   const needsPayoutAccount = payoutAccount === null || (payoutAccount !== undefined && !payoutAccount.canReceivePayments);
+  const banner = clearanceBanner(clearance);
 
   const handleAccept = async (request: AvailableSessionRequest) => {
     setError(null);
@@ -83,7 +92,7 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
     } catch (e) {
       // Someone else may have just claimed it — refresh so this tutor
       // isn't left staring at a request that's no longer really available.
-      setError(getErrorMessage(e, 'Could not accept that request.'));
+      setError(describeAcceptError(e, 'Could not accept that request.'));
       setRetryCount((c) => c + 1);
     } finally {
       setAcceptingId(null);
@@ -118,6 +127,19 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
           <span className="text-[10px] font-bold bg-[#15803D] text-white px-2 py-0.5 rounded-full">{visibleRequests.length}</span>
         )}
       </div>
+
+      {banner && (
+        <div
+          role="status"
+          data-clearance-banner={banner.tone}
+          className={`flex items-start gap-1.5 mb-2 text-[11px] font-semibold rounded-lg px-2.5 py-2 ${
+            banner.tone === 'stop' ? 'bg-rose-50 border border-rose-200 text-rose-700' : 'bg-amber-50 border border-amber-200 text-amber-800'
+          }`}
+        >
+          <FileWarning className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <span>{banner.text}</span>
+        </div>
+      )}
 
       {needsPayoutAccount && visibleRequests.length > 0 && (
         <div className="mb-2">

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
+import { logClientError } from '../lib/errorLog';
 
 // Release-gate check FE-ERRBOUND-01 (20 Oct 2026): before this, one thrown error while drawing any screen left a learner or tutor
 // looking at a blank white page with no way back. This catches it and shows a plain message with a way out. It uses no translation,
@@ -50,8 +51,9 @@ export class ErrorBoundary extends React.Component<BoundaryProps, BoundaryState>
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // The only record there is until an error tracker is chosen (release gate OPS-ERRORS-01).
     console.error('Screen crashed:', error, info.componentStack);
+    // Release gate OPS-ERRORS-01: also leave a cleaned, rate-limited record in our own database (src/lib/errorLog.ts never throws).
+    logClientError(error, 'render', { componentStack: info.componentStack });
   }
 
   componentDidUpdate(prev: BoundaryProps) {

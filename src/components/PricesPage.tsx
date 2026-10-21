@@ -22,7 +22,7 @@ import { getErrorMessage } from '../lib/errors';
 import { useAccountStatus } from './AccountGate';
 import { COPY } from '../lib/accountRules';
 import { KEEP_OR_SWAP_COPY, windowNote } from '../lib/keepOrSwap';
-import { FEATURES } from '../lib/features';
+import { FEATURES, PAYMENTS_NOT_OPEN, PAYMENTS_NOT_OPEN_NOTICE } from '../lib/features';
 import { WaitlistPrompt } from './WaitlistPrompt';
 
 interface PricesPageProps {
@@ -270,6 +270,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // Paystack on /payment/callback and the database makes the request visible
   // to tutors. The price is charged only when a tutor accepts.
   const handleSendRequest = async () => {
+    if (PAYMENTS_NOT_OPEN) return;
     if (!user?.email || !selectedLevel || chargedAmount === null) return;
     if (isGuardian && !learner) return;
     // Found 16 Oct 2026: the request used the subject last SEARCHED (appliedSubject), while the box on this page shows the
@@ -673,9 +674,14 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                         Press "Update results" on the left, then choose a price again.
                       </p>
                     )}
+                    {PAYMENTS_NOT_OPEN && (
+                      <p role="status" data-payments-not-open className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3 max-w-sm">
+                        {PAYMENTS_NOT_OPEN_NOTICE}
+                      </p>
+                    )}
                     <button
                       onClick={handleSendRequest}
-                      disabled={isSending}
+                      disabled={isSending || PAYMENTS_NOT_OPEN}
                       className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
                     >
                       {isSending

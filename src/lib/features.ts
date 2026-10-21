@@ -32,3 +32,11 @@ export const FEATURES = {
   // falls back to the old read when it does not.
   keepOrSwap: true,
 } as const;
+
+// While the payment account is on Paystack TEST keys (CEO, 20 Oct 2026, answer D3): the booking screen says "Payments are not open
+// yet. Booking opens soon." and the "Save card & send request" button is off, so no real learner is asked for money that cannot be
+// taken. Switched by the deploy, not in code: the workflow sets VITE_PAYMENTS_NOT_OPEN=1 at the move to tutorlage.com and the line is
+// removed when the live keys arrive. Unset (the default, and local development) leaves booking exactly as it is.
+// (`import.meta.env?.` and not `.env.`: the test scripts run this file under Node, where there is no `import.meta.env`.)
+export const PAYMENTS_NOT_OPEN = import.meta.env?.VITE_PAYMENTS_NOT_OPEN === '1';
+export const PAYMENTS_NOT_OPEN_NOTICE = 'Payments are not open yet. Booking opens soon.';

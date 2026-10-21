@@ -100,6 +100,10 @@ begin
   update profiles set date_of_birth = adult::date where id = any (tt);
   update tutor_profiles set current_tier_id = 1, current_sub_tier_id = '1A', institution_id = null, is_verified = true where id = any (tt);
   update tutor_profiles set current_tier_id = tier2, current_sub_tier_id = '2A' where id = v_h;
+  -- A current police clearance certificate is needed to accept (migration 20261020180000): every tutor here has one.
+  insert into tutor_verification_documents (tutor_id, document_type, document_url, status, issued_on)
+    select x, 'police_clearance'::public.doc_type, 'fixture/police-' || x, 'verified'::public.verification_status, (now() at time zone 'Africa/Johannesburg')::date
+    from unnest(tt) x;
 
   insert into schools_institutions (name, curriculum, curriculum_id) values ('ZZ Test CAPS school', 'caps', c_caps) returning id into s1;
   insert into schools_institutions (name, curriculum, curriculum_id) values ('ZZ Test other school', 'caps', c_caps) returning id into s2;

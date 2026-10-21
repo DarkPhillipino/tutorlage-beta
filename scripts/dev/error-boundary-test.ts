@@ -41,7 +41,7 @@ const original = console.error;
 console.error = (...args: unknown[]) => { logged.push(args); };
 new ErrorBoundary({ children: null }).componentDidCatch(new Error('boom'), { componentStack: '\n at X' } as React.ErrorInfo);
 console.error = original;
-check('the crash is written to the console (the only record until an error tracker is chosen)', logged.length === 1 && String(logged[0][0]).includes('Screen crashed'));
+check('the crash is still written to the console (the error log, scripts/dev/error-log-test.ts, is in addition)', logged.length === 1 && String(logged[0][0]).includes('Screen crashed'));
 
 const main = read('src/main.tsx');
 const source = read('src/components/ErrorBoundary.tsx');
