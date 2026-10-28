@@ -5,7 +5,8 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    // GitHub Pages serves this project from /tutorlage-beta/, not the domain root.
+    // The site is served from the domain root (tutorlage.com). Only set GITHUB_PAGES to build for the old
+    // github.io project address, which serves it from /tutorlage-beta/.
     base: process.env.GITHUB_PAGES ? '/tutorlage-beta/' : '/',
     plugins: [react(), tailwindcss()],
     resolve: {

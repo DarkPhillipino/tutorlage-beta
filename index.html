@@ -9,6 +9,16 @@
     <meta property="og:description" content="Find expert tutors, group classes, exam prep, and homework help at your institution." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Old github.io links carry /tutorlage-beta/ in front of the page; GitHub forwards them to tutorlage.com
+      // with that prefix kept, so drop it before the app starts.
+      (function () {
+        var p = location.pathname;
+        if (p === '/tutorlage-beta' || p.indexOf('/tutorlage-beta/') === 0) {
+          history.replaceState(null, '', (p.slice('/tutorlage-beta'.length) || '/') + location.search + location.hash);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

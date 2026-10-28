@@ -3,6 +3,8 @@
 //   npx wrangler secret put PAYSTACK_SECRET_KEY
 //   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 // The service-role key must belong to the project in SUPABASE_URL below.
+// Closing accounts (21 Oct 2026) adds three more secrets, none of them set yet: CLOSE_ACCOUNT_JOB_SECRET (any long random value; the same
+// value goes in the database's Vault as account_closure_job_secret), and RESEND_API_KEY + MAIL_FROM (so the closing emails can be sent).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tutorlage-api",
@@ -17,8 +19,8 @@
   "vars": {
     // Dev for now: the public site and every test account use it. Switch with the site (master item 6).
     "SUPABASE_URL": "https://wfpjoxetbprmllqqarwp.supabase.co",
-    // The GitHub Pages site. Add the real domain here when the site moves to it.
-    "ALLOWED_ORIGINS": "https://darkphillipino.github.io",
+    // The site's own address, plus the old GitHub Pages address while it still redirects (28 Oct 2026).
+    "ALLOWED_ORIGINS": "https://tutorlage.com,https://darkphillipino.github.io",
     // Cloudflare sets this header to the visitor's address; see rateLimit() in server/index.ts.
     "RATE_LIMIT_IP_HEADER": "cf-connecting-ip",
     // Video rooms (master 7bm), switched on 16 Oct 2026 (the CEO's "all seven, video rooms first"). Both are needed: without

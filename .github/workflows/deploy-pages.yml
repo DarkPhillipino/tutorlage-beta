@@ -26,7 +26,7 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          GITHUB_PAGES: "true"
+          # Served from the root of tutorlage.com, so no GITHUB_PAGES (it would build for /tutorlage-beta/).
           # Publishable key: RLS-enforced, safe to expose in a client build.
           VITE_SUPABASE_URL: "https://wfpjoxetbprmllqqarwp.supabase.co"
           VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_uYCOWKWJoWh4hlXH22H_cQ_gKHZ5n3l"
