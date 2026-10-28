@@ -9,18 +9,34 @@ import {
   fetchTier1RecordsForCheck,
   fetchTier1SubjectNames,
   fetchTutorTier1Training,
+  openTutorDocument,
   recordTier1Signoff,
-  signedTutorDocumentUrl,
 } from '../lib/tier1';
 import { fetchUsers } from '../lib/queries';
 import { AdminUserRow } from '../types';
 import { getErrorMessage } from '../lib/errors';
+import { AccessLogNote } from '../components/AccessLogNote';
 
 // Phase 2: the Tier 1 route (master backlog item 7). Three jobs for admins: check the 70% records, record a
 // trainer's sign-off for the live Modules 2 and 5, and watch how each test item performs (the trial's item
 // analysis, validation protocol stage 2).
 
 const input = 'w-full bg-slate-100 text-sm font-semibold text-[#0F172A] rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20';
+
+// The strict, written check of a results record (the educator's view, 21 Oct 2026): a photo of one mark proves little, and a first-year
+// university "Mathematics 1" mark is not Grade 12 Mathematics.
+export const CHECKLIST = [
+  'It is the original results statement or academic record (a PDF or a clear photo of the whole page), not a screenshot of one mark.',
+  'The name on it matches the tutor\'s ID document.',
+  'The subject is the school subject (a university module counts only if it matches the CAPS subject).',
+  'I read the mark and the year from the document and they match what the tutor entered.',
+] as const;
+
+// Becomes the written note kept with the record (the database wants at least 20 characters).
+export function acceptNote(extra: string): string {
+  const base = `Checked: ${CHECKLIST.length} of ${CHECKLIST.length} points - original document; name matches the ID; school subject; mark and year read from it.`;
+  return extra.trim() ? `${base} ${extra.trim()}` : base;
+}
 
 export const Tier1: React.FC = () => {
   const [tab, setTab] = useState<'records' | 'signoff' | 'items'>('records');
@@ -31,8 +47,10 @@ export const Tier1: React.FC = () => {
         <h1 className="text-2xl font-extrabold text-[#0F172A]">Tier 1 route</h1>
       </div>
       <p className="text-sm text-slate-500 mb-5 max-w-2xl">
-        Tutors without a teaching qualification qualify per subject: a checked record of 70%+, the training, and the
-        subject's test. The test items are designed, not validated: don't describe them as a validated test.
+        Tutors without a teaching qualification qualify per subject by documents: you check their record (70%+), and
+        the subject is verified once they have also passed Module 7 (safeguarding) and agreed to the code of conduct.
+        The training sign-offs and the subject test are kept for later (setting tier1_route = full). The test items are
+        designed, not validated: don't describe them as a validated test.
       </p>
       <div className="flex gap-2 mb-4">
         {([['records', '70% records'], ['signoff', 'Trainer sign-offs'], ['items', 'Item analysis']] as const).map(([t, label]) => (
@@ -53,7 +71,11 @@ const Records: React.FC = () => {
   const [rows, setRows] = useState<Tier1RecordForCheck[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  // The written check: four ticks per record, all needed to accept (the database also wants a written note of 20+ characters).
+  const [ticks, setTicks] = useState<Record<string, boolean[]>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  // True after a document was opened on a database with no access log yet (see documentAccess.ts).
+  const [logNotActive, setLogNotActive] = useState(false);
 
   const load = useCallback(() => {
     setRows(null);
@@ -65,7 +87,7 @@ const Records: React.FC = () => {
     setBusy(row.id);
     setError(null);
     try {
-      await checkTier1Record(row.id, verdict, notes[row.id] ?? '');
+      await checkTier1Record(row.id, verdict, verdict === 'verified' ? acceptNote(notes[row.id] ?? '') : notes[row.id] ?? '');
       load();
     } catch (e) {
       setError(getErrorMessage(e, 'Could not save the check.'));
@@ -74,10 +96,23 @@ const Records: React.FC = () => {
     }
   };
 
+  // The opening is recorded in the document access log first (Privacy §7), then the five-minute link is made.
+  const openDocument = async (path: string, tutorId: string) => {
+    setError(null);
+    try {
+      const opened = await openTutorDocument(path, tutorId);
+      setLogNotActive(!opened.logged);
+      window.open(opened.url, '_blank', 'noopener');
+    } catch (e) {
+      setError(getErrorMessage(e, 'Could not open the document.'));
+    }
+  };
+
   if (rows === null && !error) return <div className="flex items-center text-slate-400 text-sm"><Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…</div>;
   return (
     <div>
       {error && <p className="text-sm text-rose-600 font-semibold mb-3">{error}</p>}
+      <AccessLogNote show={logNotActive} />
       {rows && rows.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
           <CheckCircle2 className="w-8 h-8 text-slate-300 mx-auto mb-2" />
@@ -90,17 +125,30 @@ const Records: React.FC = () => {
               <div className="text-sm space-y-0.5">
                 <p className="font-bold text-[#0F172A]">{r.tutorName} · {r.subjectName}</p>
                 <p className="text-slate-600">Says {r.markPct}% ({r.source === 'matric' ? 'matric results' : r.source === 'university' ? 'university record' : 'other record'})</p>
-                <p className="text-xs text-slate-500">Check the document shows this subject and this mark, and that the name matches the tutor's ID.</p>
-                <button onClick={async () => window.open(await signedTutorDocumentUrl(r.documentPath), '_blank', 'noopener')}
+                <button onClick={() => openDocument(r.documentPath, r.tutorId)}
                   className="inline-flex items-center gap-1 text-xs font-bold text-[#15803D] hover:underline cursor-pointer">
                   <FileText className="w-3.5 h-3.5" /> Open the document
                 </button>
+                <fieldset className="pt-1 space-y-1">
+                  <legend className="text-xs font-bold text-slate-600 mb-0.5">Tick each one you have checked on the document:</legend>
+                  {CHECKLIST.map((label, i) => (
+                    <label key={label} className="flex items-start gap-2 text-xs text-slate-700">
+                      <input type="checkbox" className="mt-0.5" checked={ticks[r.id]?.[i] === true}
+                        onChange={(e) => setTicks((t) => {
+                          const next = [...(t[r.id] ?? CHECKLIST.map(() => false))];
+                          next[i] = e.target.checked;
+                          return { ...t, [r.id]: next };
+                        })} />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </fieldset>
               </div>
               <div className="w-full sm:w-72 space-y-2">
                 <input value={notes[r.id] ?? ''} onChange={(e) => setNotes((n) => ({ ...n, [r.id]: e.target.value }))}
-                  placeholder="Note (needed if not accepted; the tutor sees it)" className={`${input} text-xs`} />
+                  placeholder="Extra note (needed if not accepted; the tutor sees it then)" className={`${input} text-xs`} />
                 <div className="flex gap-2">
-                  <button onClick={() => decide(r, 'verified')} disabled={busy === r.id}
+                  <button onClick={() => decide(r, 'verified')} disabled={busy === r.id || !CHECKLIST.every((_, i) => ticks[r.id]?.[i] === true)}
                     className="flex-1 inline-flex items-center justify-center gap-1 text-xs font-bold px-3 py-2 rounded-lg bg-[#15803D] text-white disabled:opacity-50 cursor-pointer">
                     <CheckCircle2 className="w-3.5 h-3.5" /> Accept
                   </button>

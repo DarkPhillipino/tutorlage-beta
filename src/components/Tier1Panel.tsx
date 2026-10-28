@@ -22,9 +22,11 @@ import {
 import { getErrorMessage } from '../lib/errors';
 
 // The Tier 1 route for tutors without a teaching qualification (master backlog item 7; the CEO, 9 Oct: "build
-// the tier 1 tutor pipeline"). Three gates per subject, all decided by the database: a checked record of 70%+
-// in the subject, the seven training modules, and the diagnostic test. The test is honest about its status:
-// it's designed by Tutorlage's educators and still being trialled, so nothing here calls it validated.
+// the tier 1 tutor pipeline"). The database decides every gate. Two routes, set by tier1_route (migration
+// 20261021142000; CEO 21 Oct: "documents first, test later"): DOCUMENTS (the default) = an admin-checked record
+// of 70%+ plus Module 7 and the code of conduct; FULL (also what an older database means) = that record, all
+// seven training modules and the diagnostic test. The test is designed by Tutorlage's educators and still being
+// trialled, so nothing here calls it validated, and the documents route never says "trained and tested".
 
 const card = 'bg-white rounded-2xl p-4 border border-slate-200';
 const inputClass = 'w-full bg-slate-100 text-[#0F172A] text-sm font-semibold px-3 py-2.5 rounded-xl border border-transparent focus:outline-none focus:border-[#15803D] focus:bg-white';
@@ -98,9 +100,8 @@ export const Tier1Panel: React.FC<{ tutorId: string }> = ({ tutorId }) => {
       </h4>
       <div className={`${card} space-y-4`}>
         <p className="text-xs text-slate-600">
-          No teaching qualification yet? You can tutor a school subject once you've shown at least 70% in it, finished
-          Tutorlage's training, and passed the subject's test on finding and fixing the misunderstandings behind wrong
-          answers. The test is written by our educators and is still being trialled with real teachers.
+          No teaching qualification yet? Choose a school subject you got at least 70% in. The steps for it are shown
+          below.
         </p>
         {error && <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600"><AlertCircle className="w-4 h-4" /> {error}</p>}
 
@@ -114,7 +115,15 @@ export const Tier1Panel: React.FC<{ tutorId: string }> = ({ tutorId }) => {
 
         {subject && !status && <p className="flex items-center text-xs text-slate-400"><Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…</p>}
 
-        {status && (
+        {status && status.route === 'documents' && (
+          <>
+            <AcademicStep tutorId={tutorId} status={status} onSaved={refresh} />
+            <SafeguardingStep modules={modules} status={status} onChanged={refresh} />
+            <VerifiedStep status={status} />
+            <OptionalGuide modules={modules} />
+          </>
+        )}
+        {status && status.route !== 'documents' && (
           <>
             <AcademicStep tutorId={tutorId} status={status} onSaved={refresh} />
             <TrainingStep modules={modules} training={training} onChanged={refresh} />
@@ -167,12 +176,16 @@ const AcademicStep: React.FC<{ tutorId: string; status: Tier1Status; onSaved: ()
 
   return (
     <div className="space-y-2">
-      <StepHeading n={1} title={`Show at least 70% in ${status.subject}`} done={status.academicOk} />
+      <StepHeading n={1} title={`Show at least ${status.minPct}% in ${status.subject}`} done={status.academicOk} />
+      <p className="text-xs text-slate-500">
+        Upload your original results: a PDF or a clear photo of the whole page, with your name, the subject and the mark
+        showing. A screenshot of one mark is not accepted.
+      </p>
       {a && (
         <p className="text-xs text-slate-600">
           Your record: {a.markPct}% ·{' '}
           {a.status === 'pending' ? 'waiting for Tutorlage to check' : a.status === 'verified' ? 'checked' : `not accepted${a.checkNote ? `: ${a.checkNote}` : ''}`}
-          {a.status === 'verified' && a.markPct < 70 ? ' (below 70%, so this route isn\'t open for this subject)' : ''}
+          {a.status === 'verified' && a.markPct < status.minPct ? ` (below ${status.minPct}%, so this route isn't open for this subject)` : ''}
         </p>
       )}
       {!status.academicOk && (!a || a.status === 'rejected') && (
@@ -262,9 +275,88 @@ const TrainingStep: React.FC<{ modules: Tier1Module[]; training: Tier1TrainingRo
   );
 };
 
+// Documents route (migration 20261021142000): Module 7 plus the code of conduct are the gates; Tutorlage checks the record, the
+// database verifies the subject once both are done. Modules 1 to 6 are an optional guide, no sign-off, no test.
+const SafeguardingStep: React.FC<{ modules: Tier1Module[]; status: Tier1Status; onChanged: () => void }> = ({ modules, status, onChanged }) => {
+  const [open, setOpen] = useState(false);
+  const m = modules.find((x) => x.module === 7);
+  const done = status.safeguardingDone && status.conductAccepted;
+  return (
+    <div className="space-y-2">
+      <StepHeading n={2} title="Safeguarding and the code of conduct (Module 7)" done={done} />
+      <p className="text-xs text-slate-600">
+        You may teach learners under 18, one to one. Read Module 7, answer the short check (every answer must be right),
+        and agree to follow Tutorlage's tutor code of conduct.
+      </p>
+      {m && (
+        <div className="rounded-lg border border-slate-200 px-3 py-2">
+          <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between gap-2 text-left cursor-pointer">
+            <span className="flex items-center gap-2 text-xs font-bold text-[#0F172A]">
+              {done ? <CheckCircle2 className="w-4 h-4 text-[#15803D]" /> : <BookOpen className="w-4 h-4 text-slate-400" />}
+              Module 7: {m.title}
+            </span>
+            <span className="text-[11px] text-slate-500 shrink-0">{done ? 'Done' : status.safeguardingDone ? 'Agree to the code' : 'Read, then check'}</span>
+          </button>
+          {open && (
+            <div className="mt-2 text-xs text-slate-700 space-y-2">
+              <p className="font-semibold">{m.summary}</p>
+              <div className="whitespace-pre-line">{m.content}</div>
+              {!done && <ModuleCheck onPassed={onChanged} />}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const VerifiedStep: React.FC<{ status: Tier1Status }> = ({ status }) => {
+  const ok = status.subjectVerified && status.academicOk;
+  return (
+    <div className="space-y-2">
+      <StepHeading n={3} title={`${status.subject} on your profile`} done={ok} />
+      {ok ? (
+        <p className="text-xs font-bold text-[#15803D]">
+          {status.subject} is verified on your profile. You may start with a lower top grade; Tutorlage can widen it as you build a record.
+        </p>
+      ) : (
+        <p className="text-xs text-slate-500">{status.reason}</p>
+      )}
+    </div>
+  );
+};
+
+const OptionalGuide: React.FC<{ modules: Tier1Module[] }> = ({ modules }) => {
+  const [open, setOpen] = useState<number | null>(null);
+  const guide = modules.filter((x) => x.module !== 7);
+  if (guide.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-extrabold text-[#0F172A]">Optional: our teaching guide</p>
+      <p className="text-xs text-slate-500">Six short lessons on helping a learner who is stuck. Nothing here is a test and nothing is needed to be verified.</p>
+      <ul className="space-y-1.5">
+        {guide.map((m) => (
+          <li key={m.module} className="rounded-lg border border-slate-200 px-3 py-2">
+            <button onClick={() => setOpen(open === m.module ? null : m.module)} className="w-full flex items-center gap-2 text-left text-xs font-bold text-[#0F172A] cursor-pointer">
+              <BookOpen className="w-4 h-4 text-slate-400" /> Lesson {m.module}: {m.title}
+            </button>
+            {open === m.module && (
+              <div className="mt-2 text-xs text-slate-700 space-y-2">
+                <p className="font-semibold">{m.summary}</p>
+                <div className="whitespace-pre-line">{m.content}</div>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
 const ModuleCheck: React.FC<{ onPassed: () => void }> = ({ onPassed }) => {
   const [questions, setQuestions] = useState<ScenarioQuestion[] | null>(null);
   const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [agree, setAgree] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -286,13 +378,17 @@ const ModuleCheck: React.FC<{ onPassed: () => void }> = ({ onPassed }) => {
           ))}
         </fieldset>
       ))}
+      <label className="flex items-start gap-2">
+        <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5" />
+        <span>I have read Module 7 and I agree to follow Tutorlage's tutor code of conduct.</span>
+      </label>
       {message && <p className="font-semibold text-amber-700">{message}</p>}
       <button
-        disabled={Object.keys(answers).length < questions.length}
+        disabled={Object.keys(answers).length < questions.length || !agree}
         onClick={async () => {
           setMessage(null);
           try {
-            const r = await submitModuleCheck(answers);
+            const r = await submitModuleCheck(answers, agree);
             if (r.passed) onPassed();
             else setMessage(`${r.right} of ${r.total} right. Read the module again and try once more.`);
           } catch (e) {

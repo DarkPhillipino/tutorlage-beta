@@ -6,6 +6,10 @@ import { useAdminAuth } from '../lib/AuthContext';
 import { TutorVerificationDetail as TutorDetail, DocumentType } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { getErrorMessage } from '../lib/errors';
+import { openStoredDocument } from '../lib/documentAccess';
+import { AccessLogNote } from '../components/AccessLogNote';
+import { DocumentAccessCard } from '../components/DocumentAccessCard';
+import { HandOverPanel } from '../components/HandOverPanel';
 import { approvalGapsSentence, describeApprovalError } from '../lib/approvalErrors';
 import { TutorLevelCard } from '../components/TutorLevelCard';
 import { POLICE_MAX_AGE_MONTHS, TRACK_COPY, formatIsoLong, policeExpiresOn, requirementStatuses, todayIsoSAST } from '../lib/tutorOnboarding';
@@ -43,22 +47,6 @@ const DOC_LABELS: Record<DocumentType, string> = {
   proof_of_experience: 'Proof of Experience',
 };
 
-// Tutor documents live in the private 'tutor-documents' bucket; document_url
-// is the storage path. Open each through a short-lived signed link rather than
-// a public URL. (Older rows holding a full URL still open directly.)
-async function openDocument(path: string) {
-  if (/^https?:\/\//.test(path)) {
-    window.open(path, '_blank', 'noopener,noreferrer');
-    return;
-  }
-  const { data, error } = await supabase.storage.from('tutor-documents').createSignedUrl(path, 300);
-  if (error || !data) {
-    alert('Could not open this document — check your admin access.');
-    return;
-  }
-  window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
-}
-
 export const TutorVerificationDetail: React.FC = () => {
   const { tutorId } = useParams<{ tutorId: string }>();
   const navigate = useNavigate();
@@ -73,6 +61,10 @@ export const TutorVerificationDetail: React.FC = () => {
   // Shown to the tutor next to a document that is not accepted, so they know what to fix (master 7cx).
   const [docReason, setDocReason] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // True after a document was opened on a database with no access log yet (see documentAccess.ts).
+  const [logNotActive, setLogNotActive] = useState(false);
+  // Goes up each time a document is opened, so the access log below shows the new line at once.
+  const [accessRefresh, setAccessRefresh] = useState(0);
 
   const load = () => {
     if (!tutorId) return;
@@ -81,6 +73,21 @@ export const TutorVerificationDetail: React.FC = () => {
   };
 
   useEffect(load, [tutorId]);
+
+  // Tutor documents live in the private 'tutor-documents' bucket; document_url is the storage path. Each opening is recorded in the
+  // database first (Privacy §7: "we record each time one is opened"), then opened through a five-minute signed link. Older rows
+  // holding a full web address open directly, and are recorded too.
+  const handleOpenDocument = async (path: string) => {
+    setError(null);
+    try {
+      const opened = await openStoredDocument(supabase, 'tutor-documents', path, { subject: tutorId });
+      setLogNotActive(!opened.logged);
+      window.open(opened.url, '_blank', 'noopener,noreferrer');
+      setAccessRefresh((n) => n + 1);
+    } catch (e) {
+      setError(getErrorMessage(e, 'Could not open this document.'));
+    }
+  };
 
   const handleDocReview = async (docId: string, decision: 'verified' | 'rejected') => {
     if (!tutorId || !adminProfile) return;
@@ -339,6 +346,7 @@ export const TutorVerificationDetail: React.FC = () => {
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 mb-4">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Documents</h2>
+        <AccessLogNote show={logNotActive} />
         {tutor.documents.length > 0 && (
           <input
             type="text"
@@ -361,7 +369,7 @@ export const TutorVerificationDetail: React.FC = () => {
                 <div className="min-w-0">
                   <button
                     type="button"
-                    onClick={() => openDocument(doc.documentUrl)}
+                    onClick={() => handleOpenDocument(doc.documentUrl)}
                     className="text-xs font-bold text-[#0F172A] hover:text-[#15803D] flex items-center gap-1 cursor-pointer"
                   >
                     {DOC_LABELS[doc.documentType] ?? doc.documentType}
@@ -407,6 +415,15 @@ export const TutorVerificationDetail: React.FC = () => {
           </div>
         )}
       </div>
+
+      {tutorId && <DocumentAccessCard profileId={tutorId} refreshKey={accessRefresh} />}
+
+      {tutorId && (
+        <HandOverPanel
+          tutor={{ id: tutorId, name: tutor.name, email: tutor.email, phone: tutor.phoneNumber, createdAt: tutor.createdAt }}
+          onDone={() => setAccessRefresh((n) => n + 1)}
+        />
+      )}
 
       {error && (
         <div className="flex items-center gap-1.5 mb-3 text-xs text-rose-600 font-semibold">

@@ -38,6 +38,12 @@ export interface Tier1Status {
   reason: string | null;
   nextRetakeAt: string | null;
   openAttempt: string | null;
+  // Migration 20261021142000 (Tier 1 by documents). On a database without it the reply has no `route`, and the old route (three gates) applies.
+  route: 'documents' | 'full';
+  safeguardingDone: boolean;
+  conductAccepted: boolean;
+  subjectVerified: boolean;
+  minPct: number;
 }
 
 export interface Tier1TestItem {
@@ -119,6 +125,11 @@ export async function fetchTier1Status(subject: string): Promise<Tier1Status> {
     reason: d.reason,
     nextRetakeAt: d.next_retake_at,
     openAttempt: d.open_attempt,
+    route: d.route === 'documents' ? 'documents' : 'full',
+    safeguardingDone: d.safeguarding_done === true,
+    conductAccepted: d.conduct_accepted === true,
+    subjectVerified: d.subject_verified === true,
+    minPct: Number(d.min_pct ?? 70),
   };
 }
 
@@ -153,10 +164,15 @@ export async function fetchModuleCheck(): Promise<ScenarioQuestion[]> {
   return (data ?? []) as ScenarioQuestion[];
 }
 
-export async function submitModuleCheck(answers: Record<number, number>): Promise<{ passed: boolean; right: number; total: number }> {
-  const { data, error } = await supabase.rpc('tier1_submit_module_check', { p_answers: answers });
+// `agreeConduct` is sent as "conduct": true inside the answers (migration 20261021142000 stores it on the Module 7 row; an older
+// database ignores the extra key).
+export async function submitModuleCheck(answers: Record<number, number>, agreeConduct = false): Promise<{ passed: boolean; right: number; total: number; conductAccepted: boolean }> {
+  const { data, error } = await supabase.rpc('tier1_submit_module_check', {
+    p_answers: agreeConduct ? { ...answers, conduct: true } : answers,
+  });
   if (error) throw error;
-  return data as { passed: boolean; right: number; total: number };
+  const d = data as Record<string, any>;
+  return { passed: d.passed, right: d.right, total: d.total, conductAccepted: d.conduct_accepted === true };
 }
 
 export async function startTier1Test(subject: string): Promise<Tier1Test> {

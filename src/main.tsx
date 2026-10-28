@@ -10,6 +10,7 @@ import ResetPassword from './pages/ResetPassword.tsx';
 import {RecoveryRedirect} from './lib/RecoveryRedirect.tsx';
 import PaymentCallback from './pages/PaymentCallback.tsx';
 import AuthCallback from './pages/AuthCallback.tsx';
+import AccountClosed from './pages/AccountClosed.tsx';
 import LegalPage from './pages/LegalPage.tsx';
 import RoomPage from './pages/RoomPage.tsx';
 import TutorDocuments from './pages/TutorDocuments.tsx';
@@ -56,6 +57,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/forgot-password/:role" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          {/* Close my account: the person is signed out by the time they land here, so it is public. */}
+          <Route path="/account-closed" element={<AccountClosed />} />
           {/* Legal pages are public: they must be readable before signing up (ECTA s43). */}
           <Route path="/terms" element={<LegalPage document="terms" />} />
           <Route path="/privacy" element={<LegalPage document="privacy" />} />

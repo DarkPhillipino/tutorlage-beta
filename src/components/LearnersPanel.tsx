@@ -16,6 +16,10 @@ import { fetchCurrentPolicyVersions, fetchGradeLevelSuggestions } from '../lib/q
 import { ADULT_AGE, COPY, ageFromIsoDate, guardianConsentText, isPlausibleDateOfBirth } from '../lib/accountRules';
 import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
+import { supabase } from '../lib/supabaseClient';
+import { getCurrencySymbol } from '../lib/currencies';
+import { CLOSE_COPY, CloseAccountSetup, ClosureClient, formatClosureDate } from '../lib/closeAccount';
+import { CloseAccountFlow } from './CloseAccountFlow';
 import { SchoolResultsPanel } from './SchoolResultsPanel';
 
 // The parent/guardian home (backlog 7k): the learners they're responsible
@@ -28,9 +32,11 @@ interface LearnersPanelProps {
   guardianId: string;
   selectedLearnerId: string | null;
   onSelectLearner: (learner: LinkedLearner | null) => void;
+  // Close this learner's account (legal B1): left out, the button is not shown.
+  closeSetup?: CloseAccountSetup;
 }
 
-export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, selectedLearnerId, onSelectLearner }) => {
+export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, selectedLearnerId, onSelectLearner, closeSetup }) => {
   const [learners, setLearners] = useState<LinkedLearner[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -39,6 +45,9 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
   // Phase 2: one learner's school results open at a time (FEATURES.schoolResults).
   const [resultsOpenId, setResultsOpenId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Closing one child's account: which learner the flow is open for, and the line shown once it is done.
+  const [closeLearnerId, setCloseLearnerId] = useState<string | null>(null);
+  const [closedNote, setClosedNote] = useState<string | null>(null);
   // null while loading. Booking waits for a usable number (legal spec §5).
   const [phone, setPhone] = useState<string | null>(null);
   const phoneReady = phone !== null && isUsablePhone(phone);
@@ -135,6 +144,12 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
         </div>
       )}
 
+      {closedNote && (
+        <div role="status" className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-xs text-slate-700">
+          <p className="flex items-start gap-1.5"><CheckCircle2 className="w-4 h-4 text-[#15803D] shrink-0" /> {closedNote}</p>
+        </div>
+      )}
+
       {learners === null && !loadError ? (
         <div className="flex items-center text-slate-400 text-sm py-2">
           <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
@@ -205,8 +220,35 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
                       {resultsOpenId === learner.id ? 'Hide school results' : 'School results'}
                     </button>
                   )}
+                  {closeSetup && closeSetup.mode === 'self' && closeLearnerId !== learner.id && (
+                    <button
+                      onClick={() => { setClosedNote(null); setCloseLearnerId(learner.id); }}
+                      className="text-[11px] font-bold text-slate-400 hover:text-rose-600 cursor-pointer"
+                    >
+                      Close this learner&apos;s account
+                    </button>
+                  )}
                 </div>
               </div>
+              {closeSetup && closeSetup.mode === 'self' && closeLearnerId === learner.id && (
+                <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50/40 px-4 py-3">
+                  <CloseAccountFlow
+                    client={supabase as unknown as ClosureClient}
+                    setup={closeSetup}
+                    learner={{ id: learner.id, name: learner.firstName }}
+                    symbolOf={getCurrencySymbol}
+                    onCancel={() => setCloseLearnerId(null)}
+                    onClosed={(result) => {
+                      setCloseLearnerId(null);
+                      setClosedNote(
+                        CLOSE_COPY.learnerClosed(learner.firstName, formatClosureDate(result.deleteBy), formatClosureDate(result.undoUntil)),
+                      );
+                      if (selectedLearnerId === learner.id) onSelectLearner(null);
+                      load();
+                    }}
+                  />
+                </div>
+              )}
               {isSelected && (
                 <p className="text-[11px] text-slate-500 mt-1.5 px-1">
                   Now enter a subject in the Book a tutor box below and press See prices.

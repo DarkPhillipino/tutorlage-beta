@@ -17,6 +17,8 @@ import { Levels } from './pages/Levels';
 import { SubjectApprovals } from './pages/SubjectApprovals';
 import { Curricula } from './pages/Curricula';
 import { ClientErrors } from './pages/ClientErrors';
+import { SafetyHolds } from './pages/SafetyHolds';
+import { AccountClosures } from './pages/AccountClosures';
 
 export default function App() {
   return (
@@ -45,6 +47,8 @@ export default function App() {
         <Route path="subject-approvals" element={<SubjectApprovals />} />
         <Route path="curricula" element={<Curricula />} />
         <Route path="errors" element={<ClientErrors />} />
+        <Route path="safety-holds" element={<SafetyHolds />} />
+        <Route path="account-closures" element={<AccountClosures />} />
       </Route>
     </Routes>
   );

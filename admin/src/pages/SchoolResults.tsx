@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, FileText, GraduationCap, Loader2, XCircle } from 'lucide-react';
-import { SchoolResultForCheck, checkSchoolResult, fetchSchoolResultsForCheck, signedSchoolResultUrl } from '../lib/schoolResults';
+import { SchoolResultForCheck, checkSchoolResult, fetchSchoolResultsForCheck, openSchoolResultDocument } from '../lib/schoolResults';
 import { getErrorMessage } from '../lib/errors';
+import { AccessLogNote } from '../components/AccessLogNote';
 
 // Phase 2: the check that decides whether a parent's report-card or assessment mark counts towards a tutor's
 // level (CEO, 9 Oct: "After Tutorlage checks"). Open the document, compare the subject, date and mark with
@@ -17,6 +18,8 @@ export const SchoolResults: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  // True after a document was opened on a database with no access log yet (see documentAccess.ts).
+  const [logNotActive, setLogNotActive] = useState(false);
 
   const load = useCallback(() => {
     setRows(null);
@@ -41,9 +44,13 @@ export const SchoolResults: React.FC = () => {
     }
   };
 
-  const openDocument = async (path: string) => {
+  // The opening is recorded in the document access log first (Privacy §7), then the five-minute link is made.
+  const openDocument = async (path: string, learnerId: string) => {
+    setError(null);
     try {
-      window.open(await signedSchoolResultUrl(path), '_blank', 'noopener');
+      const opened = await openSchoolResultDocument(path, learnerId);
+      setLogNotActive(!opened.logged);
+      window.open(opened.url, '_blank', 'noopener');
     } catch (e) {
       setError(getErrorMessage(e, 'Could not open the document.'));
     }
@@ -73,6 +80,7 @@ export const SchoolResults: React.FC = () => {
       </div>
 
       {error && <p className="text-sm text-rose-600 font-semibold mb-3">{error}</p>}
+      <AccessLogNote show={logNotActive} />
 
       {rows === null && !error ? (
         <div className="flex items-center text-slate-400 text-sm"><Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…</div>
@@ -94,7 +102,7 @@ export const SchoolResults: React.FC = () => {
                 <p className="text-slate-900 font-semibold">{r.mark} / {r.outOf} = {r.percent}%</p>
                 {r.checkNote && <p className="text-xs text-slate-500">Note: {r.checkNote}</p>}
                 {r.documentPath ? (
-                  <button onClick={() => openDocument(r.documentPath!)} className="inline-flex items-center gap-1 text-xs font-bold text-[#15803D] hover:underline cursor-pointer">
+                  <button onClick={() => openDocument(r.documentPath!, r.studentId)} className="inline-flex items-center gap-1 text-xs font-bold text-[#15803D] hover:underline cursor-pointer">
                     <FileText className="w-3.5 h-3.5" /> Open the document
                   </button>
                 ) : (

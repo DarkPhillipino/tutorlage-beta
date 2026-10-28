@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { OpenedDocument, openStoredDocument } from './documentAccess';
 
 // Phase 2 (migration 20261012090100): parents' school results waiting for a check. Admins read them through
 // RLS and decide through admin_check_school_result(), which writes its own audit row
@@ -62,8 +63,8 @@ export async function checkSchoolResult(id: string, verdict: 'verified' | 'rejec
   if (error) throw error;
 }
 
-export async function signedSchoolResultUrl(path: string): Promise<string> {
-  const { data, error } = await supabase.storage.from('school-results').createSignedUrl(path, 300);
-  if (error) throw error;
-  return data.signedUrl;
+// Records the opening in the document access log, then makes the five-minute link (documentAccess.ts).
+// `learnerId` is passed so even a file kept outside the learner's own folder can be opened (and is recorded against the right person).
+export function openSchoolResultDocument(path: string, learnerId?: string): Promise<OpenedDocument> {
+  return openStoredDocument(supabase, 'school-results', path, { subject: learnerId });
 }

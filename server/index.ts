@@ -5,6 +5,8 @@ import type { NextFunction, Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { hasRelay, iceConfigFromEnv, iceServersFor, relayConfigured } from './iceServers';
 import { mayUseCamera } from './cameraRule';
+import { jobSecretMatches, mailerFromEnv, runClosureRounds } from './closeAccount';
+import type { CloseAccountDeps } from './closeAccount';
 import type { IceServer } from './iceServers';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
@@ -1341,6 +1343,58 @@ app.post('/api/rooms/:code/heartbeat', rateLimit(60, 60_000), async (req, res) =
     return;
   }
   res.json({ status: data });
+});
+
+// --- Closing accounts: the steps outside the database (close-account tool, 21 Oct 2026) ---
+//
+// The database queues them (supabase/migrations/20261021140000_close_account.sql) and wakes this route once a day, and right after an
+// account is closed, with the shared secret CLOSE_ACCOUNT_JOB_SECRET (the same value is the Vault secret account_closure_job_secret).
+// Nothing here is reachable by a browser: no sign-in is read, only that secret. The service key stays in this Worker.
+// Email goes out only if RESEND_API_KEY and MAIL_FROM are set; until then email steps wait and closing still works.
+const CLOSE_ACCOUNT_JOB_SECRET = process.env.CLOSE_ACCOUNT_JOB_SECRET;
+const closeAccountDeps: CloseAccountDeps = {
+  claimTasks: async (limit) => {
+    const { data, error } = await db.rpc('close_account_claim_tasks', { p_limit: limit });
+    if (error) throw new Error(`claim: ${error.message}`);
+    return (data ?? []) as Awaited<ReturnType<CloseAccountDeps['claimTasks']>>;
+  },
+  reportResult: async (taskId, outcome) => {
+    const { error } = await db.rpc('close_account_task_result', {
+      p_task: taskId,
+      p_ok: outcome.ok,
+      p_detail: outcome.detail ?? null,
+      p_waiting: outcome.waiting ?? false,
+    });
+    if (error) throw new Error(`report: ${error.message}`);
+  },
+  removeFiles: async (bucket, paths) => {
+    const { error } = await db.storage.from(bucket).remove(paths);
+    return { error: error?.message ?? null };
+  },
+  deleteAuthUser: async (userId) => {
+    const { error } = await db.auth.admin.deleteUser(userId);
+    return { error: error?.message ?? null, notFound: error?.status === 404 || /not found/i.test(error?.message ?? '') };
+  },
+  paystack,
+  sendMail: mailerFromEnv(process.env, (url, init) => fetch(url, init)),
+};
+
+app.post('/api/internal/close-account/run', rateLimit(6, 60_000), async (req, res) => {
+  if (!CLOSE_ACCOUNT_JOB_SECRET) {
+    res.status(503).json({ error: 'Closing accounts is not set up on this server yet.' });
+    return;
+  }
+  if (!jobSecretMatches(req.headers['x-job-secret'], CLOSE_ACCOUNT_JOB_SECRET)) {
+    res.status(401).json({ error: 'Not allowed.' });
+    return;
+  }
+  try {
+    const summary = await runClosureRounds(closeAccountDeps, { rounds: 10, limit: 20 });
+    res.json(summary);
+  } catch (e) {
+    console.error('close-account run failed:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'The closing run failed.' });
+  }
 });
 
 app.listen(PORT, () => {

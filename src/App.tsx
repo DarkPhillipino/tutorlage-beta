@@ -21,6 +21,7 @@ import { LearnerGradeModal } from './components/LearnerGradeModal';
 import { notificationTarget } from './lib/notificationTarget';
 import { setErrorScreen } from './lib/errorLog';
 import { siteUrl } from './lib/siteUrl';
+import { closeAccountSetup, rememberClosure, type ClosureResult } from './lib/closeAccount';
 import { useAccountStatus } from './components/AccountGate';
 import { FEATURES } from './lib/features';
 import { LinkedLearner, fetchMyLearners } from './lib/guardian';
@@ -344,6 +345,21 @@ export default function App() {
     navigate('/login', { replace: true });
   };
 
+  // Close my account (legal B1): what the account modal and the learners panel offer, and what happens once the database has closed the
+  // person's own account. A full page load (not a router move) lands on the public closing page, because signing out sends the router
+  // to /login first.
+  const closeSetup = closeAccountSetup({
+    role: profile?.role,
+    isViewOnlyLearner,
+    email: user?.email,
+    providers: user?.app_metadata?.providers as string[] | undefined,
+  });
+  const handleAccountClosed = async (result: ClosureResult) => {
+    rememberClosure(result);
+    await signOut();
+    window.location.assign(siteUrl('/account-closed'));
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF7F2] font-sans text-[#0F172A] selection:bg-[#15803D]/20 selection:text-[#15803D]">
       
@@ -438,6 +454,7 @@ export default function App() {
                 guardianId={user.id}
                 selectedLearnerId={bookingFor?.id ?? null}
                 onSelectLearner={setBookingFor}
+                closeSetup={closeSetup}
               />
             )}
 
@@ -520,6 +537,8 @@ export default function App() {
         isGuardian={isGuardian}
         onSignOut={handleSignOut}
         onBookAgain={FEATURES.keepOrSwap ? handleBookAgain : undefined}
+        closeSetup={closeSetup}
+        onAccountClosed={handleAccountClosed}
       />
 
       {/* Toast Notification */}

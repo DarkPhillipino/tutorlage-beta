@@ -3,6 +3,10 @@ import { X, LogOut, CreditCard, Check, AlertCircle } from 'lucide-react';
 import { UserAccount } from '../types';
 import { fetchGradeLevelSuggestions, fetchMySavedCards, updateStudentGradeLevel, type SavedCard } from '../lib/queries';
 import { getErrorMessage } from '../lib/errors';
+import { supabase } from '../lib/supabaseClient';
+import { getCurrencySymbol } from '../lib/currencies';
+import type { CloseAccountSetup, ClosureClient, ClosureResult } from '../lib/closeAccount';
+import { CloseAccountSection } from './CloseAccountSection';
 import { TeachingProfilePanel } from './TeachingProfilePanel';
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel';
 import type { MyTutor } from '../lib/keepOrSwap';
@@ -21,6 +25,9 @@ interface ManageAccountModalProps {
   onSignOut: () => void;
   // Keep or swap (master 7aa): "Book again" on a tutor in My tutors; the page behind fills in the request page.
   onBookAgain?: (tutor: MyTutor, learner: BookAgainLearner) => void;
+  // Close my account: what to offer this person, and what to do once the database has closed the account (sign out, closing page).
+  closeSetup?: CloseAccountSetup;
+  onAccountClosed?: (result: ClosureResult) => void;
 }
 
 export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
@@ -34,6 +41,8 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
   isGuardian = false,
   onSignOut,
   onBookAgain,
+  closeSetup,
+  onAccountClosed,
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'sessions' | 'billing' | 'teaching'>(initialTab);
 
@@ -272,6 +281,15 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
                   Upcoming sessions
                 </div>
               </div>
+
+              {closeSetup && onAccountClosed && (
+                <CloseAccountSection
+                  client={supabase as unknown as ClosureClient}
+                  setup={closeSetup}
+                  symbolOf={getCurrencySymbol}
+                  onClosed={onAccountClosed}
+                />
+              )}
 
             </div>
           )}
