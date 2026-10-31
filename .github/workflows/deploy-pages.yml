@@ -28,8 +28,9 @@ jobs:
         env:
           # Served from the root of tutorlage.com, so no GITHUB_PAGES (it would build for /tutorlage-beta/).
           # Publishable key: RLS-enforced, safe to expose in a client build.
-          VITE_SUPABASE_URL: "https://wfpjoxetbprmllqqarwp.supabase.co"
-          VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_uYCOWKWJoWh4hlXH22H_cQ_gKHZ5n3l"
+          # Production ("Tutorlage Production", qxzhqylrrspumvguflwj) since 31 Oct 2026; the dev project is wfpjoxetbprmllqqarwp.
+          VITE_SUPABASE_URL: "https://qxzhqylrrspumvguflwj.supabase.co"
+          VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_b6VSzQyqjjxMjA7gjMLXjg_doeo859L"
           # The payments API on Cloudflare Workers (server/worker.ts, wrangler.jsonc). Pages has no /api.
           VITE_API_BASE_URL: "https://tutorlage-api.pakisosetunku.workers.dev"
       # GitHub Pages has no server-side routing: copying index.html to 404.html
