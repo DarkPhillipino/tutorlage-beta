@@ -95,7 +95,7 @@ export const ResendConfirmation: React.FC<ResendConfirmationProps> = ({ email, c
         )}
       </div>
 
-      <p className="text-[11px] text-slate-400 leading-relaxed">{AUTH_COPY.emailArrivalHint}</p>
+      <p className="text-[11px] text-slate-600 leading-relaxed">{AUTH_COPY.emailArrivalHint}</p>
     </div>
   );
 };

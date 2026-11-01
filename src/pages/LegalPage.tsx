@@ -59,7 +59,7 @@ export default function LegalPage({ document }: { document: LegalDocument }) {
           <FileText className="w-6 h-6" />
         </div>
         <h1 className="text-2xl font-extrabold text-[#0F172A] tracking-tight mb-1">Tutorlage {title}</h1>
-        <p className="text-xs text-slate-400 mb-4">Version {LEGAL_VERSION} · Last updated {LAST_UPDATED}</p>
+        <p className="text-xs text-slate-600 mb-4">Version {LEGAL_VERSION} · Last updated {LAST_UPDATED}</p>
 
         <MarkdownText source={text} />
 

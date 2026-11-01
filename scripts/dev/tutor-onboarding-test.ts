@@ -345,8 +345,11 @@ async function main() {
   check('C2b the switch is a plain true in src/lib/features.ts, not read from an environment variable', /tutorOnboarding: true,/.test(source('src/lib/features.ts')));
 
   const mainTsx = source('src/main.tsx');
-  check('C3 the app sits inside the onboarding gate, which sits inside the account gate', /<AccountGate>[\s\S]{0,200}<TutorOnboardingGate>\s*<App \/>\s*<\/TutorOnboardingGate>/.test(mainTsx));
-  check('C3b the /tutor-documents route exists only behind the switch', /FEATURES\.tutorOnboarding && \(\s*<Route\s+path="\/tutor-documents"/.test(mainTsx));
+  // 1 Nov 2026: the signed-in wrappers moved out of main.tsx into src/pages/guarded.tsx so that they load on demand (PERF-BUNDLE-01).
+  const guardedTsx = source('src/pages/guarded.tsx');
+  check('C3 the app sits inside the onboarding gate, which sits inside the account gate', /<AccountGate>[\s\S]{0,200}<TutorOnboardingGate>\s*<App \/>\s*<\/TutorOnboardingGate>/.test(guardedTsx));
+  check('C3a the "/" route reaches that wrapped app (GuardedApp) for a signed-in person', /session \? <GuardedApp \/> : <Landing \/>/.test(mainTsx));
+  check('C3b the /tutor-documents route exists only behind the switch', /FEATURES\.tutorOnboarding && <Route path="\/tutor-documents" element=\{<GuardedTutorDocuments \/>\} \/>/.test(mainTsx));
   const gate = source('src/components/TutorOnboardingGate.tsx');
   check('C4 the gate does nothing unless the switch is on and the person is a tutor', /!FEATURES\.tutorOnboarding \|\| !user \|\| profile\?\.role !== 'tutor'/.test(gate));
   check('C4b a tutor from before the feature (not-needed) or a finished one is never shown the pages', /stage !== 'not-needed' && stage !== 'complete'/.test(gate));

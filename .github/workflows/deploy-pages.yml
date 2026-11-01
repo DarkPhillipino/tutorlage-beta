@@ -33,10 +33,12 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_b6VSzQyqjjxMjA7gjMLXjg_doeo859L"
           # The payments API on Cloudflare Workers (server/worker.ts, wrangler.jsonc). Pages has no /api.
           VITE_API_BASE_URL: "https://tutorlage-api.pakisosetunku.workers.dev"
-      # GitHub Pages has no server-side routing: copying index.html to 404.html
-      # lets deep links (e.g. /login) resolve to the app instead of a hard 404,
-      # so React Router can take over client-side.
-      - run: cp dist/index.html dist/404.html
+          # Payments are dropped for now (CEO, 28 Oct 2026): booking says "Payments are not open yet" and the tutor's bank-details box
+          # is hidden. Delete this line when payments return (src/lib/features.ts, PAYMENTS_NOT_OPEN).
+          VITE_PAYMENTS_NOT_OPEN: "1"
+      # GitHub Pages has no server-side routing. `npm run build` ends with scripts/postbuild.ts, which writes a real file for each public
+      # address (dist/login.html, dist/signup/tutor.html, ... answered with status 200), dist/404.html for every other address (the app
+      # shows its "We can't find that page" screen), sitemap.xml and robots.txt. Do not copy index.html over 404.html here.
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -6,8 +6,10 @@
 // What the summary covers, and what it does not:
 //  - the app type check is the root `tsc --noEmit` (tsconfig.json excludes only node_modules, admin, dist and build, so src/, server/
 //    and scripts/ are all in it); the admin app has its own tsconfig and is checked separately;
-//  - the production build is the app's `vite build` (the admin app's build is not run);
-//  - it does NOT run the database suites (supabase/tests/*.sql: they need the rolled-back runner on dev) and does not open a browser.
+//  - the production builds are the app's `npm run build` (vite build + the postbuild step that writes the per-address pages, 404.html,
+//    sitemap.xml and robots.txt) and the admin app's `npm run build` (added 1 Nov 2026);
+//  - it does NOT run the database suites (supabase/tests/*.sql: they need the rolled-back runner on dev) and does not open a browser
+//    (the browser checks are separate: `npm run test:browsers`, on a finished build).
 import { spawnSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +21,9 @@ const allItems = [
   ...testFiles.map((f) => ({ name: `test ${f}`, cmd: `npx --no-install tsx scripts/dev/${f}`, cwd: root })),
   { name: 'type check: app (src, server, scripts)', cmd: 'npx --no-install tsc --noEmit', cwd: root },
   { name: 'type check: admin app', cmd: 'npx --no-install tsc --noEmit', cwd: `${root}admin` },
-  { name: 'production build: app', cmd: 'npx --no-install vite build', cwd: root },
+  // `npm run build` = vite build + scripts/postbuild.ts (the per-address pages, 404.html, sitemap.xml, robots.txt).
+  { name: 'production build: app', cmd: 'npm run build', cwd: root },
+  { name: 'production build: admin app', cmd: 'npm run build', cwd: `${root}admin` },
 ];
 // Optional: `npm run regress -- legal build` runs only the items whose name contains one of the words (a partial run; the summary says so).
 const only = process.argv.slice(2);
@@ -47,6 +51,6 @@ for (const item of items) {
 const failedItems = results.filter((r) => !r.pass);
 console.log(`\n${failedItems.length === 0 ? 'ALL PASS' : 'FAILED'}: ${results.length - failedItems.length} of ${results.length} items passed `
   + (only.length ? `(PARTIAL RUN: only items matching "${only.join('", "')}"; ${allItems.length - results.length} items not run).`
-    : `(${testFiles.length} script tests, 2 type checks, 1 build). Database suites and browser checks are not part of this run.`));
+    : `(${testFiles.length} script tests, 2 type checks, 2 builds). Database suites and browser checks (npm run test:browsers) are not part of this run.`));
 for (const r of failedItems) console.log(`  failed: ${r.name}`);
 process.exit(failedItems.length === 0 ? 0 : 1);

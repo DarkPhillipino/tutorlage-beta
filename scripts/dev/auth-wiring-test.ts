@@ -85,7 +85,8 @@ async function main() {
 
   // ---- 4. Routes ----------------------------------------------------------------------------------------------
   const main = source('src/main.tsx');
-  const gate = main.indexOf('path="/*"');
+  // The signed-in gate is the "/" route (HomeRoute: start page for visitors, the app behind sign-in for everyone else); every public route sits before it.
+  const gate = main.indexOf('path="/" element={<HomeRoute');
   for (const route of ['/forgot-password"', '/forgot-password/:role"', '/reset-password"']) {
     const at = main.indexOf(`path="${route}`);
     check(`route ${route.replace('"', '')} exists and sits before the signed-in gate`, at !== -1 && at < gate);

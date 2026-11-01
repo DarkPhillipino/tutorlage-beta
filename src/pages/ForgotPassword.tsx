@@ -156,7 +156,7 @@ export default function ForgotPassword() {
           </form>
 
           {!showSent && (
-            <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">{AUTH_COPY.emailArrivalHint}</p>
+            <p className="text-[11px] text-slate-600 mt-4 leading-relaxed">{AUTH_COPY.emailArrivalHint}</p>
           )}
 
           <p className="text-center text-xs text-slate-500 mt-6">

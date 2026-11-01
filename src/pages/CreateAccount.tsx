@@ -236,7 +236,7 @@ export default function CreateAccount() {
             <div>
               <label className={labelClass} htmlFor="dateOfBirth">Date of birth</label>
               <input id="dateOfBirth" type="date" required value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className={inputClass} />
-              <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">{COPY.dateOfBirthWhy}</p>
+              <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">{COPY.dateOfBirthWhy}</p>
             </div>
 
             {isUnder18Learner ? (
@@ -274,7 +274,7 @@ export default function CreateAccount() {
                     <Link to="/privacy" target="_blank" className="font-bold text-[#15803D] hover:underline">Privacy Policy</Link>.
                   </span>
                 </label>
-                <p className="text-[11px] text-slate-400 leading-relaxed">{COPY.termsSummary}</p>
+                <p className="text-[11px] text-slate-600 leading-relaxed">{COPY.termsSummary}</p>
 
                 <button
                   type="submit"
@@ -289,7 +289,7 @@ export default function CreateAccount() {
           </form>
 
           {role === 'tutor' && (
-            <p className="text-[11px] text-slate-400 mt-4 text-center leading-relaxed">
+            <p className="text-[11px] text-slate-600 mt-4 text-center leading-relaxed">
               {FEATURES.tutorOnboarding
                 ? "Next, you'll tell us what kind of tutor you are and upload your documents: your ID or passport, a police clearance certificate, and your results or proof of experience."
                 : 'Your subjects, rate tier, and availability are set up next, from your Teaching dashboard.'}
@@ -301,12 +301,12 @@ export default function CreateAccount() {
             <>
               <div className="flex items-center gap-3 my-5">
                 <div className="flex-1 h-px bg-slate-200" />
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">or</span>
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">or</span>
                 <div className="flex-1 h-px bg-slate-200" />
               </div>
 
               <GoogleSignInButton role={role} label={`Sign up with Google`} onError={setError} />
-              <p className="text-[11px] text-slate-400 mt-2 text-center">
+              <p className="text-[11px] text-slate-600 mt-2 text-center">
                 With Google, we'll ask for your date of birth and your acceptance of our terms right after.
               </p>
             </>

@@ -8,7 +8,7 @@ import { TutorSessionsPanel } from './TutorSessionsPanel';
 import { PayoutAccountPanel } from './PayoutAccountPanel';
 import { VerificationDocumentsPanel } from './VerificationDocumentsPanel';
 import { Tier1Panel } from './Tier1Panel';
-import { FEATURES } from '../lib/features';
+import { FEATURES, PAYMENTS_NOT_OPEN } from '../lib/features';
 import { AvailabilityEditor } from './AvailabilityEditor';
 import { SubjectCompetencyEditor } from './SubjectCompetencyEditor';
 import { InstitutionModal } from './InstitutionModal';
@@ -307,8 +307,9 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
       {/* Accepted sessions: add the meeting link, mark complete */}
       <TutorSessionsPanel tutorId={tutor.id} />
 
-      {/* Where the tutor's share is paid (7a) */}
-      <PayoutAccountPanel tutorId={tutor.id} />
+      {/* Where the tutor's share is paid (7a). Hidden while payments are not open (CEO, 1 Nov 2026): nobody can be paid, and the
+          box asks for an ID or passport number that only feeds Paystack's bank check. It returns with payments. */}
+      {!PAYMENTS_NOT_OPEN && <PayoutAccountPanel tutorId={tutor.id} />}
 
       {/* Set working hours */}
       <AvailabilityEditor tutorId={tutor.id} availability={availability} onChange={setAvailability} />

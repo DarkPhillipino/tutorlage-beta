@@ -9,6 +9,7 @@ import { fetchMyClearanceStatus } from '../lib/clearanceData';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate } from '../lib/format';
 import { PayoutAccountPanel } from './PayoutAccountPanel';
+import { PAYMENTS_NOT_OPEN } from '../lib/features';
 
 interface AvailableRequestsQueueProps {
   tutorId: string;
@@ -73,7 +74,8 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
   }, [tutorId]);
 
   const visibleRequests = requests.filter((r) => !dismissedIds.has(r.id));
-  const needsPayoutAccount = payoutAccount === null || (payoutAccount !== undefined && !payoutAccount.canReceivePayments);
+  // The bank-details box is hidden while payments are not open (CEO, 1 Nov 2026); it returns with payments.
+  const needsPayoutAccount = !PAYMENTS_NOT_OPEN && (payoutAccount === null || (payoutAccount !== undefined && !payoutAccount.canReceivePayments));
   const banner = clearanceBanner(clearance);
 
   const handleAccept = async (request: AvailableSessionRequest) => {
@@ -145,6 +147,14 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
         <div className="mb-2">
           <PayoutAccountPanel tutorId={tutorId} onSaved={setPayoutAccount} />
         </div>
+      )}
+
+      {/* Accepting charges the learner's saved card and pays the tutor's share into the bank account, so while payments are
+          not open there is nothing a tutor can add here; say so once instead of showing a bank box that is hidden. */}
+      {PAYMENTS_NOT_OPEN && visibleRequests.length > 0 && (
+        <p role="status" data-payments-not-open-tutor className="mb-2 text-[11px] font-semibold rounded-lg px-2.5 py-2 bg-amber-50 border border-amber-200 text-amber-800">
+          Payments are not open yet, so requests cannot be accepted yet. This opens with payments.
+        </p>
       )}
 
       {isLoading ? (

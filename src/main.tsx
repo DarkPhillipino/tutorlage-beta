@@ -1,25 +1,13 @@
-import {StrictMode} from 'react';
+import {StrictMode, Suspense} from 'react';
 import {createRoot} from 'react-dom/client';
 import {BrowserRouter, Routes, Route} from 'react-router-dom';
-import App from './App.tsx';
-import Login from './pages/Login.tsx';
-import SignIn from './pages/SignIn.tsx';
-import CreateAccount from './pages/CreateAccount.tsx';
-import ForgotPassword from './pages/ForgotPassword.tsx';
-import ResetPassword from './pages/ResetPassword.tsx';
 import {RecoveryRedirect} from './lib/RecoveryRedirect.tsx';
-import PaymentCallback from './pages/PaymentCallback.tsx';
-import AuthCallback from './pages/AuthCallback.tsx';
-import AccountClosed from './pages/AccountClosed.tsx';
-import LegalPage from './pages/LegalPage.tsx';
-import RoomPage from './pages/RoomPage.tsx';
-import TutorDocuments from './pages/TutorDocuments.tsx';
 import {FEATURES} from './lib/features.ts';
-import {AuthProvider} from './lib/AuthContext.tsx';
-import {RequireAuth} from './components/RequireAuth.tsx';
+import {AuthProvider, useAuth} from './lib/AuthContext.tsx';
 import {AppErrorBoundary} from './components/ErrorBoundary.tsx';
-import {AccountGate} from './components/AccountGate.tsx';
-import {TutorOnboardingGate} from './components/TutorOnboardingGate.tsx';
+import {PageLoading} from './components/PageLoading.tsx';
+import {RouteMeta} from './components/RouteMeta.tsx';
+import {lazyRoute} from './lib/lazyRoute.ts';
 import {loadCurrencySymbols} from './lib/currencies.ts';
 import {BASE_PATH} from './lib/siteUrl.ts';
 import {installGlobalErrorLogging, setErrorSender} from './lib/errorLog.ts';
@@ -39,6 +27,31 @@ installGlobalErrorLogging();
 // this resolves, so it doesn't need to block first paint.
 loadCurrencySymbols();
 
+// Every page loads on demand (release gate PERF-BUNDLE-01): the first download carries the router, sign-in state and the page asked for,
+// not the whole app. lazyRoute retries once and then reloads once if a page's code cannot be fetched (lost signal, or a republish).
+const Landing = lazyRoute(() => import('./pages/Landing.tsx'));
+const NotFound = lazyRoute(() => import('./pages/NotFound.tsx'));
+const Login = lazyRoute(() => import('./pages/Login.tsx'));
+const SignIn = lazyRoute(() => import('./pages/SignIn.tsx'));
+const CreateAccount = lazyRoute(() => import('./pages/CreateAccount.tsx'));
+const ForgotPassword = lazyRoute(() => import('./pages/ForgotPassword.tsx'));
+const ResetPassword = lazyRoute(() => import('./pages/ResetPassword.tsx'));
+const PaymentCallback = lazyRoute(() => import('./pages/PaymentCallback.tsx'));
+const AuthCallback = lazyRoute(() => import('./pages/AuthCallback.tsx'));
+const AccountClosed = lazyRoute(() => import('./pages/AccountClosed.tsx'));
+const LegalPage = lazyRoute(() => import('./pages/LegalPage.tsx'));
+const GuardedApp = lazyRoute(() => import('./pages/guarded.tsx').then((m) => ({default: m.GuardedApp})));
+const GuardedRoom = lazyRoute(() => import('./pages/guarded.tsx').then((m) => ({default: m.GuardedRoom})));
+const GuardedTutorDocuments = lazyRoute(() => import('./pages/guarded.tsx').then((m) => ({default: m.GuardedTutorDocuments})));
+
+// The address "/": a visitor who is not signed in sees the start page; someone signed in goes straight to the app. While the sign-in
+// state is still being read (and an email link's tokens are being turned into a session) it waits, so the start page never flashes.
+function HomeRoute() {
+  const {session, loading} = useAuth();
+  if (loading) return <PageLoading />;
+  return session ? <GuardedApp /> : <Landing />;
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter basename={BASE_PATH || '/'}>
@@ -47,6 +60,8 @@ createRoot(document.getElementById('root')!).render(
       <AuthProvider>
         {/* Master 7cm: a password-reset link that landed on the wrong page is sent on to /reset-password. */}
         <RecoveryRedirect />
+        <RouteMeta />
+        <Suspense fallback={<PageLoading />}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signin/:role" element={<SignIn />} />
@@ -71,56 +86,18 @@ createRoot(document.getElementById('root')!).render(
           {/* Video rooms (master 7bm), switched off with FEATURES.videoRooms until the CEO says so. */}
           {FEATURES.videoRooms && (
             <>
-              <Route
-                path="/room"
-                element={
-                  <RequireAuth>
-                    <AccountGate>
-                      <RoomPage />
-                    </AccountGate>
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/room/:code"
-                element={
-                  <RequireAuth>
-                    <AccountGate>
-                      <RoomPage />
-                    </AccountGate>
-                  </RequireAuth>
-                }
-              />
+              <Route path="/room" element={<GuardedRoom />} />
+              <Route path="/room/:code" element={<GuardedRoom />} />
             </>
           )}
           {/* The tutor's second and third sign-up pages, reopened from the Teach screen's reminder (master 7cx). */}
-          {FEATURES.tutorOnboarding && (
-            <Route
-              path="/tutor-documents"
-              element={
-                <RequireAuth>
-                  <AccountGate>
-                    <TutorDocuments />
-                  </AccountGate>
-                </RequireAuth>
-              }
-            />
-          )}
-          <Route
-            path="/*"
-            element={
-              <RequireAuth>
-                {/* Date of birth + Terms/Privacy acceptance before the app (7k/7l). */}
-                <AccountGate>
-                  {/* Tutors: "beginner or experienced?" and their documents, when switched on (master 7cx). */}
-                  <TutorOnboardingGate>
-                    <App />
-                  </TutorOnboardingGate>
-                </AccountGate>
-              </RequireAuth>
-            }
-          />
+          {FEATURES.tutorOnboarding && <Route path="/tutor-documents" element={<GuardedTutorDocuments />} />}
+          {/* The start page for visitors, the app for signed-in people (the checks the app needs are in pages/guarded.tsx). */}
+          <Route path="/" element={<HomeRoute />} />
+          {/* Any other address: a plain "we can't find that page" (it used to open the app, or bounce a visitor to sign-in). */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
+        </Suspense>
       </AuthProvider>
       </AppErrorBoundary>
     </BrowserRouter>

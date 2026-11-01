@@ -83,7 +83,7 @@ export default function SignIn() {
           </h1>
 
           {error && (
-            <div className="mb-4 flex items-start space-x-2 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs font-semibold text-rose-700">
+            <div role="alert" className="mb-4 flex items-start space-x-2 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs font-semibold text-rose-700">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -149,7 +149,7 @@ export default function SignIn() {
             <>
               <div className="flex items-center gap-3 my-5">
                 <div className="flex-1 h-px bg-slate-200" />
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">or</span>
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">or</span>
                 <div className="flex-1 h-px bg-slate-200" />
               </div>
 
@@ -165,7 +165,7 @@ export default function SignIn() {
           </p>
         </div>
 
-        <p className="text-center text-xs text-slate-400 mt-6">
+        <p className="text-center text-xs text-slate-600 mt-6">
           Not a {roleLabel}?{' '}
           <Link to="/login" className="font-bold text-slate-600 hover:underline">
             Choose a different role
