@@ -73,6 +73,9 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // Who the "tell me when a tutor is available" prompt is for: null for a view-only learner, or a parent who has not picked a learner.
   const waitlistLearnerId = isViewOnlyLearner ? null : isGuardian ? (learner?.id ?? null) : (user?.id ?? null);
   const [isSending, setIsSending] = useState(false);
+  // A second tap in the same instant (before the button has redrawn as disabled) must not send a second request: the state above is read
+  // a render late, this flag is read at once. Cleared only when sending failed, so the person can try again.
+  const sendingRef = useRef(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [gradeLevelUnrecognized, setGradeLevelUnrecognized] = useState(false);
@@ -271,6 +274,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // to tutors. The price is charged only when a tutor accepts.
   const handleSendRequest = async () => {
     if (PAYMENTS_NOT_OPEN) return;
+    if (sendingRef.current) return;
     if (!user?.email || !selectedLevel || chargedAmount === null) return;
     if (isGuardian && !learner) return;
     // Found 16 Oct 2026: the request used the subject last SEARCHED (appliedSubject), while the box on this page shows the
@@ -289,6 +293,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
       return;
     }
     setSendError(null);
+    sendingRef.current = true;
     setIsSending(true);
     try {
       const reference = crypto.randomUUID();
@@ -316,6 +321,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
       window.location.href = authorizationUrl;
     } catch (e) {
       setSendError(getErrorMessage(e, 'Could not start the card check.'));
+      sendingRef.current = false;
       setIsSending(false);
     }
   };

@@ -31,6 +31,8 @@ check('the deploy workflow sets the switch to "1" (payments are dropped; remove 
 const teachingPanel = read('src/components/TeachingProfilePanel.tsx');
 const queue = read('src/components/AvailableRequestsQueue.tsx');
 check('Teaching tab: the bank-details box shows only when payments are open', /\{!PAYMENTS_NOT_OPEN && <PayoutAccountPanel tutorId=\{tutor\.id\} \/>\}/.test(teachingPanel) && !/^\s*<PayoutAccountPanel/m.test(teachingPanel));
+// 1 Nov 2026 (batch 2): a second tap in the same instant must not send a second request (the button's disabled state is read a render late).
+check('the send handler also refuses while a send is under way (an instant flag, not only the disabled button), and clears it only on failure', /const sendingRef = useRef\(false\)/.test(prices) && /if \(PAYMENTS_NOT_OPEN\) return;\s*if \(sendingRef\.current\) return;/.test(prices) && /sendingRef\.current = true;\s*setIsSending\(true\)/.test(prices) && /sendingRef\.current = false;\s*setIsSending\(false\)/.test(prices));
 check('request queue: the bank-details box is asked for only when payments are open', /const needsPayoutAccount = !PAYMENTS_NOT_OPEN && /.test(queue));
 check('request queue: while payments are closed the tutor is told so instead (nothing to add, nothing hidden silently)', /\{PAYMENTS_NOT_OPEN && visibleRequests\.length > 0 && \(\s*<p role="status" data-payments-not-open-tutor/.test(queue));
 

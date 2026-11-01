@@ -54,6 +54,20 @@ export default defineConfig(({mode}) => {
     // github.io project address, which serves it from /tutorlage-beta/.
     base: process.env.GITHUB_PAGES ? '/tutorlage-beta/' : '/',
     plugins: [react(), tailwindcss(), contentSecurityPolicy(mode)],
+    build: {
+      rollupOptions: {
+        output: {
+          // Three long-lived vendor files instead of one big one: after a republish a returning visitor on mobile data only
+          // downloads our own changed code, the React and database libraries stay in the browser's cache (PERF-BUNDLE-01).
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return undefined;
+            if (/node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom)[\\/]/.test(id)) return 'vendor-react';
+            if (/node_modules[\\/]@supabase[\\/]/.test(id)) return 'vendor-supabase';
+            return undefined;
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
