@@ -1,7 +1,10 @@
-// Rand amounts render as fixed 2-decimal currency, not raw floats (R150.50,
-// never R150.5).
+// Rand amounts are shown in whole rands: R150, never R150.00 (CEO, 1 Nov 2026: "150 not 150,50"; release gate row SA-LOCALE-01). An amount
+// that really has cents is still shown with both decimals (R187.50, never R187.5 and never a rounded R188), because a screen must not name a
+// price other than the one charged or paid. Whether such amounts can arise at all is a rounding decision for the CEO; once it is made at the
+// source they cannot, and this shows only whole rands. Rounds to the cent first, so 150.0000001 reads R150.
 export function formatRate(amount: number): string {
-  return amount.toFixed(2);
+  const cents = Math.round(amount * 100);
+  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
 }
 
 // The top pricing tier's max_rate is set to a huge sentinel value

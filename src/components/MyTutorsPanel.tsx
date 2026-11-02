@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Heart, Shuffle, Send, Loader2, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { clearTutorChoice, fetchMyTutors, resendRequestToAnyone, setTutorChoice } from '../lib/queries';
+import { formatSaDate } from '../lib/saTime';
 import {
   KEEP_OR_SWAP_COPY,
   describeKeepOrSwapError,
@@ -107,7 +108,7 @@ export const MyTutorsPanel: React.FC<MyTutorsPanelProps> = ({ learner, showLearn
             <div className="text-xs text-slate-500">
               {t.sessionsTogether} session{t.sessionsTogether === 1 ? '' : 's'} together
               {t.lastSubject ? ` · last: ${t.lastSubject}${t.lastGrade ? ` (${t.lastGrade})` : ''}` : ''}
-              {t.lastSessionAt ? ` · ${new Date(t.lastSessionAt).toLocaleDateString()}` : ''}
+              {t.lastSessionAt ? ` · ${formatSaDate(t.lastSessionAt)}` : ''}
             </div>
 
             {waiting && (

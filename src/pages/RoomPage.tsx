@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Check, Copy, Gauge, Loader2, Mic, MicOff, PhoneOff, ShieldCheck, Users, Video, VideoOff } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
+import { formatSaTime } from '../lib/saTime';
 import { RoomCall } from '../lib/roomCall';
 import { supabaseTransport } from '../lib/roomTransport';
 import {
@@ -241,7 +242,7 @@ const OpenRoom: React.FC = () => {
                   >
                     <span className="text-slate-600">
                       {room.inRoom} of {room.maxParticipants} in the room · open until{' '}
-                      {new Date(room.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {formatSaTime(room.expiresAt)}
                     </span>
                     <Link to={`/room/${room.code}`} className="font-semibold text-[#15803D]">
                       Go in

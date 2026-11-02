@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Loader2, Banknote, AlertTriangle, Landmark, CheckCircle2 } from 'lucide-react';
 import { fetchPayoutBatches, fetchPaymentsNeedingAttention, fetchTutorPayoutAccounts } from '../lib/queries';
 import { PayoutBatch, PaymentAttentionItem, TutorPayoutAccountRow } from '../types';
+import { formatRand } from '../lib/rand';
 
 const VALIDATION_LABEL: Record<string, string> = {
   validated: 'Confirmed by the bank',
@@ -71,7 +72,7 @@ export const Payouts: React.FC = () => {
                   <div className="text-sm font-bold text-[#0F172A]">{item.problem}</div>
                   <div className="text-sm font-extrabold text-[#0F172A]">
                     {item.currencyCode === 'ZAR' ? 'R' : `${item.currencyCode} `}
-                    {item.amount.toFixed(2)}
+                    {formatRand(item.amount)}
                   </div>
                 </div>
                 {item.detail && <div className="text-xs text-slate-600">{item.detail}</div>}
@@ -126,8 +127,8 @@ export const Payouts: React.FC = () => {
                   <div className="text-xs text-slate-500 mt-0.5">{b.totalTutorsPaid} tutors · {new Date(b.createdAt).toLocaleDateString()}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-extrabold text-[#0F172A]">R{b.totalAmountPaid.toFixed(2)}</div>
-                  <div className="text-[10px] text-slate-400">Commission: R{b.platformCommissionRetained.toFixed(2)}</div>
+                  <div className="text-sm font-extrabold text-[#0F172A]">R{formatRand(b.totalAmountPaid)}</div>
+                  <div className="text-[10px] text-slate-400">Commission: R{formatRand(b.platformCommissionRetained)}</div>
                 </div>
               </div>
             ))}

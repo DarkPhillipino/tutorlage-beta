@@ -140,16 +140,16 @@ async function main() {
       p.accounts.length === 3 && p.accounts.map((a) => a.sessions.length).join() === '2,1,0' && p.deleted.length === 7 && p.kept.length === 5 && p.deleteAfterDays === 30 && p.deleteByDays === 90 && p.undoDays === 30);
 
     const html = words(view({ preview: parseClosurePreview(SINGLE) }));
-    check('step 1 lists the sessions that will be cancelled and refunded, with count, length and amount', /1 upcoming session will be cancelled and refunded in full\./.test(html) && /2 hours/.test(html) && /R500\.00/.test(html), html.slice(0, 300));
+    check('step 1 lists the sessions that will be cancelled and refunded, with count, length and amount', /1 upcoming session will be cancelled and refunded in full\./.test(html) && /2 hours/.test(html) && /R500(?!\.\d|\d)/.test(html), html.slice(0, 300));
     const two = words(view({ preview: parseClosurePreview(rawPreview([GUARDIAN])) }));
-    check('two sessions are counted as "2 upcoming sessions", a half hour is written as 1.5 hours, each with its own amount', /2 upcoming sessions will be cancelled and refunded in full\./.test(two) && /1\.5 hours/.test(two) && /R250\.00/.test(two) && /R375\.00/.test(two));
+    check('two sessions are counted as "2 upcoming sessions", a half hour is written as 1.5 hours, each with its own amount', /2 upcoming sessions will be cancelled and refunded in full\./.test(two) && /1\.5 hours/.test(two) && /R250(?!\.\d|\d)/.test(two) && /R375(?!\.\d|\d)/.test(two));
     const none = words(view({ preview: parseClosurePreview(rawPreview([acct('x', 'Thabo', 'student')])) }));
     check('no upcoming sessions says so', new RegExp(CLOSE_COPY.noSessions).test(none) && !/will be cancelled and refunded/.test(none));
     check('step 1 says what is deleted and when (30 days, always within 90), listing all 7 lines', /We delete these 30 days after you close, and always within 90 days/.test(html) && DELETED.every((d) => html.includes(d)));
     check('step 1 says what is kept and for how long, all 5 lines', KEPT.every(([what, howLong]) => html.includes(what) && html.includes(howLong)));
     check('step 1 says they can change their mind for 30 days', /You can change your mind for 30 days/.test(html));
     const t = words(view({ preview: parseClosurePreview(TUTOR) }));
-    check('a tutor is told the learner is refunded, and a payout owed is shown as a soft block they can go past', /Each learner is refunded in full and told/.test(t) && /You are owed R1250\.00/.test(t) && /You can still go ahead/.test(t) && !isDisabled(view({ preview: parseClosurePreview(TUTOR) }), 'continue'));
+    check('a tutor is told the learner is refunded, and a payout owed is shown as a soft block they can go past', /Each learner is refunded in full and told/.test(t) && /You are owed R1250(?!\.\d|\d)/.test(t) && /You can still go ahead/.test(t) && !isDisabled(view({ preview: parseClosurePreview(TUTOR) }), 'continue'));
     const busy = view({ preview: parseClosurePreview(rawPreview([GUARDIAN], true)) });
     check('a session about to start or an open video room: "Try again after your session" is shown and Continue is off', /Try again after your session/.test(busy) && isDisabled(busy, 'continue'));
     check('with nothing blocking, Continue is on', !isDisabled(view({}), 'continue'));

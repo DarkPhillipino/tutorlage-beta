@@ -29,13 +29,14 @@ check('a date nobody can read is treated as over, not upcoming', !isUpcomingSess
 check('reads only need sessions that started in the last day', UPCOMING_LOOKBACK_HOURS === 24 && upcomingLookbackIso(now) === new Date(now - 24 * 3_600_000).toISOString());
 
 // ---- the words --------------------------------------------------------------------------------------------------------------------
-const local = (y: number, m: number, d: number, h: number, min: number) => new Date(y, m, d, h, min).toISOString();
-const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-check('"Today, 22:36" for a session today', describeWhen(local(2026, 9, 17, 22, 36), now) === `Today, ${time(local(2026, 9, 17, 22, 36))}`);
-check('"Tomorrow, ..." for the next day, even just after midnight', describeWhen(local(2026, 9, 18, 0, 5), now) === `Tomorrow, ${time(local(2026, 9, 18, 0, 5))}`);
-check('a later day gets its weekday and date', /Tue/.test(describeWhen(local(2026, 9, 20, 14, 0), now)) && /20/.test(describeWhen(local(2026, 9, 20, 14, 0), now)) && /Oct/.test(describeWhen(local(2026, 9, 20, 14, 0), now)));
-check('an unreadable date gives nothing rather than "Invalid Date"', describeWhen('nonsense', now) === '');
-check('the video call opens 15 minutes before the start', roomOpensAt(at(60)) === new Date(now + 45 * 60_000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+// Always South African time and always named (CEO, 1 Nov 2026), whatever zone this computer is in.
+const sa = (y: number, m: number, d: number, h: number, min: number) => new Date(Date.UTC(y, m, d, h - 2, min)).toISOString(); // a South African clock reading
+const saNow = Date.UTC(2026, 9, 17, 20, 37, 44); // 17 Oct 2026, 22:37:44 SAST
+check('"Today, 22:36 SAST" for a session today', describeWhen(sa(2026, 9, 17, 22, 36), saNow) === 'Today, 22:36 SAST');
+check('"Tomorrow, ..." for the next South African day, even just after midnight', describeWhen(sa(2026, 9, 18, 0, 5), saNow) === 'Tomorrow, 00:05 SAST');
+check('a later day gets its weekday, date and the zone', describeWhen(sa(2026, 9, 20, 14, 0), saNow) === 'Tue 20 Oct, 14:00 SAST');
+check('an unreadable date gives nothing rather than "Invalid Date"', describeWhen('nonsense', saNow) === '');
+check('the video call opens 15 minutes before the start, and the time names the zone', roomOpensAt(sa(2026, 9, 17, 23, 37)) === '23:22 SAST');
 
 // ---- notices go where the tutor can act --------------------------------------------------------------------------------------------
 check('tapping "You have an upcoming session" opens the Teach screen (where the tutor starts the call); the learner\'s notices still open Sessions', notificationTarget('session_booked') === 'teach' && notificationTarget('request_accepted') === 'sessions' && notificationTarget('request_for_you') === 'teach' && notificationTarget('terms_updated') === 'terms');

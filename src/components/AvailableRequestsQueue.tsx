@@ -8,8 +8,11 @@ import { clearanceBanner, describeAcceptError, type ClearanceStatus } from '../l
 import { fetchMyClearanceStatus } from '../lib/clearanceData';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate } from '../lib/format';
+import { formatSaDateTime } from '../lib/saTime';
 import { PayoutAccountPanel } from './PayoutAccountPanel';
 import { PAYMENTS_NOT_OPEN } from '../lib/features';
+import { FREE_SESSION_TUTOR_NOTICE } from '../lib/freeSessions';
+import { useFreeIds } from '../lib/freeSessionsHooks';
 
 interface AvailableRequestsQueueProps {
   tutorId: string;
@@ -43,6 +46,8 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
   const [clearance, setClearance] = useState<ClearanceStatus | null>(null);
   // Keep or swap: a request addressed to this tutor is declined (the learner is told; nothing is charged), after a confirm.
   const [confirmDeclineId, setConfirmDeclineId] = useState<string | null>(null);
+  // FREE SESSIONS (CEO, 2 Nov 2026): which of these requests are free, so the tutor is told before accepting.
+  const freeIds = useFreeIds('request', requests.map((r) => r.id));
   const [decliningId, setDecliningId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -186,17 +191,21 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
                     {r.sentToYou && (
                       <div className="mb-1 inline-flex items-center gap-1 text-[10px] font-bold text-[#15803D] bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
                         <Heart className="w-3 h-3" /> {KEEP_OR_SWAP_COPY.tutorSentToYou}
-                        {r.expiresAt ? ` · open until ${new Date(r.expiresAt).toLocaleDateString()} ${new Date(r.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                        {r.expiresAt ? ` · open until ${formatSaDateTime(r.expiresAt)}` : ''}
                       </div>
                     )}
                     <div className="text-xs font-bold text-[#0F172A] truncate">
                       {r.subjectName ?? 'Any subject'}{r.gradeLevel ? ` · ${r.gradeLevel}` : ''}
                     </div>
                     <div className="text-[10px] text-slate-500 mt-0.5">
-                      {requestedDate.toLocaleDateString()} {requestedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {r.durationHours}h
+                      {formatSaDateTime(requestedDate)} · {r.durationHours}h
                       {r.levelId ? ` · Level ${r.levelId}` : r.tierName ? ` · ${r.tierName}` : ''}
                     </div>
-                    {r.tutorPayout != null && (
+                    {freeIds.has(r.id) ? (
+                      <div data-free-session className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1">
+                        {FREE_SESSION_TUTOR_NOTICE}
+                      </div>
+                    ) : r.tutorPayout != null && (
                       <div className="text-[10px] font-bold text-[#15803D] mt-0.5">
                         You earn {getCurrencySymbol(r.currencyCode)}{formatRate(r.tutorPayout)}
                       </div>

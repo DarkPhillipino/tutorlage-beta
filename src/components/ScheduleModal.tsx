@@ -231,7 +231,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               {/* Time selection: half-hours, South African time */}
               <div>
                 <label className="text-xs font-bold text-[#0F172A] block mb-1.5">
-                  Select Slot:
+                  Select Slot (South African time, SAST):
                 </label>
                 <div className="grid grid-cols-4 gap-1.5 max-h-36 overflow-y-auto pr-1">
                   {times.map((t) => {

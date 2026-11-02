@@ -2,6 +2,8 @@
 // 20261021141000_close_account_auth_link.sql; the interface these screens use is Part 4 of Drake/programmer/reports/2026-10-21-close-account.md.
 // Nothing here talks to the Worker or to Storage: the database does the cancelling, the refunds and the later deletion by itself.
 // This file imports no Supabase client on purpose; the caller hands one in, so a test can hand in a fake.
+import { formatRate } from './format';
+import { formatSaDateTime } from './saTime';
 
 export const CLOSE_WORD = 'CLOSE';
 
@@ -239,7 +241,7 @@ export async function requestClosure(client: ClosureClient, req: CloseRequest): 
 // ---- small display helpers ----------------------------------------------------------------------------------------------------------
 
 export function formatAmount(amount: number, currency: string, symbolOf: (code: string) => string = defaultSymbol): string {
-  return `${symbolOf(currency)}${amount.toFixed(2)}`;
+  return `${symbolOf(currency)}${formatRate(amount)}`;
 }
 const defaultSymbol = (code: string): string => (code.trim() === 'ZAR' ? 'R' : code.trim());
 
@@ -254,9 +256,7 @@ export function formatClosureDate(iso: string): string {
 }
 
 export function formatSessionTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return formatSaDateTime(iso) || iso;
 }
 
 // How the account modal and the learners panel decide what to show (App.tsx fills it in; the database decides in the end).

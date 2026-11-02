@@ -1,6 +1,7 @@
 // The date, time and length of a tutoring request (CEO, 19 Oct 2026: the date and the length decide which tutors are free).
 // No browser or Supabase code, so scripts/dev/request-schedule-test.ts runs it directly.
 import { describeDate, toIsoDate } from './format';
+import { SA_ZONE_LABEL } from './saTime';
 import type { BookingFormState, SchoolCurriculum } from '../types';
 
 // A session lasts 1 to 3 hours in half-hours (the database refuses anything else).
@@ -91,7 +92,7 @@ export function describeSchedule(state: Pick<BookingFormState, 'scheduleType' | 
   const length = describeLength(state.durationHours || DEFAULT_SESSION_HOURS);
   return state.scheduleType === 'now'
     ? `As soon as possible · ${length}`
-    : `Scheduled: ${describeDate(state.scheduledDate)}, ${state.scheduledTime || '14:00'} · ${length}`;
+    : `Scheduled: ${describeDate(state.scheduledDate)}, ${state.scheduledTime || '14:00'} ${SA_ZONE_LABEL} · ${length}`;
 }
 
 // The curriculum question is asked only of a learner whose school follows more than one.

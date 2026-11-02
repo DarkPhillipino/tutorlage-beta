@@ -3,6 +3,7 @@
 // that includes one that has already started (a request for "as soon as possible" is booked at the time it was MADE, a moment
 // before the tutor accepts, so by the time it is booked its start is already behind us). Cancelled and completed sessions are not
 // upcoming. No browser or Supabase code, so scripts/dev/upcoming-sessions-test.ts runs it directly.
+import { describeSaWhen, formatSaTime } from './saTime';
 
 // Nothing is longer than this, so a read only needs sessions that started within it.
 export const UPCOMING_LOOKBACK_HOURS = 24;
@@ -22,21 +23,13 @@ export function isUpcomingSession(
   return session.status === 'scheduled' && !sessionHasEnded(session.scheduledStart, session.durationHours, now);
 }
 
-// When a session is, in words, in the person's own time zone: "Today, 22:36", "Tomorrow, 14:00", or "Sat 17 Oct, 14:00".
+// When a session is, in words, in South African time, and says so: "Today, 22:36 SAST", "Tomorrow, 14:00 SAST", "Sat 17 Oct, 14:00 SAST"
+// (CEO, 1 Nov 2026; lib/saTime.ts).
 export function describeWhen(scheduledStart: string, now: number = Date.now()): string {
-  const start = new Date(scheduledStart);
-  if (Number.isNaN(start.getTime())) return '';
-  const time = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((dayStart(start) - dayStart(new Date(now))) / 86_400_000);
-  if (days === 0) return `Today, ${time}`;
-  if (days === 1) return `Tomorrow, ${time}`;
-  const day = start.toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short' });
-  return `${day}, ${time}`;
+  return describeSaWhen(scheduledStart, now);
 }
 
-// "22:36", in the person's own time zone: when the video call opens, which is 15 minutes before the start.
+// "22:36 SAST": when the video call opens, which is 15 minutes before the start.
 export function roomOpensAt(scheduledStart: string): string {
-  const opens = new Date(new Date(scheduledStart).getTime() - 15 * 60_000);
-  return opens.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return formatSaTime(new Date(scheduledStart).getTime() - 15 * 60_000);
 }

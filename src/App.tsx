@@ -28,6 +28,7 @@ import { LinkedLearner, fetchMyLearners } from './lib/guardian';
 
 import { BookingFormState, SuggestionItem, UserAccount, PriceLevel, Institution, AppNotification } from './types';
 import { describeDate, toIsoDate } from './lib/format';
+import { SA_ZONE_LABEL } from './lib/saTime';
 import { DEFAULT_SESSION_HOURS, describeLength } from './lib/requestSchedule';
 import { fetchUpcomingStudentSessions, fetchUpcomingTutorSessions, fetchStudentGradeLevel, fetchStudentInstitution, updateStudentInstitution, fetchPriceLevelById } from './lib/queries';
 import { defaultBookAgainSchedule, type MyTutor } from './lib/keepOrSwap';
@@ -328,7 +329,7 @@ export default function App() {
     showToast(
       scheduleType === 'now'
         ? `Set to instant tutor matching for ${length}`
-        : `Scheduled for ${describeDate(date || toIsoDate(new Date()))} at ${time || '14:00'} for ${length}`,
+        : `Scheduled for ${describeDate(date || toIsoDate(new Date()))} at ${time || '14:00'} ${SA_ZONE_LABEL} for ${length}`,
     );
   };
 

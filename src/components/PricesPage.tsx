@@ -15,6 +15,9 @@ import { PriceLadder } from './PriceLadder';
 import { chosenLevelLine } from '../lib/ladderCopy';
 import type { LadderRow } from '../lib/ladderCopy';
 import { initializePayment } from '../lib/payments';
+import { FREE_FOR_NOW_DETAIL, FREE_FOR_NOW_NOTICE } from '../lib/freeSessions';
+import { sendMyRequestFree, useFreeSessionsOpen } from '../lib/freeSessionsHooks';
+import { siteUrl } from '../lib/siteUrl';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate } from '../lib/format';
 import { useAuth } from '../lib/AuthContext';
@@ -264,6 +267,8 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // amount shown here is for display only — the database sets the real
   // price on insert (guard_session_request_insert: price x length), and the
   // payments server charges that stored amount, never a number sent from the browser.
+  // FREE SESSIONS (CEO, 2 Nov 2026): when the database switch is on, a request is sent without a card check and nobody is charged.
+  const freeOpen = useFreeSessionsOpen();
   const durationHours = formState.durationHours;
   const chargedAmount = selectedLevel ? selectedLevel.price * durationHours : null;
 
@@ -273,7 +278,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // Paystack on /payment/callback and the database makes the request visible
   // to tutors. The price is charged only when a tutor accepts.
   const handleSendRequest = async () => {
-    if (PAYMENTS_NOT_OPEN) return;
+    if (PAYMENTS_NOT_OPEN && !freeOpen) return;
     if (sendingRef.current) return;
     if (!user?.email || !selectedLevel || chargedAmount === null) return;
     if (isGuardian && !learner) return;
@@ -298,7 +303,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
     try {
       const reference = crypto.randomUUID();
 
-      await createSessionRequest({
+      const created = await createSessionRequest({
         // A guardian books for their learner and pays with their own email.
         studentId: learner?.id ?? user.id,
         requestedById: user.id,
@@ -315,6 +320,13 @@ export const PricesPage: React.FC<PricesPageProps> = ({
         // "Book again": addressed to a tutor the learner has had; the database checks it and says why if it refuses.
         requestedTutorId: bookAgain?.tutorId ?? null,
       });
+
+      if (freeOpen) {
+        // No card check: the database makes the request visible to tutors, and the confirmation page says so.
+        await sendMyRequestFree(created.id);
+        window.location.href = siteUrl('/payment/callback?free=1');
+        return;
+      }
 
       const { authorizationUrl } = await initializePayment(reference);
 
@@ -657,6 +669,12 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   </>
                 ) : (
                   <>
+                    {freeOpen ? (
+                      <div role="status" data-free-sessions className="mb-5 max-w-sm">
+                        <p className="text-sm font-extrabold text-[#15803D] mb-1">{FREE_FOR_NOW_NOTICE}</p>
+                        <p className="text-xs text-slate-500">{FREE_FOR_NOW_DETAIL}</p>
+                      </div>
+                    ) : (<>
                     <p className="text-xs text-slate-500 mb-5 max-w-sm">
                       You'll pay <span className="font-bold text-[#0F172A]">{getCurrencySymbol(selectedLevel.currencyCode)}{formatRate(chargedAmount ?? 0)}</span>,
                       {bookAgain ? (
@@ -674,25 +692,26 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                     <p className="text-[11px] text-slate-500 mb-5 max-w-sm">
                       To save your card, Paystack makes a {getCurrencySymbol(selectedLevel.currencyCode)}1 check now and refunds it straight away.
                     </p>
+                    </>)}
                     {searchIsStale && (
                       <p className="text-[11px] font-semibold text-amber-700 mb-3 max-w-sm">
                         You changed the subject to "{formState.subject.trim() || 'any subject'}", but this request is for "{appliedSubject.trim() || 'any subject'}".
                         Press "Update results" on the left, then choose a price again.
                       </p>
                     )}
-                    {PAYMENTS_NOT_OPEN && (
+                    {PAYMENTS_NOT_OPEN && !freeOpen && (
                       <p role="status" data-payments-not-open className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3 max-w-sm">
                         {PAYMENTS_NOT_OPEN_NOTICE}
                       </p>
                     )}
                     <button
                       onClick={handleSendRequest}
-                      disabled={isSending || PAYMENTS_NOT_OPEN}
+                      disabled={isSending || (PAYMENTS_NOT_OPEN && !freeOpen)}
                       className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
                     >
                       {isSending
-                        ? 'Redirecting to secure checkout…'
-                        : `Save card & send request${bookAgain ? ` to ${bookAgain.firstName}` : ''}${learner ? ` for ${learner.firstName}` : ''}`}
+                        ? (freeOpen ? 'Sending your request…' : 'Redirecting to secure checkout…')
+                        : `${freeOpen ? 'Send request' : 'Save card & send request'}${bookAgain ? ` to ${bookAgain.firstName}` : ''}${learner ? ` for ${learner.firstName}` : ''}`}
                     </button>
                   </>
                 )}

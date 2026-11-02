@@ -76,7 +76,7 @@ const html = renderToStaticMarkup(
 );
 check('all 16 levels are shown, one button each', (html.match(/data-level="/g) ?? []).length === 16 && ROWS.every((r) => html.includes(`data-level="${r.id}"`)));
 check('the four tiers have a heading and their description', T.every(([, name, quote]) => html.includes(name) && html.includes(quote)));
-check('every price is shown with "per hour"', ROWS.every((r) => html.includes(`R${r.price.toFixed(2)}`)) && (html.match(/per hour/g) ?? []).length === 16);
+check('every price is shown with "per hour", in whole rands (R30, not R30.00; CEO, 1 Nov 2026)', ROWS.every((r) => Number.isInteger(r.price) && html.includes(`R${r.price}`)) && !/R\d+\.\d\d/.test(html) && (html.match(/per hour/g) ?? []).length === 16);
 check('the only level with a tutor says so, the other fifteen say none yet', (html.match(/3 tutors can take this/g) ?? []).length === 1 && (html.match(/No tutor at this level yet/g) ?? []).length === 15);
 check('when the counts are unknown no count is shown and every level can still be chosen', (() => {
   const unknown = renderToStaticMarkup(React.createElement(PriceLadder, { rows: ROWS, available: null, selectedId: null, onSelect: () => undefined, currencySymbol: () => 'R' }));

@@ -59,7 +59,7 @@ async function main() {
   check('a session lasts 1, 1.5, 2, 2.5 or 3 hours', JSON.stringify(SESSION_LENGTHS) === '[1,1.5,2,2.5,3]' && describeLength(1) === '1 hour' && describeLength(1.5) === '1.5 hours' && describeLength(3) === '3 hours');
 
   const base: BookingFormState = { institution: 'School', institutionId: 'i1', subject: 'Maths', scheduleType: 'scheduled', scheduledDate: '2026-10-25', scheduledTime: '14:00', durationHours: 2.5, curriculumId: null };
-  check('the schedule button line gives the date, the time and the length', /^Scheduled: .+, 14:00 · 2\.5 hours$/.test(describeSchedule(base)));
+  check('the schedule button line gives the date, the time (named SAST) and the length', /^Scheduled: .+, 14:00 SAST · 2\.5 hours$/.test(describeSchedule(base)));
   check('an instant request says as soon as possible and the length', describeSchedule({ ...base, scheduleType: 'now', durationHours: 1 }) === 'As soon as possible · 1 hour');
 
   // ---- the window itself --------------------------------------------------------------------------------------------------------------

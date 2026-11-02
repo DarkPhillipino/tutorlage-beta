@@ -1,6 +1,7 @@
 import React from 'react';
 import { CalendarClock, CheckCircle2, Circle, GraduationCap } from 'lucide-react';
 import { TutorAvailabilitySlot, TutorSession } from '../types';
+import { formatSaDateTime } from '../lib/saTime';
 
 interface TutorCalendarProps {
   availability: TutorAvailabilitySlot[];
@@ -113,9 +114,7 @@ export const TutorCalendar: React.FC<TutorCalendarProps> = ({ availability, sess
                       {s.subjectName ?? 'Tutoring session'} with {s.studentName}
                     </div>
                     <div className="text-[10px] text-slate-500 mt-0.5">
-                      {start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                      {' · '}
-                      {start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                      {formatSaDateTime(start)}
                       {' · '}{s.durationHours}h
                     </div>
                   </div>

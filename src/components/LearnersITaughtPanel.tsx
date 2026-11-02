@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { UserMinus, Loader2, AlertCircle } from 'lucide-react';
 import { endTutorPairing, fetchLearnersITaught, fetchMyEndedPairings, resumeTutorPairing, type TaughtLearner } from '../lib/queries';
+import { formatSaDate } from '../lib/saTime';
 import { KEEP_OR_SWAP_COPY, describeKeepOrSwapError } from '../lib/keepOrSwap';
 
 interface LearnersITaughtPanelProps {
@@ -68,7 +69,7 @@ export const LearnersITaughtPanel: React.FC<LearnersITaughtPanelProps> = ({ tuto
               <div className="text-sm font-bold text-[#0F172A]">
                 {first}
                 <span className="font-semibold text-slate-500">
-                  {l.lastSubject ? ` · ${l.lastSubject}` : ''} · last session {new Date(l.lastSessionAt).toLocaleDateString()}
+                  {l.lastSubject ? ` · ${l.lastSubject}` : ''} · last session {formatSaDate(l.lastSessionAt)}
                 </span>
               </div>
               {isEnded ? (

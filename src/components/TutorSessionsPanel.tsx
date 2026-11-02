@@ -1,3 +1,5 @@
+import { FREE_SESSION_TUTOR_NOTICE } from '../lib/freeSessions';
+import { useFreeIds } from '../lib/freeSessionsHooks';
 import React, { useEffect, useState } from 'react';
 import { Video, CheckCircle2, Loader2, AlertCircle, Link as LinkIcon, Phone } from 'lucide-react';
 import { TutorManagedSession } from '../types';
@@ -5,6 +7,7 @@ import { fetchTutorManagedSessions, setSessionMeetingLink, completeSession } fro
 import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
 import { sessionHasEnded } from '../lib/sessionTiming';
+import { formatSaDateTime } from '../lib/saTime';
 import { CancelSessionControl, ReportProblemControl, SessionRoomControl } from './UpcomingSessionsPanel';
 import { LearnersITaughtPanel } from './LearnersITaughtPanel';
 
@@ -26,6 +29,8 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<{ id: string; message: string } | null>(null);
   const [reloadCount, setReloadCount] = useState(0);
+  // FREE SESSIONS (CEO, 2 Nov 2026): which of these sessions are free, so the tutor is told it is unpaid.
+  const freeSessionIds = useFreeIds('session', sessions.map((s) => s.id));
 
   useEffect(() => {
     setIsLoading(true);
@@ -89,8 +94,13 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
             {s.subjectName ?? 'Tutoring session'} with {s.studentName}
           </div>
           <div className="text-xs text-slate-500">
-            {start.toLocaleDateString()} · {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {s.durationHours}h
+            {formatSaDateTime(start)} · {s.durationHours}h
           </div>
+          {freeSessionIds.has(s.id) && (
+            <div data-free-session className="inline-block text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1">
+              {FREE_SESSION_TUTOR_NOTICE}
+            </div>
+          )}
           {s.guardianName && (
             <div className="text-[11px] text-slate-600 mt-1 flex flex-wrap items-center gap-1">
               <Phone className="w-3.5 h-3.5 text-slate-400" />

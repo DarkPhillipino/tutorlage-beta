@@ -10,6 +10,9 @@ import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
 import { openSessionRoom, sessionRoomWindow } from '../lib/videoRooms';
 import { roomOpensAt } from '../lib/sessionTiming';
+import { formatSaDate, formatSaDateTime } from '../lib/saTime';
+import { FREE_SESSION_LEARNER_BADGE, FREE_WAITING_NOTE } from '../lib/freeSessions';
+import { useFreeIds } from '../lib/freeSessionsHooks';
 import type { MyTutor } from '../lib/keepOrSwap';
 import { KeepOrSwapChoice } from './KeepOrSwapChoice';
 import { MyTutorsPanel, type BookAgainLearner } from './MyTutorsPanel';
@@ -39,6 +42,9 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  // FREE SESSIONS (CEO, 2 Nov 2026): which waiting requests and sessions are free, so the screen says so instead of naming a price.
+  const freeRequestIds = useFreeIds('request', waiting.map((r) => r.id));
+  const freeSessionIds = useFreeIds('session', sessions.map((s) => s.id));
 
   useEffect(() => {
     setIsLoading(true);
@@ -162,12 +168,13 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                   {r.learnerName && <span className="font-semibold text-slate-500"> · for {r.learnerName}</span>}
                 </div>
                 <div className="text-xs text-slate-500">
-                  {start.toLocaleDateString()} · {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {r.durationHours}h ·{' '}
-                  {getCurrencySymbol(r.currencyCode)}{formatRate(r.amount)}
+                  {formatSaDateTime(start)} · {r.durationHours}h ·{' '}
+                  {freeRequestIds.has(r.id) ? FREE_SESSION_LEARNER_BADGE : `${getCurrencySymbol(r.currencyCode)}${formatRate(r.amount)}`}
                 </div>
                 <p className="text-[11px] text-slate-600">
-                  Your request is waiting for a tutor to accept it. You're charged only when one does. If nobody accepts in
-                  time it ends, and you're not charged.
+                  {freeRequestIds.has(r.id)
+                    ? FREE_WAITING_NOTE
+                    : "Your request is waiting for a tutor to accept it. You're charged only when one does. If nobody accepts in time it ends, and you're not charged."}
                 </p>
               </div>
             );
@@ -186,7 +193,8 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                   {s.learnerName && <span className="font-semibold text-slate-500"> · for {s.learnerName}</span>}
                 </div>
                 <div className="text-xs text-slate-500">
-                  {start.toLocaleDateString()} · {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {s.durationHours}h
+                  {formatSaDateTime(start)} · {s.durationHours}h
+                  {freeSessionIds.has(s.id) && <span data-free-session className="ml-2 text-[10px] font-bold text-[#15803D] bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">{FREE_SESSION_LEARNER_BADGE}: you won't be charged</span>}
                 </div>
                 {s.meetingUrl ? (
                   <div className="space-y-1">
@@ -235,7 +243,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                   {s.subjectName ?? 'Tutoring session'} with {s.tutorName}
                   {s.learnerName && <span className="font-semibold text-slate-500"> · for {s.learnerName}</span>}
                 </div>
-                <div className="text-xs text-slate-500">{new Date(s.scheduledStart).toLocaleDateString()}</div>
+                <div className="text-xs text-slate-500">{formatSaDate(s.scheduledStart)}</div>
                 <p className="text-[11px] text-slate-500">
                   {s.learnerName ?? 'Your learner'} can rate this session when they sign in.
                 </p>
@@ -263,7 +271,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                 {s.subjectName ?? 'Tutoring session'} with {s.tutorName}
                 {s.learnerName && <span className="font-semibold text-slate-500"> · for {s.learnerName}</span>}
               </div>
-              <div className="text-xs text-slate-500">{new Date(s.scheduledStart).toLocaleDateString()}</div>
+              <div className="text-xs text-slate-500">{formatSaDate(s.scheduledStart)}</div>
               <p className="text-[11px] text-slate-500">When your tutor marks it complete, it moves to Completed and can be rated.</p>
               <ReportProblemControl sessionId={s.id} />
             </div>
@@ -281,7 +289,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                 {s.learnerName && <span className="font-semibold text-slate-500"> · for {s.learnerName}</span>}
               </div>
               <div className="text-xs text-slate-500">
-                {new Date(s.scheduledStart).toLocaleDateString()} · {s.status === 'cancelled_by_tutor' ? 'cancelled by the tutor' : 'cancelled'}
+                {formatSaDate(s.scheduledStart)} · {s.status === 'cancelled_by_tutor' ? 'cancelled by the tutor' : 'cancelled'}
               </div>
             </div>
           ))}
@@ -535,7 +543,7 @@ const CompletedSessionCard: React.FC<{
       <div className="text-sm font-bold text-[#0F172A]">
         {session.subjectName ?? 'Tutoring session'} with {session.tutorName}
       </div>
-      <div className="text-xs text-slate-500">{start.toLocaleDateString()}</div>
+      <div className="text-xs text-slate-500">{formatSaDate(start)}</div>
 
       {session.hasReview ? (
         <div className="flex items-center gap-1.5 text-xs font-bold text-[#15803D]">

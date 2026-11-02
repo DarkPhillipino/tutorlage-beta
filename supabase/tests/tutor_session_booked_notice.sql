@@ -40,7 +40,7 @@ begin
   r := r || format('%s B1 the words: %s',
     case when b like format('Session with %s (Life Sciences), %%', fname)
           and b like '%' || to_char(d1 at time zone 'Africa/Johannesburg', 'HH24:MI') || '%'
-          and b like '%Open Sessions to start the video call%' then 'ok  ' else 'FAIL' end, b) || E'\n';
+          and b like '%:__ SAST. Open Sessions to start the video call%' then 'ok  ' else 'FAIL' end, b) || E'\n';
 
   -- B2 nobody else is told by this trigger (the learner and the parent keep the notice create_session_from_request writes)
   select count(*) into n from notifications where type = 'session_booked' and profile_id <> tu and related_session_id = s1;

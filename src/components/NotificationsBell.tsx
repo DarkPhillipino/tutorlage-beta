@@ -3,6 +3,7 @@ import { Bell, Loader2 } from 'lucide-react';
 import { AppNotification } from '../types';
 import { fetchMyNotifications, markNotificationsRead } from '../lib/queries';
 import { useAuth } from '../lib/AuthContext';
+import { formatSaDateTime } from '../lib/saTime';
 
 interface NotificationsBellProps {
   // Tapping a notification calls this (16 Oct 2026): App.tsx opens the "Sessions & history" page, or Teach for a tutor.
@@ -113,7 +114,7 @@ export const NotificationsBell: React.FC<NotificationsBellProps> = ({ onOpenNoti
               >
                 <div className="text-xs font-bold text-[#0F172A]">{n.title}</div>
                 {n.body && <div className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">{n.body}</div>}
-                <div className="text-[10px] text-slate-400 mt-1">{new Date(n.createdAt).toLocaleString()}</div>
+                <div className="text-[10px] text-slate-400 mt-1">{formatSaDateTime(n.createdAt)}</div>
               </button>
             ))
           )}

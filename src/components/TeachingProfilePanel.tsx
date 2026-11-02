@@ -3,6 +3,7 @@ import { Star, ShieldCheck, Loader2, MessageSquare, Clock, UserX, Pencil, Check,
 import { TutorDashboardData, TutorReview, TutorAvailabilitySlot, TutorSession, Institution } from '../types';
 import { fetchTutorDashboard, fetchTutorReviews, fetchTutorAvailability, fetchUpcomingTutorSessions, updateTutorProfile } from '../lib/queries';
 import { getErrorMessage } from '../lib/errors';
+import { formatSaDate } from '../lib/saTime';
 import { TutorCalendar } from './TutorCalendar';
 import { TutorSessionsPanel } from './TutorSessionsPanel';
 import { PayoutAccountPanel } from './PayoutAccountPanel';
@@ -289,7 +290,7 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
                     <Star className="w-3.5 h-3.5 fill-current mr-1" />
                     {r.rating ?? '—'}
                   </div>
-                  <span className="text-[10px] text-slate-400">{new Date(r.createdAt).toLocaleDateString()}</span>
+                  <span className="text-[10px] text-slate-400">{formatSaDate(r.createdAt)}</span>
                 </div>
                 {r.comment && <p className="text-[11px] text-slate-600 mt-1.5">"{r.comment}"</p>}
               </div>
