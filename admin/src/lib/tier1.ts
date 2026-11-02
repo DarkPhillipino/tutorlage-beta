@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { OpenedDocument, openStoredDocument } from './documentAccess';
+import { ViewedDocument, viewStoredDocument } from './documentViewing';
 
 // Phase 2: the Tier 1 route's admin side (migration 20261012090200). Checks and sign-offs go through database
 // functions that write their own audit rows ('tier1_record_checked', 'tier1_training_signed_off').
@@ -52,6 +53,11 @@ export async function checkTier1Record(id: string, verdict: 'verified' | 'reject
 // `tutorId` is passed so even a file kept outside the tutor's own folder can be opened (and is recorded against the right person).
 export function openTutorDocument(path: string, tutorId?: string): Promise<OpenedDocument> {
   return openStoredDocument(supabase, 'tutor-documents', path, { subject: tutorId });
+}
+
+// The same, but shown inside the admin app (components/DocumentViewer.tsx) instead of in the normal browser.
+export function viewTutorDocument(path: string, tutorId?: string): Promise<ViewedDocument> {
+  return viewStoredDocument(supabase, 'tutor-documents', path, { subject: tutorId });
 }
 
 export async function recordTier1Signoff(tutorId: string, module: 2 | 5, trainerName: string,

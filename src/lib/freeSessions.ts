@@ -11,6 +11,9 @@ export const FREE_FOR_NOW_DETAIL =
 // What the tutor is told, before accepting and on the session (CEO's words).
 export const FREE_SESSION_TUTOR_NOTICE = "Free session, you won't be paid for this one";
 export const FREE_SESSION_LEARNER_BADGE = 'Free session';
+// A FREE session's cancel confirmation (found 2 Nov 2026: it said the payment is "refunded to the card"). Nothing was paid, so nothing is refunded.
+export const FREE_CANCEL_NOTE = 'Cancel this session? It was free, so nothing was charged and there is nothing to refund.';
+export const FREE_TUTOR_CANCEL_NOTE = 'Cancel this session? It was free, so nothing is refunded or paid.';
 export const FREE_WAITING_NOTE = "Your request is waiting for a tutor to accept it. It is free: you won't be charged. If nobody accepts in time it ends.";
 
 // The few things of the Supabase client used here, so a test can hand in a fake.

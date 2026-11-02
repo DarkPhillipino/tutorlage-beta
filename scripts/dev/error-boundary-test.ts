@@ -49,3 +49,4 @@ check('the whole app, including sign-in and the auth provider, sits inside the b
 check('the boundary uses no translation, auth or Supabase (it must work when one of them is what broke)', !/i18n|useAuth|AuthContext|supabase/i.test(source.replace(/\/\/.*$/gm, '')));
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} FAILED`);
+if (failures > 0) process.exitCode = 1;

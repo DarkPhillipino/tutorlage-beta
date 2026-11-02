@@ -12,7 +12,9 @@ import { formatSaDateTime } from '../lib/saTime';
 import { PayoutAccountPanel } from './PayoutAccountPanel';
 import { PAYMENTS_NOT_OPEN } from '../lib/features';
 import { FREE_SESSION_TUTOR_NOTICE } from '../lib/freeSessions';
-import { useFreeIds } from '../lib/freeSessionsHooks';
+import { useFreeIds, useFreeSessionsOpen } from '../lib/freeSessionsHooks';
+import { useWalletIds } from '../lib/walletHooks';
+import { WALLET_COPY, walletTutorShare } from '../lib/wallet';
 
 interface AvailableRequestsQueueProps {
   tutorId: string;
@@ -48,6 +50,10 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
   const [confirmDeclineId, setConfirmDeclineId] = useState<string | null>(null);
   // FREE SESSIONS (CEO, 2 Nov 2026): which of these requests are free, so the tutor is told before accepting.
   const freeIds = useFreeIds('request', requests.map((r) => r.id));
+  // In free mode Accept works (nothing is charged), so the "payments are not open yet" notice must not show (found 2 Nov 2026).
+  const freeOpen = useFreeSessionsOpen();
+  // WALLETS (2 Nov 2026): which requests are paid from a wallet (the share is credited to the tutor's wallet when the session is complete).
+  const walletIds = useWalletIds('request', requests.map((r) => r.id));
   const [decliningId, setDecliningId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -156,7 +162,7 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
 
       {/* Accepting charges the learner's saved card and pays the tutor's share into the bank account, so while payments are
           not open there is nothing a tutor can add here; say so once instead of showing a bank box that is hidden. */}
-      {PAYMENTS_NOT_OPEN && visibleRequests.length > 0 && (
+      {PAYMENTS_NOT_OPEN && !freeOpen && visibleRequests.length > 0 && !visibleRequests.every((r) => walletIds.has(r.id) || freeIds.has(r.id)) && (
         <p role="status" data-payments-not-open-tutor className="mb-2 text-[11px] font-semibold rounded-lg px-2.5 py-2 bg-amber-50 border border-amber-200 text-amber-800">
           Payments are not open yet, so requests cannot be accepted yet. This opens with payments.
         </p>
@@ -207,8 +213,11 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
                       </div>
                     ) : r.tutorPayout != null && (
                       <div className="text-[10px] font-bold text-[#15803D] mt-0.5">
-                        You earn {getCurrencySymbol(r.currencyCode)}{formatRate(r.tutorPayout)}
+                        You earn {getCurrencySymbol(r.currencyCode)}{formatRate(walletIds.has(r.id) ? walletTutorShare(r.chargedAmount, r.tutorPayout) : r.tutorPayout)}
                       </div>
+                    )}
+                    {walletIds.has(r.id) && !freeIds.has(r.id) && (
+                      <div data-wallet-session className="text-[10px] text-slate-500 mt-0.5">{WALLET_COPY.tutorQueueNote}</div>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">

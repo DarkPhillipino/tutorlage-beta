@@ -2,6 +2,10 @@
 -- Run it TOGETHER with the migration in one statement (scripts/run-rolled-back-test.mjs <out> this-file the-migration) before the migration is
 -- applied, or on its own after (the two md5 lines C20/C21 then check the stored text against the file). Every line ends "ok" or "FAIL (want ...)".
 -- All fixtures use the subject "ZZ Police" so the real tutors cannot change a result. Nothing is kept.
+-- 2 Nov 2026 (Legal's flag H2, free-sessions mode): run it with BOTH migrations in one statement (police first, then 20261102100000_free_sessions_mode.sql).
+-- C20 then differs on purpose (the free block is inserted into claim_session_request); C20b takes exactly that block out and wants the old md5 back, C20c
+-- wants the block after the approval, police and fit checks and before the first money step, and C36 to C42 repeat the certificate rule on FREE requests
+-- (a child's request sent through send_request_free). Those checks are skipped when the free migration is not in the database.
 do $$
 declare
   r text := '';
@@ -29,6 +33,11 @@ declare
   n int; t text;
   m1 date := (td - interval '1 month')::date;
   m6 date := (td - interval '6 months')::date;
+  v_mum uuid := gen_random_uuid();     -- a guardian (free-sessions part)
+  v_kid uuid := gen_random_uuid();     -- her 14-year-old learner
+  e_k uuid; qk1 uuid; qk2 uuid; qf1 uuid;
+  tw10 timestamptz; tw13 timestamptz; th10 timestamptz;
+  v_blk text; v_wblk text; v_free boolean; p_ver int; p_pol int; p_fit int; p_wal int; p_free int; p_pay int; n_blk int; n_wblk int; ord text;
   nfail int; nlines int; rep text;
 begin
   begin   -- everything below; an unexpected error is reported with the lines before it instead of hiding them
@@ -194,6 +203,42 @@ begin
   exception when others then r := r || 'C19b the status function is closed to signed-out visitors: ' || sqlerrm || ' ok' || E'\n'; end;
   reset role;
   r := r || pg_temp.chk('C20', 'stored claim_session_request equals the migration file (md5 of its text)', (select md5(prosrc) from pg_proc where oid = 'public.claim_session_request(uuid,uuid)'::regprocedure), '6d38cd1277ae7640295a09b8b59d94ba');
+  -- C20 differs on purpose once the free-sessions migration is in the database: it inserts ONE block (below, character for character) into
+  -- claim_session_request. C20b takes exactly that block out and wants the md5 above back; C20c wants the block once, after the approval check, the
+  -- police check and the fit check, and before the first money step (so a tutor refused by any of them never reaches it).
+  v_blk := $fb$
+
+  -- FREE SESSIONS (CEO, 2 Nov 2026): a request sent without a card check is booked now, with no charge, no bank account and no
+  -- commission. The Worker reads mode 'already_paid' and answers "booked", so the Worker does not change. Every check above still applies.
+  if v_req.free_session then
+    return jsonb_build_object('mode', 'already_paid', 'session_id', public.create_free_session(p_request_id, p_tutor_id));
+  end if;
+$fb$;
+  -- 2 Nov 2026 (wallet booking, migration 20261102210000): a SECOND block, the wallet one, sits just before the free block (character for character).
+  -- C20b takes out whichever of the two blocks are there; C20c wants each block once, in this order.
+  v_wblk := $wb$
+
+  -- WALLET BOOKING claim (CEO, 2 Nov 2026): a request paid from a wallet is booked now. The held price becomes the session's money, the tutor's
+  -- share is credited only when the session is completed, and no bank account or Paystack call is involved. Every check above still applies.
+  if v_req.paid_from_wallet then
+    return jsonb_build_object('mode', 'already_paid', 'session_id', public.create_wallet_session(p_request_id, p_tutor_id, v_tutor.current_tier_id));
+  end if;
+$wb$;
+  r := r || pg_temp.chk('C20b', 'stored claim_session_request with the free and wallet blocks taken out equals the migration file (md5 of its text)', (select md5(replace(replace(prosrc, v_wblk, ''), v_blk, '')) from pg_proc where oid = 'public.claim_session_request(uuid,uuid)'::regprocedure), '6d38cd1277ae7640295a09b8b59d94ba');
+  select position('if not coalesce(v_tutor.is_verified, false)' in prosrc), position('public.police_clearance_problem(p_tutor_id)' in prosrc),
+         position('public.request_fit_code(p_tutor_id, p_request_id)' in prosrc), position('WALLET BOOKING claim (CEO, 2 Nov 2026)' in prosrc),
+         position('FREE SESSIONS (CEO, 2 Nov 2026)' in prosrc),
+         position('public.create_session_from_request' in prosrc), (length(prosrc) - length(replace(prosrc, v_blk, ''))) / length(v_blk),
+         (length(prosrc) - length(replace(prosrc, v_wblk, ''))) / length(v_wblk)
+    into p_ver, p_pol, p_fit, p_wal, p_free, p_pay, n_blk, n_wblk
+    from pg_proc where oid = 'public.claim_session_request(uuid,uuid)'::regprocedure;
+  ord := case when n_blk = 0 and n_wblk = 0 then 'no free block'
+              when n_blk = 1 and n_wblk = 0 and 0 < p_ver and p_ver < p_pol and p_pol < p_fit and p_fit < p_free and p_free < p_pay then 'approval < police < fit < free block < first money step'
+              when n_blk = 1 and n_wblk = 1 and 0 < p_ver and p_ver < p_pol and p_pol < p_fit and p_fit < p_wal and p_wal < p_free and p_free < p_pay then 'approval < police < fit < wallet block < free block < first money step'
+              else format('out of order: %s,%s,%s,%s,%s,%s x%s,%s', p_ver, p_pol, p_fit, p_wal, p_free, p_pay, n_blk, n_wblk) end;
+  r := r || pg_temp.chk('C20c', 'where the wallet and free blocks sit in claim_session_request', ord,
+    case when to_regprocedure('public.create_wallet_session(uuid,uuid,integer)') is not null then 'approval < police < fit < wallet block < free block < first money step'
+         when to_regprocedure('public.create_free_session(uuid,uuid)') is not null then 'approval < police < fit < free block < first money step' else 'no free block' end);
   r := r || pg_temp.chk('C21', 'stored accept_session_request equals the migration file (md5 of its text)', (select md5(prosrc) from pg_proc where oid = 'public.accept_session_request(uuid)'::regprocedure), '6441ca81efdc251fc83a18e672d541f4');
   r := r || pg_temp.chk('C21b', 'the helper, the trigger function and the status function equal the file', (select string_agg(md5(prosrc), ',' order by proname) from pg_proc where pronamespace = 'public'::regnamespace and proname in ('police_clearance_problem', 'enforce_tutor_documents_on_verify', 'my_police_clearance_status')), '7d5be641fdafb06124bd0aae57597893,0d6850560c3014ae4ff528054190da24,e70fdd27b9d50c745cd3c8960c776a1b');
   r := r || pg_temp.chk('C21c', 'execute rights kept: the Worker can claim, a signed-in user cannot', (has_function_privilege('service_role', 'public.claim_session_request(uuid,uuid)', 'execute'))::text || '/' || (has_function_privilege('authenticated', 'public.claim_session_request(uuid,uuid)', 'execute'))::text || '/' || (has_function_privilege('authenticated', 'public.accept_session_request(uuid)', 'execute'))::text, 'true/false/false');
@@ -235,6 +280,79 @@ begin
   update tutor_verification_documents set status = 'rejected' where tutor_id = v1;
   r := r || pg_temp.chk('C34', 'a certificate an admin rejects later stops the tutor accepting', pg_temp.try_claim(qd, v1), 'police_clearance_missing');
   r := r || pg_temp.chk('C35', 'v1 still approved, only accepting is stopped', (select is_verified::text from tutor_profiles where id = v1), 'true');
+
+  -- ---- FREE SESSIONS (migration 20261102100000, CEO 2 Nov 2026): the same rule for a request sent with no card check -----------------------
+  -- Legal's flag H2: a tutor whose police certificate is missing or lapsed must not be able to accept a request from a child. A free request is
+  -- 'card_verified' with free_session = true and no card; the child's is sent by the guardian through the real send_request_free(). At this point v1
+  -- (only a rejected certificate), v3 (only a rejected one) and v5 (grandfathered, none) have no current certificate; v4 and v6 have one; v2 has one
+  -- from today until the update below rejects it, which leaves only its 7-month-old one.
+  v_free := to_regprocedure('public.send_request_free(uuid)') is not null;
+  if v_free then
+    execute $mk$
+      create function pg_temp.run_as(p_u uuid, p_sql text) returns text language plpgsql as $f$
+      declare v text;
+      begin
+        perform set_config('request.jwt.claims', json_build_object('sub', p_u, 'role', 'authenticated')::text, true);
+        set local role authenticated;
+        begin
+          execute p_sql into v;
+          reset role;
+          return coalesce(v, 'null');
+        exception when others then
+          reset role;
+          return 'ERR: ' || sqlerrm;
+        end;
+      end $f$ $mk$;
+    tw10 := (mon + 2 + time '10:00') at time zone 'Africa/Johannesburg';
+    tw13 := (mon + 2 + time '13:00') at time zone 'Africa/Johannesburg';
+    th10 := (mon + 3 + time '10:00') at time zone 'Africa/Johannesburg';
+    update system_settings set setting_value = 'true'::jsonb where setting_key = 'free_sessions_enabled';
+    insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data, raw_app_meta_data) values
+      (v_mum, z,'authenticated','authenticated','pc.m.'||v_mum||'@example.invalid', jsonb_build_object('role','parent','first_name','Mpho','surname','Khumalo','date_of_birth',adult), '{}'),
+      (v_kid, z,'authenticated','authenticated','pc.k.'||v_kid||'@example.invalid', jsonb_build_object('first_name','Kid','date_of_birth',(current_date - interval '14 years')::date::text), jsonb_build_object('created_by_guardian', v_mum));
+    update parent_profiles set phone_number = '081 234 5678' where id = v_mum;
+    insert into student_subject_enrollments (student_id, subject_name, grade_level) values (v_kid, 'ZZ Police', 'Grade 9') returning id into e_k;
+    perform set_config('request.jwt.claims', '', true);
+    insert into session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, status, payment_status, paystack_reference, min_sub_tier_id, tier_id, charged_amount, institution_id)
+      values (v_kid, e_k, v_mum, tw10, 1, 'pending', 'initiated', 'pc_qk1', '1A', 1, 50, s1) returning id into qk1;
+    insert into session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, status, payment_status, paystack_reference, min_sub_tier_id, tier_id, charged_amount, institution_id)
+      values (v_kid, e_k, v_mum, tw13, 1, 'pending', 'initiated', 'pc_qk2', '1A', 1, 50, s1) returning id into qk2;
+    insert into session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, status, payment_status, paystack_reference, min_sub_tier_id, tier_id, charged_amount, institution_id)
+      values (v_l, e_l, v_l, th10, 1, 'pending', 'initiated', 'pc_qf1', '1A', 1, 50, s1) returning id into qf1;
+
+    r := r || pg_temp.chk('C36', 'the guardian sends the child''s request with no card check (send_request_free)', pg_temp.run_as(v_mum, format('select public.send_request_free(%L)', qk1)), 'free');
+    select payment_status || ' ' || free_session || ' ' || coalesce(tutor_id::text, 'no tutor') || ' ' || status into t from session_requests where id = qk1;
+    r := r || pg_temp.chk('C36b', 'it is now sent: card_verified, flagged free, no tutor, pending', t, 'card_verified true no tutor pending');
+    perform pg_temp.run_as(v_mum, format('select public.send_request_free(%L)', qk2));
+    perform pg_temp.run_as(v_l, format('select public.send_request_free(%L)', qf1));
+
+    r := r || pg_temp.chk('C37', 'free request of a child, claim: approved, no certificate', pg_temp.try_claim(qk1, v1), 'police_clearance_missing');
+    r := r || pg_temp.chk('C37b', 'free request of a child, claim: only a rejected certificate', pg_temp.try_claim(qk1, v3), 'police_clearance_missing');
+    r := r || pg_temp.chk('C37c', 'free request of a child, claim: a grandfathered tutor is not excused', pg_temp.try_claim(qk1, v5), 'police_clearance_missing');
+    update tutor_verification_documents set status = 'rejected' where tutor_id = v2 and document_type = 'police_clearance' and issued_on = td;
+    r := r || pg_temp.chk('C37d', 'free request of a child, claim: only a certificate 7 months old', pg_temp.try_claim(qk1, v2), 'police_clearance_expired');
+    r := r || pg_temp.chk('C37e', 'free request of a child, claim: a tutor who is not approved still hears the approval message first', pg_temp.try_claim(qk1, vu), 'Tutorlage has to verify your tutor profile before you can accept requests');
+    select (tutor_id is null and status = 'pending' and payment_status = 'card_verified' and free_session and resulting_session_id is null)::text into t from session_requests where id = qk1;
+    select count(*) into n from sessions where student_id = v_kid;
+    r := r || pg_temp.chk('C37f', 'nothing was reserved or booked by any refusal (request untouched / sessions of the child)', t || '/' || n, 'true/0');
+    r := r || pg_temp.chk('C38', 'free request of an adult learner, claim: approved, no certificate', pg_temp.try_claim(qf1, v1), 'police_clearance_missing');
+    r := r || pg_temp.chk('C38b', 'free request of an adult learner, claim: only a certificate 7 months old', pg_temp.try_claim(qf1, v2), 'police_clearance_expired');
+    r := r || pg_temp.chk('C39', 'the older accept cannot book a free request, even for a tutor with a current certificate', pg_temp.try_accept(qk1, v4), 'Another tutor already accepted this request, or it is no longer available.');
+
+    r := r || pg_temp.chk('C40', 'free request of a child, claim: a tutor with a current certificate accepts', pg_temp.try_claim(qk1, v4), 'accepted (already_paid)');
+    select (s.free_session and s.gross_amount = 0 and s.tutor_payout_amount = 0 and s.tutor_id = v4 and s.student_id = v_kid and q.payment_status = 'free' and q.status = 'accepted')::text
+      into t from session_requests q join sessions s on s.id = q.resulting_session_id where q.id = qk1;
+    r := r || pg_temp.chk('C40b', 'the session is flagged free with money stored as 0, for that tutor and the child; the request ends as free', t, 'true');
+
+    update tutor_verification_documents set issued_on = (m6 - interval '1 day')::date where tutor_id = v6 and document_type = 'police_clearance';
+    r := r || pg_temp.chk('C41', 'free request of a child, claim: a certificate that lapsed (6 months and a day old)', pg_temp.try_claim(qk2, v6), 'police_clearance_expired');
+    select (tutor_id is null and status = 'pending' and payment_status = 'card_verified' and resulting_session_id is null)::text into t from session_requests where id = qk2;
+    r := r || pg_temp.chk('C41b', 'and nothing was reserved', t, 'true');
+    update tutor_verification_documents set issued_on = m6 where tutor_id = v6 and document_type = 'police_clearance';
+    r := r || pg_temp.chk('C41c', 'with the last good day restored (exactly 6 months old) the same claim is accepted', pg_temp.try_claim(qk2, v6), 'accepted (already_paid)');
+    r := r || pg_temp.chk('C42', 'a signed-in or signed-out caller cannot call the free booking function directly', (has_function_privilege('authenticated', 'public.create_free_session(uuid,uuid)', 'execute'))::text || '/' || (has_function_privilege('anon', 'public.create_free_session(uuid,uuid)', 'execute'))::text, 'false/false');
+    update system_settings set setting_value = 'false'::jsonb where setting_key = 'free_sessions_enabled';
+  end if;
 
   exception when others then
     r := r || format('STOPPED EARLY by an unexpected error: %s', sqlerrm) || E'\n';

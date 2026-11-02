@@ -6,7 +6,8 @@ import { notSwitchedOn } from './subjectApprovals';
 // "the function is not on this database yet", nothing is opened. Until the migration is applied the document still opens, and the caller
 // shows ACCESS_LOG_NOT_ACTIVE_NOTE: the gap is never silent.
 
-export type DocumentBucket = 'tutor-documents' | 'school-results';
+// 'payment-proofs' (2 Nov 2026): a learner's proof of a bank transfer. Finance admins only; the database refuses everyone else.
+export type DocumentBucket = 'tutor-documents' | 'school-results' | 'payment-proofs';
 
 export const ACCESS_LOG_NOT_ACTIVE_NOTE =
   'The document access log is not active on this database, so this opening was NOT recorded.';

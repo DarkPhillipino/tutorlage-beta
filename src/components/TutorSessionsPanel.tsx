@@ -1,5 +1,7 @@
-import { FREE_SESSION_TUTOR_NOTICE } from '../lib/freeSessions';
+import { FREE_SESSION_TUTOR_NOTICE, FREE_TUTOR_CANCEL_NOTE } from '../lib/freeSessions';
 import { useFreeIds } from '../lib/freeSessionsHooks';
+import { useWalletIds } from '../lib/walletHooks';
+import { WALLET_COPY } from '../lib/wallet';
 import React, { useEffect, useState } from 'react';
 import { Video, CheckCircle2, Loader2, AlertCircle, Link as LinkIcon, Phone } from 'lucide-react';
 import { TutorManagedSession } from '../types';
@@ -31,6 +33,8 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
   const [reloadCount, setReloadCount] = useState(0);
   // FREE SESSIONS (CEO, 2 Nov 2026): which of these sessions are free, so the tutor is told it is unpaid.
   const freeSessionIds = useFreeIds('session', sessions.map((s) => s.id));
+  // WALLETS (2 Nov 2026): which sessions were paid from a learner's wallet (the tutor's share arrives in their own wallet on completion).
+  const walletSessionIds = useWalletIds('session', sessions.map((s) => s.id));
 
   useEffect(() => {
     setIsLoading(true);
@@ -99,6 +103,11 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
           {freeSessionIds.has(s.id) && (
             <div data-free-session className="inline-block text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-1">
               {FREE_SESSION_TUTOR_NOTICE}
+            </div>
+          )}
+          {walletSessionIds.has(s.id) && (
+            <div data-wallet-session className="text-[10px] font-bold text-[#15803D] bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 mt-1">
+              {WALLET_COPY.tutorSessionNote}
             </div>
           )}
           {s.guardianName && (
@@ -177,7 +186,7 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
           </p>
         )}
         <div className="flex flex-wrap items-start gap-x-4 gap-y-1">
-          {start.getTime() > now && <CancelSessionControl sessionId={s.id} onCancelled={() => setReloadCount((c) => c + 1)} />}
+          {start.getTime() > now && <CancelSessionControl sessionId={s.id} walletNote={walletSessionIds.has(s.id) ? WALLET_COPY.tutorCancelNote : undefined} freeNote={freeSessionIds.has(s.id) ? FREE_TUTOR_CANCEL_NOTE : undefined} onCancelled={() => setReloadCount((c) => c + 1)} />}
           <ReportProblemControl sessionId={s.id} />
         </div>
         {error?.id === s.id && (

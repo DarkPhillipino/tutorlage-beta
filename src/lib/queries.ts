@@ -1068,6 +1068,7 @@ async function fetchAvailableRequestsFromTable(tutorId: string): Promise<Availab
     `)
     .is('tutor_id', null)
     .eq('status', 'pending')
+    // A pending request paid from a wallet is 'card_verified' too (send_request_wallet); it becomes 'wallet_paid' only once accepted.
     .in('payment_status', ['card_verified', 'paid'])
     .order('requested_start');
 
@@ -1359,6 +1360,8 @@ export async function fetchMyWaitingRequests(
     `)
     .eq('requested_by_profile_id', requestedById)
     .eq('status', 'pending')
+    // Waiting for a tutor: a card-verified, free or wallet request is 'card_verified' (free and wallet ones carry their own flag; the screen
+    // asks which, through useFreeIds / useWalletIds). 'wallet_paid' and 'wallet_refunded' only come after acceptance, so are never waiting.
     .eq('payment_status', 'card_verified')
     .is('tutor_id', null)
     .gt('requested_start', endCutoff)

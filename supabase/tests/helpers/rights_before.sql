@@ -12,7 +12,8 @@ create function pg_temp.rights_hash_dml() returns text language sql as $f$
   cross join lateral aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) g
   join pg_roles r on r.oid = g.grantee
   where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
-    and c.relname not in ('document_access_log', 'safety_hold_events', 'hand_over_events', 'account_closures', 'account_tombstones', 'account_deletion_records', 'account_closure_tasks')
+    and c.relname not in ('document_access_log', 'safety_hold_events', 'hand_over_events', 'account_closures', 'account_tombstones', 'account_deletion_records', 'account_closure_tasks',
+                          'retention_deletion_records')
     and ((r.rolname in ('anon', 'authenticated') and g.privilege_type in ('SELECT', 'INSERT', 'UPDATE', 'DELETE'))
          or r.rolname = 'service_role')
 $f$;
@@ -29,7 +30,10 @@ create function pg_temp.rights_hash_exec() returns text language sql as $f$
                           'read_account_tombstone', 'close_account_claim_tasks', 'close_account_task_result', 'run_account_closures', 'closure_int_setting', 'closure_is_adult',
                           'closure_is_super_admin', 'closure_busy', 'closure_has_open_dispute', 'closure_enqueue', 'closure_text', 'closure_household', 'closure_targets',
                           'closure_refund', 'closure_cancel_session', 'closure_start', 'closure_run', 'closure_wake_worker', 'closure_auth_link_is_safe', 'closure_delete_money',
-                          'closure_enqueue_files', 'closure_delete_data', 'tier1_grant_documents')
+                          'closure_enqueue_files', 'closure_delete_data', 'tier1_grant_documents',
+                          'retention_fy_month', 'retention_money_cutoff', 'retention_closed_before', 'retention_person_protected', 'retention_any_protected', 'retention_tutor_stopped_at',
+                          'retention_tutor_anchor', 'retention_has_kept_records', 'retention_run_tutor_documents', 'retention_run_consent_records', 'retention_run_problem_reports',
+                          'retention_run_money_records', 'retention_run_tombstones', 'run_retention_jobs')
     and g.privilege_type = 'EXECUTE' and (g.grantee = 0 or r.rolname in ('anon', 'authenticated', 'service_role'))
 $f$;
 

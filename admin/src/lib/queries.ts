@@ -9,6 +9,7 @@ import { computeSessionOutcomes, SessionOutcomes } from './sessionOutcomes';
 import { groupWaitlistDemand, WaitlistDemand } from './waitlistDemand';
 import { countKeepOrSwap, KeepOrSwapCounts } from './keepOrSwapCounts';
 import { ClientErrorsResult, RawClientErrorRow, isMissingTable, mapClientError } from './clientErrors';
+import { countHowPaid, requestWasMatched, requestWasSent } from './paymentStatus';
 
 // Every admin mutation below calls this alongside its main write — the
 // admin_audit_logs.action enum names exactly what needs logging
@@ -523,12 +524,12 @@ export async function fetchPhase1Metrics(): Promise<Phase1Metrics> {
     if (result.error) throw result.error;
   }
 
-  // A request reaches tutors once its card check succeeds; before that it's
-  // only a started checkout.
-  const notSent = new Set(['unpaid', 'initiated', 'failed']);
+  // A request reaches tutors once its card check (or wallet hold, or free send) succeeds; before that it's only a started checkout.
+  // A wallet session cancelled after a tutor accepted is a request moved to 'cancelled' / 'wallet_refunded': still a match (paymentStatus.ts).
   const allRequests: any[] = requests.data ?? [];
-  const sent = allRequests.filter((r) => r.status === 'accepted' || !notSent.has(r.payment_status));
-  const accepted = sent.filter((r) => r.status === 'accepted');
+  const sent = allRequests.filter((r) => requestWasSent(r.status, r.payment_status));
+  const accepted = sent.filter((r) => requestWasMatched(r.status, r.payment_status));
+  const howPaid = countHowPaid(allRequests);
   const expired = sent.filter((r) => r.status === 'expired');
   const minutesToAccept = accepted
     .map((r) => {
@@ -561,7 +562,10 @@ export async function fetchPhase1Metrics(): Promise<Phase1Metrics> {
     requestsWaiting: sent.filter((r) => r.status === 'pending').length,
     requestsAccepted: accepted.length,
     requestsExpired: expired.length,
-    requestsCancelled: sent.filter((r) => r.status === 'cancelled').length,
+    requestsCancelled: sent.filter((r) => r.status === 'cancelled' && !requestWasMatched(r.status, r.payment_status)).length,
+    requestsFree: howPaid.free,
+    requestsPaidFromWallet: howPaid.paidFromWallet,
+    requestsRefundedToWallet: howPaid.refundedToWallet,
     acceptanceRatePct: accepted.length + expired.length > 0
       ? Math.round((accepted.length / (accepted.length + expired.length)) * 100)
       : null,

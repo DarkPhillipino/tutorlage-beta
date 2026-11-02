@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, FileText, GraduationCap, Loader2, XCircle } from 'lucide-react';
-import { SchoolResultForCheck, checkSchoolResult, fetchSchoolResultsForCheck, openSchoolResultDocument } from '../lib/schoolResults';
+import { SchoolResultForCheck, checkSchoolResult, fetchSchoolResultsForCheck, viewSchoolResultDocument } from '../lib/schoolResults';
 import { getErrorMessage } from '../lib/errors';
 import { AccessLogNote } from '../components/AccessLogNote';
+import { DocumentViewer, type ViewerDocument } from '../components/DocumentViewer';
 
 // Phase 2: the check that decides whether a parent's report-card or assessment mark counts towards a tutor's
 // level (CEO, 9 Oct: "After Tutorlage checks"). Open the document, compare the subject, date and mark with
@@ -44,16 +45,11 @@ export const SchoolResults: React.FC = () => {
     }
   };
 
-  // The opening is recorded in the document access log first (Privacy §7), then the five-minute link is made.
-  const openDocument = async (path: string, learnerId: string) => {
+  // Shown inside the admin app. The opening is recorded in the document access log first (Privacy §7), then the five-minute link is made.
+  const [viewing, setViewing] = useState<ViewerDocument | null>(null);
+  const openDocument = (r: SchoolResultForCheck) => {
     setError(null);
-    try {
-      const opened = await openSchoolResultDocument(path, learnerId);
-      setLogNotActive(!opened.logged);
-      window.open(opened.url, '_blank', 'noopener');
-    } catch (e) {
-      setError(getErrorMessage(e, 'Could not open the document.'));
-    }
+    setViewing({ key: r.id, title: `${r.learnerName} · ${r.subjectName}`, subtitle: `${KIND_LABELS[r.kind] ?? r.kind}: ${r.title} · ${r.mark} / ${r.outOf}`, open: () => viewSchoolResultDocument(r.documentPath!, r.studentId) });
   };
 
   return (
@@ -81,6 +77,7 @@ export const SchoolResults: React.FC = () => {
 
       {error && <p className="text-sm text-rose-600 font-semibold mb-3">{error}</p>}
       <AccessLogNote show={logNotActive} />
+      {viewing && <DocumentViewer documents={[viewing]} onClose={() => setViewing(null)} onOpened={(v) => setLogNotActive(!v.logged)} />}
 
       {rows === null && !error ? (
         <div className="flex items-center text-slate-400 text-sm"><Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…</div>
@@ -102,7 +99,7 @@ export const SchoolResults: React.FC = () => {
                 <p className="text-slate-900 font-semibold">{r.mark} / {r.outOf} = {r.percent}%</p>
                 {r.checkNote && <p className="text-xs text-slate-500">Note: {r.checkNote}</p>}
                 {r.documentPath ? (
-                  <button onClick={() => openDocument(r.documentPath!, r.studentId)} className="inline-flex items-center gap-1 text-xs font-bold text-[#15803D] hover:underline cursor-pointer">
+                  <button onClick={() => openDocument(r)} className="inline-flex items-center gap-1 text-xs font-bold text-[#15803D] hover:underline cursor-pointer">
                     <FileText className="w-3.5 h-3.5" /> Open the document
                   </button>
                 ) : (

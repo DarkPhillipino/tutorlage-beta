@@ -11,8 +11,10 @@ import { FEATURES } from '../lib/features';
 import { openSessionRoom, sessionRoomWindow } from '../lib/videoRooms';
 import { roomOpensAt } from '../lib/sessionTiming';
 import { formatSaDate, formatSaDateTime } from '../lib/saTime';
-import { FREE_SESSION_LEARNER_BADGE, FREE_WAITING_NOTE } from '../lib/freeSessions';
+import { FREE_CANCEL_NOTE, FREE_SESSION_LEARNER_BADGE, FREE_WAITING_NOTE } from '../lib/freeSessions';
 import { useFreeIds } from '../lib/freeSessionsHooks';
+import { useWalletIds } from '../lib/walletHooks';
+import { WALLET_COPY } from '../lib/wallet';
 import type { MyTutor } from '../lib/keepOrSwap';
 import { KeepOrSwapChoice } from './KeepOrSwapChoice';
 import { MyTutorsPanel, type BookAgainLearner } from './MyTutorsPanel';
@@ -45,6 +47,9 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
   // FREE SESSIONS (CEO, 2 Nov 2026): which waiting requests and sessions are free, so the screen says so instead of naming a price.
   const freeRequestIds = useFreeIds('request', waiting.map((r) => r.id));
   const freeSessionIds = useFreeIds('session', sessions.map((s) => s.id));
+  // WALLETS (2 Nov 2026): which of them were paid from a wallet, so the screen says the price is on hold / that a cancel is refunded as credit.
+  const walletRequestIds = useWalletIds('request', waiting.map((r) => r.id));
+  const walletSessionIds = useWalletIds('session', sessions.map((s) => s.id));
 
   useEffect(() => {
     setIsLoading(true);
@@ -174,6 +179,8 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                 <p className="text-[11px] text-slate-600">
                   {freeRequestIds.has(r.id)
                     ? FREE_WAITING_NOTE
+                    : walletRequestIds.has(r.id)
+                    ? WALLET_COPY.waitingNote
                     : "Your request is waiting for a tutor to accept it. You're charged only when one does. If nobody accepts in time it ends, and you're not charged."}
                 </p>
               </div>
@@ -195,6 +202,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                 <div className="text-xs text-slate-500">
                   {formatSaDateTime(start)} · {s.durationHours}h
                   {freeSessionIds.has(s.id) && <span data-free-session className="ml-2 text-[10px] font-bold text-[#15803D] bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">{FREE_SESSION_LEARNER_BADGE}: you won't be charged</span>}
+                  {walletSessionIds.has(s.id) && <span data-wallet-session className="ml-2 text-[10px] font-bold text-[#15803D] bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">{WALLET_COPY.sessionBadge}</span>}
                 </div>
                 {s.meetingUrl ? (
                   <div className="space-y-1">
@@ -224,7 +232,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                   <SessionRoomControl sessionId={s.id} scheduledStart={s.scheduledStart} durationHours={s.durationHours} />
                 )}
                 <div className="flex flex-wrap items-start gap-x-4 gap-y-1">
-                  <CancelSessionControl sessionId={s.id} onCancelled={() => setRetryCount((c) => c + 1)} />
+                  <CancelSessionControl sessionId={s.id} walletNote={walletSessionIds.has(s.id) ? WALLET_COPY.cancelNote : undefined} freeNote={freeSessionIds.has(s.id) ? FREE_CANCEL_NOTE : undefined} onCancelled={() => setRetryCount((c) => c + 1)} />
                   <ReportProblemControl sessionId={s.id} />
                 </div>
               </div>
@@ -361,9 +369,11 @@ export const SessionRoomControl: React.FC<{ sessionId: string; scheduledStart: s
 
 // A two-step cancel: first click asks for confirmation, so a stray tap can't
 // cancel a booking. The database enforces the window and issues the refund.
-export const CancelSessionControl: React.FC<{ sessionId: string; onCancelled: () => void }> = ({
+export const CancelSessionControl: React.FC<{ sessionId: string; onCancelled: () => void; walletNote?: string; freeNote?: string }> = ({
   sessionId,
   onCancelled,
+  walletNote,
+  freeNote,
 }) => {
   const [isConfirming, setIsConfirming] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -386,7 +396,7 @@ export const CancelSessionControl: React.FC<{ sessionId: string; onCancelled: ()
       {isConfirming ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[11px] text-slate-600">
-            Cancel this session? The payment is refunded in full to the card — once Paystack has processed it, it can take up to 10 business days to reach the account.
+            {walletNote ?? freeNote ?? 'Cancel this session? The payment is refunded in full to the card — once Paystack has processed it, it can take up to 10 business days to reach the account.'}
           </span>
           <button
             onClick={handleCancel}

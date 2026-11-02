@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { OpenedDocument, openStoredDocument } from './documentAccess';
+import { ViewedDocument, viewStoredDocument } from './documentViewing';
 
 // Phase 2 (migration 20261012090100): parents' school results waiting for a check. Admins read them through
 // RLS and decide through admin_check_school_result(), which writes its own audit row
@@ -67,4 +68,9 @@ export async function checkSchoolResult(id: string, verdict: 'verified' | 'rejec
 // `learnerId` is passed so even a file kept outside the learner's own folder can be opened (and is recorded against the right person).
 export function openSchoolResultDocument(path: string, learnerId?: string): Promise<OpenedDocument> {
   return openStoredDocument(supabase, 'school-results', path, { subject: learnerId });
+}
+
+// The same, but shown inside the admin app (components/DocumentViewer.tsx) instead of in the normal browser.
+export function viewSchoolResultDocument(path: string, learnerId?: string): Promise<ViewedDocument> {
+  return viewStoredDocument(supabase, 'school-results', path, { subject: learnerId });
 }

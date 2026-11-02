@@ -1,26 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, CheckCircle2, XCircle, ExternalLink, ShieldCheck, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle2, XCircle, ShieldCheck, AlertCircle } from 'lucide-react';
 import { fetchTutorVerificationDetail, reviewDocument, approveTutor, rejectTutor, recordDateOfBirth } from '../lib/queries';
 import { useAdminAuth } from '../lib/AuthContext';
 import { TutorVerificationDetail as TutorDetail, DocumentType } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { getErrorMessage } from '../lib/errors';
 import { openStoredDocument } from '../lib/documentAccess';
+import { fileKindLabel, sortDocumentsOldestFirst, viewStoredDocument } from '../lib/documentViewing';
 import { AccessLogNote } from '../components/AccessLogNote';
+import { DocumentViewer, type ViewerDocument } from '../components/DocumentViewer';
+import { TutorDocumentList } from '../components/TutorDocumentList';
+import { DOC_LABELS } from '../lib/documentLabels';
 import { DocumentAccessCard } from '../components/DocumentAccessCard';
 import { HandOverPanel } from '../components/HandOverPanel';
 import { approvalGapsSentence, describeApprovalError } from '../lib/approvalErrors';
 import { TutorLevelCard } from '../components/TutorLevelCard';
 import { POLICE_MAX_AGE_MONTHS, TRACK_COPY, formatIsoLong, policeExpiresOn, requirementStatuses, todayIsoSAST } from '../lib/tutorOnboarding';
-
-const hostOf = (link: string) => {
-  try {
-    return new URL(link).hostname.replace(/^www\./, '');
-  } catch {
-    return link;
-  }
-};
 
 // Whole years from a yyyy-mm-dd date to today.
 function ageFrom(isoDate: string): number {
@@ -31,21 +27,6 @@ function ageFrom(isoDate: string): number {
   return age;
 }
 
-const DOC_LABELS: Record<DocumentType, string> = {
-  identity_doc: 'Identity Document',
-  matric_certificate: 'Matric Certificate',
-  university_transcript: 'University Transcript',
-  police_clearance: 'Police Clearance',
-  proof_of_address: 'Proof of Address',
-  nrso_clearance: 'Sex Offenders Register Clearance (NRSO)',
-  child_protection_register_clearance: 'Child Protection Register Clearance',
-  teaching_qualification: 'Teaching Qualification',
-  sace_certificate: 'SACE Registration',
-  practicum_letter: 'Teaching Practicum Letter',
-  marking_appointment_letter: 'Exam Marking / Moderation Appointment',
-  subject_results: 'Subject Results',
-  proof_of_experience: 'Proof of Experience',
-};
 
 export const TutorVerificationDetail: React.FC = () => {
   const { tutorId } = useParams<{ tutorId: string }>();
@@ -65,6 +46,8 @@ export const TutorVerificationDetail: React.FC = () => {
   const [logNotActive, setLogNotActive] = useState(false);
   // Goes up each time a document is opened, so the access log below shows the new line at once.
   const [accessRefresh, setAccessRefresh] = useState(0);
+  // The stored file being looked at in the viewer window (the document row's id); null when it is closed.
+  const [viewerKey, setViewerKey] = useState<string | null>(null);
 
   const load = () => {
     if (!tutorId) return;
@@ -74,9 +57,10 @@ export const TutorVerificationDetail: React.FC = () => {
 
   useEffect(load, [tutorId]);
 
-  // Tutor documents live in the private 'tutor-documents' bucket; document_url is the storage path. Each opening is recorded in the
-  // database first (Privacy §7: "we record each time one is opened"), then opened through a five-minute signed link. Older rows
-  // holding a full web address open directly, and are recorded too.
+  // Tutor documents live in the private 'tutor-documents' bucket; document_url is the storage path. A stored file is looked at inside
+  // the admin app (components/DocumentViewer.tsx, lib/documentViewing.ts): the opening is recorded first (Privacy §7: "we record each
+  // time one is opened"), then the five-minute signed link is used once to read the file. Only a row holding a web address (the
+  // tutor's own page) still opens in the normal browser, recorded too; that is this function.
   const handleOpenDocument = async (path: string) => {
     setError(null);
     try {
@@ -210,6 +194,16 @@ export const TutorVerificationDetail: React.FC = () => {
     if (gaps) notReady.push(gaps);
   }
   const blockApprove = notReady.length > 0;
+
+  // Oldest first, so two files of one kind are told apart by "1 of 2" and "2 of 2" and the viewer's Next goes in the order they were sent.
+  const sortedDocs = sortDocumentsOldestFirst(tutor.documents);
+  const storedDocs = sortedDocs.filter((d) => !/^https?:\/\//i.test(d.documentUrl));
+  const viewerDocs: ViewerDocument[] = storedDocs.map((d) => ({
+    key: d.id,
+    title: DOC_LABELS[d.documentType] ?? d.documentType,
+    subtitle: `${fileKindLabel(d.documentUrl)}${d.uploadedAt ? ` · uploaded ${new Date(d.uploadedAt).toLocaleString('en-ZA')}` : ''} · ${d.status ?? 'pending'}`,
+    open: () => viewStoredDocument(supabase, 'tutor-documents', d.documentUrl, { subject: tutorId }),
+  }));
 
   return (
     <div className="max-w-2xl">
@@ -357,64 +351,26 @@ export const TutorVerificationDetail: React.FC = () => {
             className="w-full bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-3 py-2.5 mb-3 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
           />
         )}
-        {tutor.documents.length === 0 ? (
-          <p className="text-xs text-slate-500">No documents uploaded yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {tutor.documents.map((doc) => {
-              const isLink = /^https?:\/\//i.test(doc.documentUrl);
-              const policeExpiry = doc.documentType === 'police_clearance' && doc.issuedOn ? policeExpiresOn(doc.issuedOn) : null;
-              return (
-              <div key={doc.id} className="p-3 rounded-xl border border-slate-200 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenDocument(doc.documentUrl)}
-                    className="text-xs font-bold text-[#0F172A] hover:text-[#15803D] flex items-center gap-1 cursor-pointer"
-                  >
-                    {DOC_LABELS[doc.documentType] ?? doc.documentType}
-                    <ExternalLink className="w-3 h-3" />
-                  </button>
-                  {isLink && (
-                    <span className="block text-[11px] text-slate-500 truncate" title={doc.documentUrl}>
-                      Link to {hostOf(doc.documentUrl)} (the tutor's own page: opens in a new tab, treat with care)
-                    </span>
-                  )}
-                  {doc.issuedOn && (
-                    <span className="block text-[11px] text-slate-500">
-                      Issued {formatIsoLong(doc.issuedOn)}
-                      {policeExpiry ? ` · ${policeExpiry < todayIsoSAST() ? 'expired' : 'counts until'} ${formatIsoLong(policeExpiry)}` : ''}
-                    </span>
-                  )}
-                  <span className={`text-[10px] font-bold capitalize ${doc.status === 'verified' ? 'text-emerald-600' : doc.status === 'rejected' ? 'text-rose-600' : 'text-amber-600'}`}>
-                    {doc.status ?? 'pending'}
-                  </span>
-                  {doc.status === 'rejected' && doc.adminNotes && <span className="block text-[11px] text-rose-600">{doc.adminNotes}</span>}
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    onClick={() => handleDocReview(doc.id, 'verified')}
-                    disabled={busyDocId === doc.id || doc.status === 'verified'}
-                    className="p-1.5 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 disabled:opacity-40 cursor-pointer"
-                    aria-label="Mark document verified"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDocReview(doc.id, 'rejected')}
-                    disabled={busyDocId === doc.id || doc.status === 'rejected'}
-                    className="p-1.5 rounded-full hover:bg-rose-50 text-slate-400 hover:text-rose-600 disabled:opacity-40 cursor-pointer"
-                    aria-label="Mark document rejected"
-                  >
-                    <XCircle className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              );
-            })}
-          </div>
-        )}
+        <TutorDocumentList
+          documents={tutor.documents}
+          busyDocId={busyDocId}
+          onView={(id) => setViewerKey(id)}
+          onOpenLink={handleOpenDocument}
+          onReview={handleDocReview}
+        />
       </div>
+
+      {viewerKey !== null && viewerDocs.length > 0 && (
+        <DocumentViewer
+          documents={viewerDocs}
+          startIndex={Math.max(0, storedDocs.findIndex((d) => d.id === viewerKey))}
+          onClose={() => setViewerKey(null)}
+          onOpened={(viewed) => {
+            setLogNotActive(!viewed.logged);
+            setAccessRefresh((n) => n + 1);
+          }}
+        />
+      )}
 
       {tutorId && <DocumentAccessCard profileId={tutorId} refreshKey={accessRefresh} />}
 

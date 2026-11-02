@@ -6,6 +6,7 @@ import { Phase1Metrics } from '../types';
 import { REBOOK_WINDOW_DAYS, SessionOutcomes } from '../lib/sessionOutcomes';
 import { WaitlistDemand } from '../lib/waitlistDemand';
 import { KeepOrSwapCounts } from '../lib/keepOrSwapCounts';
+import { paymentStatusLabel } from '../lib/paymentStatus';
 
 // Test phase 1's evidence (backlog 7ad): how fast requests get accepted, how
 // many never are, and how sessions end. Classmates answer faster than
@@ -104,6 +105,15 @@ export const Phase1Numbers: React.FC = () => {
               <Stat label="Slowest accept" value={formatMinutes(metrics.slowestMinutesToAccept)} />
               <Stat label="Cancelled before a match" value={metrics.requestsCancelled} />
               <Stat label="Charge failures" value={metrics.chargeFailures} note="see Payments" />
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-sm font-extrabold text-[#0F172A] mb-2">How requests were paid</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Stat label={paymentStatusLabel('free')} value={metrics.requestsFree} note="no money moved" />
+              <Stat label={paymentStatusLabel('wallet_paid')} value={metrics.requestsPaidFromWallet} note="a tutor accepted; the held money became the session's" />
+              <Stat label={paymentStatusLabel('wallet_refunded')} value={metrics.requestsRefundedToWallet} note="cancelled after a match; counted as accepted above" />
             </div>
           </section>
 

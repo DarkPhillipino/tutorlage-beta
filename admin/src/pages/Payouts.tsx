@@ -1,8 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, Banknote, AlertTriangle, Landmark, CheckCircle2 } from 'lucide-react';
-import { fetchPayoutBatches, fetchPaymentsNeedingAttention, fetchTutorPayoutAccounts } from '../lib/queries';
+import { fetchPayoutBatches, fetchPaymentsNeedingAttention, fetchTutorPayoutAccounts, upsertSystemSetting } from '../lib/queries';
 import { PayoutBatch, PaymentAttentionItem, TutorPayoutAccountRow } from '../types';
 import { formatRand } from '../lib/rand';
+import { supabase } from '../lib/supabaseClient';
+import { useAdminAuth } from '../lib/AuthContext';
+import { WalletTabs } from '../components/WalletTabs';
+import { canUseWallet, WalletAdminClient } from '../lib/walletAdmin';
+import { paymentStatusLabel } from '../lib/paymentStatus';
+
+const walletClient = supabase as unknown as WalletAdminClient;
 
 const VALIDATION_LABEL: Record<string, string> = {
   validated: 'Confirmed by the bank',
@@ -16,6 +23,8 @@ const VALIDATION_LABEL: Record<string, string> = {
 // couldn't be settled, R1 card checks that weren't refunded), plus a view of
 // where each tutor is paid.
 export const Payouts: React.FC = () => {
+  const { adminProfile } = useAdminAuth();
+  const showWallet = canUseWallet(adminProfile?.adminRole);
   const [attention, setAttention] = useState<PaymentAttentionItem[]>([]);
   const [accounts, setAccounts] = useState<TutorPayoutAccountRow[]>([]);
   const [batches, setBatches] = useState<PayoutBatch[]>([]);
@@ -36,7 +45,8 @@ export const Payouts: React.FC = () => {
       .finally(() => setIsLoading(false));
   }, []);
 
-  if (isLoading) {
+  // The wallet tabs load for themselves, so the old card sections below can be slow or fail without blanking them.
+  if (isLoading && !showWallet) {
     return (
       <div className="flex items-center justify-center py-16 text-slate-400">
         <Loader2 className="w-5 h-5 animate-spin mr-2" />
@@ -49,13 +59,37 @@ export const Payouts: React.FC = () => {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-extrabold text-[#0F172A] mb-1">Payments</h1>
-        <p className="text-sm text-slate-500">
-          Tutors are paid by Paystack directly: each charge is split when a tutor accepts, and the tutor's share settles to
-          their own bank account. This page shows what needs a person.
-        </p>
+        {!showWallet && (
+          <p className="text-sm text-slate-500">
+            Tutors are paid by Paystack directly: each charge is split when a tutor accepts, and the tutor's share settles to
+            their own bank account. This page shows what needs a person.
+          </p>
+        )}
         {loadError && <p className="text-sm font-semibold text-rose-600 mt-2">{loadError}</p>}
       </div>
 
+      {showWallet && (
+        <WalletTabs
+          client={walletClient}
+          role={adminProfile?.adminRole}
+          saveSetting={(key, value, description) => upsertSystemSetting(key, value, adminProfile!.id, description ?? undefined)}
+        />
+      )}
+
+      {showWallet && (
+        <div data-dormant-note className="border-t border-slate-200 pt-6">
+          <h2 className="text-lg font-extrabold text-[#0F172A]">Card payments (dormant)</h2>
+          <p className="text-sm text-slate-500">
+            Paystack, the card gateway, is not in use at the moment. These sections stay for the day it returns: each charge is split when a
+            tutor accepts, and the tutor's share settles to their own bank account. They show what needs a person.
+          </p>
+        </div>
+      )}
+      {isLoading && showWallet && (
+        <div className="flex items-center text-slate-400 text-sm"><Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading card payments…</div>
+      )}
+
+      {!isLoading && <>
       <section>
         <h2 className="text-sm font-extrabold text-[#0F172A] mb-3 flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-amber-500" /> Needs a person ({attention.length})
@@ -77,7 +111,7 @@ export const Payouts: React.FC = () => {
                 </div>
                 {item.detail && <div className="text-xs text-slate-600">{item.detail}</div>}
                 <div className="text-[11px] text-slate-400">
-                  Paystack reference {item.reference ?? '—'} · request {item.requestId} · {new Date(item.createdAt).toLocaleString()}
+                  {paymentStatusLabel(item.paymentStatus)} · Paystack reference {item.reference ?? '—'} · request {item.requestId} · {new Date(item.createdAt).toLocaleString()}
                 </div>
               </div>
             ))}
@@ -135,6 +169,7 @@ export const Payouts: React.FC = () => {
           </div>
         </section>
       )}
+      </>}
     </div>
   );
 };

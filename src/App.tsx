@@ -17,6 +17,7 @@ import { Footer } from './components/Footer';
 import { LearnersPanel } from './components/LearnersPanel';
 import { SchoolResultsPanel } from './components/SchoolResultsPanel';
 import { SessionsHistoryPage } from './components/SessionsHistoryPage';
+import { WalletPage } from './components/WalletPage';
 import { LearnerGradeModal } from './components/LearnerGradeModal';
 import { notificationTarget } from './lib/notificationTarget';
 import { setErrorScreen } from './lib/errorLog';
@@ -153,7 +154,7 @@ export default function App() {
   }, [user?.id, role, bookingFor?.id]);
 
   // Page / view state
-  const [view, setView] = useState<'home' | 'prices' | 'tiers' | 'teach' | 'about' | 'sessions'>('home');
+  const [view, setView] = useState<'home' | 'prices' | 'tiers' | 'teach' | 'about' | 'sessions' | 'wallet'>('home');
   // Most of the app is one address, so the error log (src/lib/errorLog.ts) is told which view is showing. No clean-up on purpose:
   // a clean-up could run before the error boundary logs the very crash that unmounted this screen, and the label would be lost.
   useEffect(() => {
@@ -222,9 +223,18 @@ export default function App() {
     window.scrollTo({ top: 0 });
   };
 
+  // The Wallet page (wallets, 2 Nov 2026): reached from the chip beside the bell and from a wallet notice.
+  const openWalletPage = () => {
+    setBookAgain(null);
+    setActiveNav(role === 'tutor' ? 'teach' : 'learn');
+    setView('wallet');
+    window.scrollTo({ top: 0 });
+  };
+
   const handleOpenNotification = (notification: AppNotification) => {
     const target = notificationTarget(notification.type);
-    if (target === 'teach') handleSetActiveNav('teach');
+    if (target === 'wallet') openWalletPage();
+    else if (target === 'teach') handleSetActiveNav('teach');
     else if (target === 'terms') window.open(siteUrl('/terms'), '_blank', 'noopener');
     else openSessionsPage();
   };
@@ -370,6 +380,7 @@ export default function App() {
         setActiveNav={handleSetActiveNav}
         onOpenManageAccount={() => openManageAccount('profile')}
         onOpenNotification={handleOpenNotification}
+        onOpenWallet={openWalletPage}
       />
 
       {/* 2. Secondary Sub-Header Banner */}
@@ -389,6 +400,13 @@ export default function App() {
             isGuardian={isGuardian}
             onBack={() => handleSetActiveNav(role === 'tutor' ? 'teach' : 'learn')}
             onBookAgain={FEATURES.keepOrSwap ? handleBookAgain : undefined}
+          />
+        ) : view === 'wallet' ? (
+          <WalletPage
+            userId={user!.id}
+            role={role}
+            isViewOnlyLearner={isViewOnlyLearner}
+            onBack={() => handleSetActiveNav(role === 'tutor' ? 'teach' : 'learn')}
           />
         ) : view === 'about' ? (
           <AboutPage />

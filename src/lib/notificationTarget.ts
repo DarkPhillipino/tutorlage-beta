@@ -6,7 +6,9 @@
 // opens the Terms in a new tab, so nobody loses their place. A tutor's level notices (a level given by an admin or earned, a
 // level change, a rate freeze: written by the database when the level really changes, types `tier_promotion`, `tier_demotion`
 // and `tier_freeze`) open the Teach screen, where the level is shown (CEO, 19 Oct 2026: tell a tutor when an admin gives them a level).
-export type NotificationTarget = 'sessions' | 'teach' | 'terms';
+// Wallet notices (wallets, 2 Nov 2026: a top-up added or not received, a payout requested, paid or not paid, an adjustment: types written by
+// the database that start with `wallet_`) open the Wallet page.
+export type NotificationTarget = 'sessions' | 'teach' | 'terms' | 'wallet';
 
 const TEACH_TYPES = new Set([
   'request_for_you',
@@ -20,5 +22,6 @@ const TERMS_TYPES = new Set(['terms_updated']);
 
 export function notificationTarget(type: string): NotificationTarget {
   if (TERMS_TYPES.has(type)) return 'terms';
+  if (type.startsWith('wallet_')) return 'wallet';
   return TEACH_TYPES.has(type) ? 'teach' : 'sessions';
 }

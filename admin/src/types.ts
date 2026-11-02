@@ -162,7 +162,14 @@ export type AuditAction =
   // Phase 2 (migration 20261012090000): written by database functions, not by logAdminAction().
   | 'school_result_checked'
   | 'tier1_record_checked'
-  | 'tier1_training_signed_off';
+  | 'tier1_training_signed_off'
+  // Wallet money (migration 20261102200000), written by the wallet functions in the database.
+  | 'wallet_topup_successful'
+  | 'wallet_topup_unsuccessful'
+  | 'wallet_payout_paid'
+  | 'wallet_payout_cannot_pay'
+  | 'wallet_bank_details_opened'
+  | 'wallet_adjusted';
 
 export interface AuditLogEntry {
   id: string;
@@ -181,7 +188,11 @@ export interface Phase1Metrics {
   requestsWaiting: number;       // sent, not yet accepted or expired
   requestsAccepted: number;
   requestsExpired: number;       // nobody accepted in time (never charged)
-  requestsCancelled: number;
+  requestsCancelled: number;     // cancelled before a tutor accepted
+  // How the requests were paid (paymentStatus.ts): free sessions, paid from a wallet, and wallet payments refunded as credit.
+  requestsFree: number;
+  requestsPaidFromWallet: number;
+  requestsRefundedToWallet: number;
   acceptanceRatePct: number | null;   // accepted ÷ (accepted + expired)
   medianMinutesToAccept: number | null;
   slowestMinutesToAccept: number | null;

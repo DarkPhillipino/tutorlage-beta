@@ -17,6 +17,10 @@ import type { LadderRow } from '../lib/ladderCopy';
 import { initializePayment } from '../lib/payments';
 import { FREE_FOR_NOW_DETAIL, FREE_FOR_NOW_NOTICE } from '../lib/freeSessions';
 import { sendMyRequestFree, useFreeSessionsOpen } from '../lib/freeSessionsHooks';
+import { sendMyRequestWallet, useWalletBalance, useWalletOpen } from '../lib/walletHooks';
+import { WalletRefusal, rand0, shortfall, walletPrice } from '../lib/wallet';
+import { AddMoneyModal } from './AddMoneyModal';
+import { WalletPayBox } from './WalletPayBox';
 import { siteUrl } from '../lib/siteUrl';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate } from '../lib/format';
@@ -272,13 +276,24 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   const durationHours = formState.durationHours;
   const chargedAmount = selectedLevel ? selectedLevel.price * durationHours : null;
 
+  // WALLET (CEO, 2 Nov 2026): when the database switch is on (free sessions win while they are on) and the request is in rand, the request is paid
+  // from the learner's or parent's wallet instead of a card: enough money -> "Pay R180 from your wallet" (the price goes on hold); not enough ->
+  // the balance, what is missing and "Add money". Every doubt (switch off, an error, an old database) means the wallet is closed and nothing here shows.
+  const walletOpen = useWalletOpen();
+  const walletMode = walletOpen && !freeOpen && selectedLevel?.currencyCode.trim() === 'ZAR';
+  const wallet = useWalletBalance(user?.id, walletMode);
+  const [addMoneyOpen, setAddMoneyOpen] = useState(false);
+  const price = chargedAmount === null ? 0 : walletPrice(chargedAmount);
+  const walletEnough = walletMode && wallet.state.status === 'ready' && price > 0 && wallet.state.available >= price;
+
   // Creates the request (payment_status 'initiated', invisible to tutors),
   // then hands off to Paystack's hosted checkout for the R1 card check that
   // saves the card (backlog 7a). The server, not this page, confirms it with
   // Paystack on /payment/callback and the database makes the request visible
   // to tutors. The price is charged only when a tutor accepts.
   const handleSendRequest = async () => {
-    if (PAYMENTS_NOT_OPEN && !freeOpen) return;
+    if (PAYMENTS_NOT_OPEN && !freeOpen && !walletMode) return;
+    if (walletMode && !walletEnough) return;
     if (sendingRef.current) return;
     if (!user?.email || !selectedLevel || chargedAmount === null) return;
     if (isGuardian && !learner) return;
@@ -328,11 +343,20 @@ export const PricesPage: React.FC<PricesPageProps> = ({
         return;
       }
 
+      if (walletMode) {
+        // The price goes on hold in the wallet and the request becomes visible to tutors; no card is involved.
+        await sendMyRequestWallet(created.id);
+        window.location.href = siteUrl('/payment/callback?wallet=1');
+        return;
+      }
+
       const { authorizationUrl } = await initializePayment(reference);
 
       window.location.href = authorizationUrl;
     } catch (e) {
-      setSendError(getErrorMessage(e, 'Could not start the card check.'));
+      setSendError(getErrorMessage(e, walletMode ? 'Could not send your request from your wallet.' : 'Could not start the card check.'));
+      // The wallet changed under us (money spent elsewhere): read it again so the page shows the real shortfall.
+      if (e instanceof WalletRefusal) wallet.reload();
       sendingRef.current = false;
       setIsSending(false);
     }
@@ -669,6 +693,14 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   </>
                 ) : (
                   <>
+                    {walletMode ? (
+                      <WalletPayBox
+                        price={price}
+                        state={wallet.state}
+                        onAddMoney={() => setAddMoneyOpen(true)}
+                        onRetry={wallet.reload}
+                      />
+                    ) : (<>
                     {freeOpen ? (
                       <div role="status" data-free-sessions className="mb-5 max-w-sm">
                         <p className="text-sm font-extrabold text-[#15803D] mb-1">{FREE_FOR_NOW_NOTICE}</p>
@@ -693,26 +725,31 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                       To save your card, Paystack makes a {getCurrencySymbol(selectedLevel.currencyCode)}1 check now and refunds it straight away.
                     </p>
                     </>)}
+                    </>)}
                     {searchIsStale && (
                       <p className="text-[11px] font-semibold text-amber-700 mb-3 max-w-sm">
                         You changed the subject to "{formState.subject.trim() || 'any subject'}", but this request is for "{appliedSubject.trim() || 'any subject'}".
                         Press "Update results" on the left, then choose a price again.
                       </p>
                     )}
-                    {PAYMENTS_NOT_OPEN && !freeOpen && (
+                    {PAYMENTS_NOT_OPEN && !freeOpen && !walletMode && (
                       <p role="status" data-payments-not-open className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3 max-w-sm">
                         {PAYMENTS_NOT_OPEN_NOTICE}
                       </p>
                     )}
+                    {(!walletMode || walletEnough) && (
                     <button
                       onClick={handleSendRequest}
-                      disabled={isSending || (PAYMENTS_NOT_OPEN && !freeOpen)}
+                      disabled={isSending || (PAYMENTS_NOT_OPEN && !freeOpen && !walletMode)}
                       className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
                     >
                       {isSending
-                        ? (freeOpen ? 'Sending your request…' : 'Redirecting to secure checkout…')
-                        : `${freeOpen ? 'Send request' : 'Save card & send request'}${bookAgain ? ` to ${bookAgain.firstName}` : ''}${learner ? ` for ${learner.firstName}` : ''}`}
+                        ? (freeOpen || walletMode ? 'Sending your request…' : 'Redirecting to secure checkout…')
+                        : walletMode
+                          ? `Pay ${rand0(price)} from your wallet`
+                          : `${freeOpen ? 'Send request' : 'Save card & send request'}${bookAgain ? ` to ${bookAgain.firstName}` : ''}${learner ? ` for ${learner.firstName}` : ''}`}
                     </button>
+                    )}
                   </>
                 )}
               </div>
@@ -721,6 +758,20 @@ export const PricesPage: React.FC<PricesPageProps> = ({
 
         </div>
       </div>
+
+      {/* Add money by bank transfer, from the wallet box above; the box reads the balance again when this closes. */}
+      {walletMode && user && (
+        <AddMoneyModal
+          isOpen={addMoneyOpen}
+          onClose={() => {
+            setAddMoneyOpen(false);
+            wallet.reload();
+          }}
+          payerId={user.id}
+          suggestedRand={wallet.state.status === 'ready' ? shortfall(price, wallet.state.available) : null}
+          onChanged={wallet.reload}
+        />
+      )}
 
     </div>
   );

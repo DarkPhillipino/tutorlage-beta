@@ -9,13 +9,14 @@ import {
   fetchTier1RecordsForCheck,
   fetchTier1SubjectNames,
   fetchTutorTier1Training,
-  openTutorDocument,
   recordTier1Signoff,
+  viewTutorDocument,
 } from '../lib/tier1';
 import { fetchUsers } from '../lib/queries';
 import { AdminUserRow } from '../types';
 import { getErrorMessage } from '../lib/errors';
 import { AccessLogNote } from '../components/AccessLogNote';
+import { DocumentViewer, type ViewerDocument } from '../components/DocumentViewer';
 
 // Phase 2: the Tier 1 route (master backlog item 7). Three jobs for admins: check the 70% records, record a
 // trainer's sign-off for the live Modules 2 and 5, and watch how each test item performs (the trial's item
@@ -96,16 +97,11 @@ const Records: React.FC = () => {
     }
   };
 
-  // The opening is recorded in the document access log first (Privacy §7), then the five-minute link is made.
-  const openDocument = async (path: string, tutorId: string) => {
+  // Shown inside the admin app. The opening is recorded in the document access log first (Privacy §7), then the five-minute link is made.
+  const [viewing, setViewing] = useState<ViewerDocument | null>(null);
+  const openDocument = (r: Tier1RecordForCheck) => {
     setError(null);
-    try {
-      const opened = await openTutorDocument(path, tutorId);
-      setLogNotActive(!opened.logged);
-      window.open(opened.url, '_blank', 'noopener');
-    } catch (e) {
-      setError(getErrorMessage(e, 'Could not open the document.'));
-    }
+    setViewing({ key: r.id, title: `${r.tutorName} · ${r.subjectName}`, subtitle: `Marks record · says ${r.markPct}%`, open: () => viewTutorDocument(r.documentPath, r.tutorId) });
   };
 
   if (rows === null && !error) return <div className="flex items-center text-slate-400 text-sm"><Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…</div>;
@@ -113,6 +109,7 @@ const Records: React.FC = () => {
     <div>
       {error && <p className="text-sm text-rose-600 font-semibold mb-3">{error}</p>}
       <AccessLogNote show={logNotActive} />
+      {viewing && <DocumentViewer documents={[viewing]} onClose={() => setViewing(null)} onOpened={(v) => setLogNotActive(!v.logged)} />}
       {rows && rows.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
           <CheckCircle2 className="w-8 h-8 text-slate-300 mx-auto mb-2" />
@@ -125,7 +122,7 @@ const Records: React.FC = () => {
               <div className="text-sm space-y-0.5">
                 <p className="font-bold text-[#0F172A]">{r.tutorName} · {r.subjectName}</p>
                 <p className="text-slate-600">Says {r.markPct}% ({r.source === 'matric' ? 'matric results' : r.source === 'university' ? 'university record' : 'other record'})</p>
-                <button onClick={() => openDocument(r.documentPath, r.tutorId)}
+                <button onClick={() => openDocument(r)}
                   className="inline-flex items-center gap-1 text-xs font-bold text-[#15803D] hover:underline cursor-pointer">
                   <FileText className="w-3.5 h-3.5" /> Open the document
                 </button>

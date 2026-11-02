@@ -111,7 +111,7 @@ async function main() {
     ['TutorVerificationDetail.tsx', 'tier1.ts', 'schoolResults.ts'].every((n) => openers.some((f) => f.endsWith(n))), openers.join(', '));
   for (const page of ['admin/src/pages/TutorVerificationDetail.tsx', 'admin/src/pages/Tier1.tsx', 'admin/src/pages/SchoolResults.tsx']) {
     const src = read(page);
-    check(`${page.split('/').pop()} shows the "not active" note and does not open a link itself`, /<AccessLogNote show=\{logNotActive\} \/>/.test(src) && /setLogNotActive\(!opened\.logged\)/.test(src) && !/window\.open\((await |path)/.test(src));
+    check(`${page.split('/').pop()} shows the "not active" note and does not open a link itself`, /<AccessLogNote show=\{logNotActive\} \/>/.test(src) && /setLogNotActive\(!(opened|v|viewed)\.logged\)/.test(src) && !/window\.open\((await |path)/.test(src));
   }
   check('nothing in the admin app creates the old per-page signed-URL helpers any more', !adminFiles.some((f) => /signedTutorDocumentUrl|signedSchoolResultUrl/.test(read(f))));
 
@@ -214,7 +214,7 @@ async function main() {
   check('the view reads the log and hold tables only: it never asks Storage for a file, so it does not depend on the storage tie', !/\.storage\b|createSignedUrl|openStoredDocument/.test(cardSrc));
   check('the tutor page shows the card for this tutor and refreshes it after a document is opened', /<DocumentAccessCard profileId=\{tutorId\} refreshKey=\{accessRefresh\} \/>/.test(read('admin/src/pages/TutorVerificationDetail.tsx')) && /setAccessRefresh\(\(n\) => n \+ 1\)/.test(read('admin/src/pages/TutorVerificationDetail.tsx')));
   check('Tier 1 and School results name the person when they open a file, so a file kept outside an owner folder is still reachable',
-    /openDocument\(r\.documentPath, r\.tutorId\)/.test(read('admin/src/pages/Tier1.tsx')) && /openDocument\(r\.documentPath!, r\.studentId\)/.test(read('admin/src/pages/SchoolResults.tsx'))
+    /viewTutorDocument\(r\.documentPath, r\.tutorId\)/.test(read('admin/src/pages/Tier1.tsx')) && /viewSchoolResultDocument\(r\.documentPath!, r\.studentId\)/.test(read('admin/src/pages/SchoolResults.tsx'))
     && /subject: tutorId/.test(read('admin/src/lib/tier1.ts')) && /subject: learnerId/.test(read('admin/src/lib/schoolResults.ts')));
   check('the migration: hold lines are insert-only, written only by place_safety_hold and release_safety_hold (admin check first), and the retention job skips a person on hold',
     /create table if not exists public\.safety_hold_events/.test(mig) && /before update or delete on public\.safety_hold_events/.test(mig) && /before truncate on public\.safety_hold_events/.test(mig)

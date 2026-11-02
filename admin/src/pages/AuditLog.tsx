@@ -18,6 +18,12 @@ const ACTION_LABELS: Record<string, string> = {
   school_result_checked: 'School result checked',
   tier1_record_checked: 'Tier 1 academic record checked',
   tier1_training_signed_off: 'Tier 1 training signed off',
+  wallet_topup_successful: 'Top-up marked successful',
+  wallet_topup_unsuccessful: 'Top-up marked unsuccessful',
+  wallet_payout_paid: 'Payout marked paid',
+  wallet_payout_cannot_pay: 'Payout: cannot pay',
+  wallet_bank_details_opened: 'Bank details opened',
+  wallet_adjusted: 'Wallet adjusted by hand',
 };
 
 export const AuditLog: React.FC = () => {
