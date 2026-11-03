@@ -122,7 +122,7 @@ export async function fetchStudentInstitution(studentId: string): Promise<Instit
 
   const { data, error: schoolError } = await supabase
     .from('schools_institutions')
-    .select('id, name, institution_type, curricula ( name )')
+    .select('id, name, institution_type, curricula!schools_institutions_curriculum_id_fkey ( name )')
     .eq('id', profile.school_id)
     .maybeSingle();
   if (schoolError) throw schoolError;
@@ -263,7 +263,7 @@ const INSTITUTION_FETCH_LIMIT = 50;
 export async function fetchInstitutions(search?: string): Promise<Institution[]> {
   let query = supabase
     .from('schools_institutions')
-    .select('id, name, institution_type, curricula ( name )')
+    .select('id, name, institution_type, curricula!schools_institutions_curriculum_id_fkey ( name )')
     .order('name')
     .limit(INSTITUTION_FETCH_LIMIT);
 

@@ -35,7 +35,7 @@ async function main() {
   check('the stored status is read back when a subject is added', /\.select\('id, subject_name, curriculum, min_grade_level, max_grade_level, verification_status'\)\s*\.single\(\)/.test(queries));
   check('the dashboard reads each subject\'s status (a column that exists today)', /tutor_subject_competencies \( id, subject_name, curriculum, min_grade_level, max_grade_level, verification_status \)/.test(queries) && /verificationStatus: competencyStatus\(c\.verification_status\)/.test(queries));
   const selects = [...queries.matchAll(/\.select\(\s*(['`])([\s\S]*?)\1/g)].map((m) => m[2]);
-  const newColumns = /review_note|criteria_met|reviewed_by|reviewed_at|curriculum_id/;
+  const newColumns = /review_note|criteria_met|reviewed_by|reviewed_at|\bcurriculum_id\b/;
   check('no main query selects a column that only exists after the migration: the one read of review_note is the separate, tolerant one',
     selects.length > 20 && selects.filter((s) => newColumns.test(s)).join('|') === 'competency_id, review_note');
   check('the note is read from tutor_subject_reviews (private), never from tutor_subject_competencies (readable by the public)',
