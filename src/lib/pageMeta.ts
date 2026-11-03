@@ -31,6 +31,7 @@ export const PAGE_META: PageMeta[] = [
   { path: '/terms', title: 'Terms of Service | Tutorlage', description: 'The terms for using Tutorlage as a learner, parent or guardian, or tutor.', index: true },
   { path: '/privacy', title: 'Privacy Policy | Tutorlage', description: 'What personal information Tutorlage collects, why, who sees it and how long it is kept.', index: true },
   { path: '/refunds', title: 'Refund Policy | Tutorlage', description: 'When Tutorlage refunds a booking, and how.', index: true },
+  { path: '/delivery', title: 'Delivery Policy | Tutorlage', description: 'How Tutorlage delivers an online tutoring session, and when a booking is confirmed.', index: true },
   ...ROLES.map((r): PageMeta => ({ path: `/signin/${r}`, title: 'Sign in | Tutorlage', description: 'Sign in to your Tutorlage account.', index: false })),
   { path: '/forgot-password', title: 'Reset your password | Tutorlage', description: 'Ask for a link to choose a new Tutorlage password.', index: false },
   ...ROLES.map((r): PageMeta => ({ path: `/forgot-password/${r}`, title: 'Reset your password | Tutorlage', description: 'Ask for a link to choose a new Tutorlage password.', index: false })),

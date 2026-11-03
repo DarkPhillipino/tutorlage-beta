@@ -1,7 +1,7 @@
 > **The short version.**
 > - Tutorlage is a platform. The tutor gives the lesson; we arrange the match and collect the payment for the tutor.
-> - You see one fixed price before you send a request. You are charged only when a tutor accepts.
-> - Refunds are decided case by case. Section 8 lists the situations in which we always refund, and how we decide the rest.
+> - You see one fixed price before you send a request. You pay from your Tutorlage wallet, and the price is only on hold until a tutor accepts. If none does, it goes straight back.
+> - Refunds go back to your wallet and are decided case by case. Section 8 lists the situations in which we always refund, and how we decide the rest.
 > - Parents and guardians hold the account for learners under 18.
 > - **Section 15 limits what we are responsible for. Please read it.**
 
@@ -49,36 +49,38 @@ Nothing in these Terms makes Tutorlage, a tutor and a learner each other's emplo
 ## 5. How a booking works, and when the agreement is made
 
 1. **Your request.** You choose a subject, grade, date and time and a price level. Before you send anything, the booking screen shows the price you will pay and when you will be charged. You can change the details or go back.
-2. **Saving your card.** When you send the request, our payment processor, Paystack, saves your card with a R1 check. The R1 is refunded straight away.
-3. **A tutor accepts.** The request goes to approved tutors who teach the subject and grade at your chosen level or above. When one accepts, Paystack charges your saved card the price you saw.
-4. **The agreement for that session is made when the charge succeeds.** We confirm it on screen and in your sessions list.
+2. **Your wallet.** Sessions are paid from your Tutorlage wallet (§6). When you send the request, its price is put on hold in your wallet. If your wallet holds less than the price, the screen shows what is missing and lets you add money.
+3. **A tutor accepts.** The request goes to approved tutors who teach the subject and grade at your chosen level or above. When one accepts, the held price becomes the money for that session.
+4. **The agreement for that session is made when a tutor accepts.** We confirm it on screen and in your sessions list.
 5. **The session.** It takes place online at the booked time, in Tutorlage's own video room or through a meeting link (for example Google Meet, Teams or Zoom) that the tutor adds to the session. It lasts the booked length (currently one hour). Where a tutor uses another service's meeting link, that service's own terms apply to it.
-6. **Your record.** Every booking, its price, its status and any refund stays in your sessions list. Paystack sends a receipt for each charge.
+6. **Your record.** Every booking, its price, its status and any refund stays in your sessions list. Your wallet history shows every top-up, hold, refund and payment.
 
 ## 6. Prices, payment and where your money goes
 
-- **One price, all in.** Each price level has one fixed price per hour, shown before you send a request. It is the full amount you pay, including any VAT we are required to charge. There are no booking fees or other costs added at checkout. Paystack's processing fee is paid by Tutorlage, not added to your price.
-- **You are charged only when a tutor accepts.** If no tutor accepts, you are never charged (§7). If your card cannot be charged when a tutor accepts, the request is cancelled and you are told.
-- **Where the money goes.** When a tutor accepts, Paystack splits your payment, and Tutorlage never receives or holds the tutor's share:
-  - **the tutor's share goes to the tutor's own bank account through Paystack**;
-  - Tutorlage's commission, less Paystack's fee, goes to Tutorlage.
+- **One price, all in.** Each price level has one fixed price per hour, shown before you send a request. It is the full amount you pay, including any VAT we are required to charge. There are no booking fees or other costs added at checkout.
+- **Your wallet.** You pay for sessions from your Tutorlage wallet. Each adult account has one wallet, and a parent's or guardian's wallet pays for their children's sessions.
+  - **Adding money.** You add money by bank transfer (EFT) to Tutorlage's business bank account, using the reference the app gives you, and you upload proof of the transfer. We check our bank account and, when the money has arrived, add it to your wallet, usually within 24 hours. If we cannot match a transfer, we tell you why in the app.
+  - **Limits.** The Add money screen shows the smallest and largest amount you can add and the most your wallet can hold.
+  - **Where the money sits.** Money you add is received into Tutorlage's business bank account. The wallet is Tutorlage's record of what is yours. It is not a bank account and it earns no interest.
+  - **Getting it back.** Wallet money you have not used is yours. Ask us at support@tutorlage.com and we return it to you by bank transfer (Refund Policy §8).
+- **On hold, then paid.** When you send a request, its price is put on hold in your wallet. If no tutor accepts, it goes straight back (§7). When a tutor accepts, the held price becomes the money for that session. It is not credited to the tutor until the session is complete (§9).
+- **Where the money goes.** When a session is complete, the tutor's share is credited to the tutor's own Tutorlage wallet and Tutorlage keeps its commission. The tutor asks us for a payout, and we pay it by bank transfer from our bank account.
 - **Our commission** depends on the tutor's level (B3); a tutor can ask us for the percentage for their level at any time.
-- **We collect for the tutor.** The tutor appoints Tutorlage as their **limited agent to collect payment** for sessions booked through Tutorlage. When your payment for a session is successfully made through Paystack, your obligation to pay the tutor for it is settled. The tutor's claim for payment is against Tutorlage and Paystack, not against you.
+- **We collect for the tutor.** The tutor appoints Tutorlage as their **limited agent to collect payment** for sessions booked through Tutorlage. When the price of a session is put on hold in your wallet and the session is booked, your obligation to pay the tutor for it is settled. The tutor's claim for payment is against Tutorlage, not against you.
 - **Payment security.**
-  - You enter your card details on Paystack's secure payment pages, never on ours. Your bank may ask you to confirm the payment (3-D Secure).
-  - We never see or store your full card number. We keep only Paystack's reference for the saved card, its last four digits, type, bank and expiry date.
-  - You can ask us to remove a saved card at any time.
+  - We do not take card payments, and we never see or store a card number. If we add card payments through our payment provider, Paystack, later, they will add money to your wallet in the same way, and we will update these Terms first.
+  - The proof of transfer you upload is kept only to check the transfer. It is deleted 90 days after a successful top-up and 30 days after an unsuccessful one. We keep the record of each top-up and payment for 7 years, as accounting records (Privacy Policy).
 
 ## 7. If no tutor accepts your request
 
-A request stays open for up to **48 hours**, or until **30 minutes after the start time you asked for**, whichever comes first. If no tutor accepts by then, the request expires and **you are not charged**. The R1 card check is refunded whatever happens.
+A request stays open for up to **48 hours**, or until **30 minutes after the start time you asked for**, whichever comes first. If no tutor accepts by then, the request expires and **the price on hold goes straight back to your wallet**. You pay nothing.
 
 ## 8. Cancelling and refunds
 
-We decide cancellations and refunds case by case, fairly, and we set no fixed deadlines for asking. Tell us as early as you can: where the app lets you cancel from your sessions list, that cancellation and its refund are handled for you; otherwise email support@tutorlage.com. The Refund Policy has the detail.
+For 7 days after you send a request, you can cancel an upcoming session yourself from your sessions list and the full price goes back to your wallet at once. Outside that, we decide cancellations and refunds case by case, fairly, and we set no fixed deadlines for asking: email support@tutorlage.com as early as you can. Refunds are paid into your wallet as credit, and you can ask us to return unused wallet money to your bank account. The Refund Policy has the detail.
 
 1. **We always refund in full when:**
-   - no tutor accepts your request (you are never charged);
+   - no tutor accepts your request (the price on hold goes straight back to your wallet);
    - the tutor cancels, or does not turn up;
    - the session cannot take place, or cannot be finished, because of a failure on Tutorlage's side or the tutor's (for example our video room is down), and it is not re-arranged to suit you;
    - you were charged by mistake, or twice;
@@ -144,11 +146,11 @@ Unauthorised access to data or systems can also be a crime under the Cybercrimes
 - **Tutors' materials.** A tutor's own teaching materials stay the tutor's. A learner may use what is shared in a session for their own learning, not to sell or publish it.
 - **Your other content.** Do not upload or share anything you do not have the right to share.
 
-## 14. Payment disputes and chargebacks
+## 14. Payment disputes
 
-- If you think a charge is wrong, **please contact us first** at support@tutorlage.com. We will respond within 5 business days and, where a refund is due, start it at once.
-- This does not take away your right to dispute a charge with your bank.
-- If a dispute about a session that did take place turns out to be false, we may share the session records with Paystack and your bank, and we may suspend the account (§17).
+- If you think a payment, a top-up or a wallet entry is wrong, **please contact us first** at support@tutorlage.com. We will respond within 5 business days and, where a refund is due, start it at once.
+- This does not take away your right to complain to the National Consumer Commission, or to go to court.
+- If a dispute about a session that did take place turns out to be false, we may share the session records with our bank and payment provider, and we may suspend the account (§17).
 
 ## 15. What we are responsible for, and its limits: IMPORTANT, PLEASE READ
 
@@ -169,7 +171,7 @@ We may change, add or remove features to improve Tutorlage or comply with the la
 
 ## 17. Suspending or closing accounts
 
-1. **Closing your own account.** You can close your account at any time by emailing support@tutorlage.com. Sessions already booked are cancelled and refunded under §8. Your information is then handled as our Privacy Policy says.
+1. **Closing your own account.** You can close your account at any time by emailing support@tutorlage.com. Sessions already booked are cancelled and refunded under §8, and any money left in your wallet is returned to you by bank transfer. Your information is then handled as our Privacy Policy says.
 2. **When we may suspend or close an account**, for a serious or repeated breach of these Terms, for fraud, or for a safety concern:
    - except where safety or the law requires immediate action, we will **tell you why first**;
    - you will have **14 days to respond**;
@@ -255,18 +257,16 @@ These apply to you as well as Part A if you tutor on Tutorlage.
 
 ## B4. Your earnings and how you are paid
 
-1. **Bank details first.** Before you can accept a paid request, you must add the bank account your share is paid into. Paystack confirms the account is yours with your bank where your bank supports this. We pass your ID or passport number to Paystack for that check and do not store it.
-2. **We collect for you.** You appoint Tutorlage as your limited agent to collect payment from learners for sessions booked through Tutorlage (Part A §6). A learner's successful payment through Paystack settles what they owe you.
-3. **Paystack pays you directly.** When a learner is charged, Paystack splits the payment and pays your share into your bank account on Paystack's own settlement schedule.
-   - Tutorlage never holds your share.
-   - Paystack's processing fee is paid by Tutorlage, not taken from your share.
-4. **Your first payout.** Paystack holds the first payout to a new or changed bank account until Tutorlage has verified that account in Paystack, so the first one may take longer.
+1. **Your bank details.** To be paid, add your bank details (bank, account number, branch code and account holder's name) in the Teaching tab. We use them only to pay you. Only the people who pay you can open them, and each time is logged. Check them carefully: we pay the account you give us.
+2. **We collect for you.** You appoint Tutorlage as your limited agent to collect payment from learners for sessions booked through Tutorlage (Part A §6). A learner's payment for a session, put on hold in their wallet, settles what they owe you.
+3. **When your share is credited.** The learner's money stays on hold until the session is complete (Part A §9). Your share is then credited to your Tutorlage wallet. Until then the app shows it as "coming".
+4. **Getting paid out.** You can ask for a payout of your whole available wallet balance at any time. There is no minimum, and one request can be open at a time. We pay it by bank transfer from our bank account, usually within 24 hours. If it has not arrived after that, contact us through the Help button at the top of the site.
 
 ## B5. Refunds, cancellations and chargebacks: your share
 
 1. **Cancelled before the session.** If a session is cancelled and refunded under Part A §8, it does not take place and you are not entitled to the payment for it. If we keep part of the price for the time you held, that part is paid to you.
 2. **Tutor-caused refunds.** If a learner is refunded because **you** cancelled, did not attend, or a problem report about your session was upheld, you are not entitled to the payment for that session, and Tutorlage may recover it from you or from your later earnings.
-3. **Chargebacks.** If a learner's bank later reverses a payment because the session was not delivered as booked, Tutorlage may recover your share for that session from your later earnings. We will tell you first, and you can respond under Part A §17.
+3. **Money returned after you were credited.** If money you were credited for a session is later returned to the learner (for example a refund after the session), Tutorlage may reduce your wallet by your share for that session, but never below zero. We will tell you first, and you can respond under Part A §17.
 4. **Never recovered from you**: refunds Tutorlage gives for its own reasons.
 
 ## B6. Cancellations and attendance

@@ -183,6 +183,7 @@ export default function Landing() {
             <Link to="/terms" className="text-[#15803D] hover:underline">Terms of Service</Link>
             <Link to="/privacy" className="text-[#15803D] hover:underline">Privacy Policy</Link>
             <Link to="/refunds" className="text-[#15803D] hover:underline">Refund Policy</Link>
+            <Link to="/delivery" className="text-[#15803D] hover:underline">Delivery Policy</Link>
             <Link to="/login" className="text-[#15803D] hover:underline">Sign in or join</Link>
           </nav>
           <p>

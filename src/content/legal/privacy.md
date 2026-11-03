@@ -18,8 +18,8 @@ This policy explains what personal information Tutorlage collects, why, who it i
 | **Video room records** | Which room, who joined it and when. **Never any audio, video or recording** | Everyone who uses a Tutorlage video room |
 | **Requests to be told when a tutor is available** (only if you ask) | The subject, grade and school you searched for; whether you or a parent asked and for which learner; when you were told. **No phone number or email address is stored for this** | Learners and their parents |
 | **Your choices about tutors you have had** | Whether you chose to keep a tutor or to try someone else, and a tutor's private decision not to carry on with a learner | Learners, parents and tutors |
-| **Payments** | Paystack's reference for a saved card, its last 4 digits, type, issuing bank and expiry; the reference, amount, fee and outcome of each payment and refund. **Never the full card number** | People who pay |
-| **Tutors' payout details** | Bank, account holder's name, last 4 digits of the account, and Paystack's result of checking it. The ID or passport number used for that check is passed to Paystack and **not stored** | Tutors |
+| **Payments** | Your wallet's history (top-ups, holds, refunds and payments) with the reference, amount and outcome of each; for a top-up by bank transfer, the proof of payment you upload. **We do not take card payments and never hold a card number** | People who pay |
+| **Tutors' payout details** | Bank, branch code, account number and account holder's name, which you give us so that we can pay you. Only the people who pay you can open them, and each time is logged. We do not ask for your ID or passport number here | Tutors |
 | **Consent and acceptance records** | Which version of our Terms, Privacy Policy and notices you accepted, how and when; a guardian's consent for a learner and any withdrawal | Everyone |
 | **Communications** | Emails to support@ and safety@, in-app problem reports, notifications we send you | Anyone who contacts us |
 | **Technical data** | IP address, browser and device details, and times of access, recorded in our service providers' logs when you use the site and sign in | Everyone, including visitors |
@@ -32,7 +32,7 @@ We collect only what we need for the purposes in §4.
 - **From you**, when you sign up, book, tutor or contact us.
 - **From a parent or guardian**, for a learner under 18 (§6).
 - **From Google**, if you choose "Sign in with Google": your name, email address and profile picture link.
-- **From Paystack**: the details of your saved card listed in §2, and whether a tutor's bank account was confirmed.
+- **From our bank**: the entries on our bank statement that show a top-up you sent us, so that we can match it to your wallet.
 - **From tutors' own documents**: ID or passport copies, police clearance certificates, proof of results or experience and, if a tutor chooses to add them, teaching qualifications, practicum and exam marking letters and proof of SACE registration (§7).
 - **From parents and guardians, or adult learners**: school results, if they choose to give them (§6).
 - **From other users**: ratings of a tutor, and problem or safety reports that mention you.
@@ -102,7 +102,7 @@ We will ask your consent before using your information for a purpose not listed 
 | Provider | What they do for us | Where |
 |---|---|---|
 | **Supabase** | Database, file storage and sign-in | Ireland (EU) |
-| **Paystack** | Payments, saving cards, paying tutors their share, checking tutors' bank accounts | Where Paystack processes information is set out in its own privacy notice |
+| **Paystack** | Not used for live payments today. If we add card top-ups, Paystack would process the card payment | Where Paystack processes information is set out in its own privacy notice |
 | **Cloudflare** | Runs our server, and relays video calls: it passes the call's encrypted data between the people in a room, and does not record or keep it, so that people in a call cannot see each other's network addresses | Global network, US company |
 | **Resend** | Sends account emails | United States |
 | **GitHub** (Microsoft) | Hosts our website, which means it receives visitors' IP addresses | United States |
@@ -142,7 +142,7 @@ We will ask your consent before using your information for a purpose not listed 
   - your sign-in session, so you stay signed in;
   - your language choice;
   - while you sign up with Google, the role you chose.
-- **Other services' pages.** When you use Google sign-in or Paystack's payment pages, those services set their own cookies under their own policies.
+- **Other services' pages.** When you use Google sign-in, that service sets its own cookies under its own policy.
 - **Clearing storage.** You can clear your browser's storage at any time. You will then be signed out.
 
 ## 12. Marketing
@@ -161,8 +161,8 @@ We will ask your consent before using your information for a purpose not listed 
 - an audit log of admin actions.
 
 **Payments**:
-- card details are entered on Paystack's pages, not ours;
-- we never store full card numbers, or tutors' ID numbers or full bank account numbers.
+- we do not take card payments, so no card details reach us;
+- we never store card numbers. A tutor's bank account number is stored only so that we can pay them.
 
 **If there is a security compromise**: if your information may have been accessed by someone unauthorised, we will notify the Information Regulator and you **as soon as reasonably possible after we discover it**. We will tell you what happened, what it could mean for you, what we have done about it, what you can do to protect yourself, and who accessed it if we know.
 
@@ -171,7 +171,7 @@ We will ask your consent before using your information for a purpose not listed 
 | Information | How long |
 |---|---|
 | Account details | While your account is open, then deleted within 90 days of closing, except what is below |
-| Bookings, payments, refunds and the session records behind them | **7 years** after the end of the financial year they fall in, because they are part of the company's accounting records |
+| Bookings, payments, wallet records, refunds, payouts and the session records behind them | **7 years** after the end of the financial year they fall in, because they are part of the company's accounting records |
 | Acceptance and consent records | While the account is open plus 5 years, as evidence of what was agreed |
 | Learners' school results | While the learner's account is open and consent stands. Deleted within 90 days of the account closing or consent being withdrawn. A mark that has counted towards a tutor's level is then kept only as an anonymous number |
 | Tutors' ID copies, police clearances, proof of results or experience, teaching qualifications and letters (if given), and SACE certificates (if given) | While the person tutors on Tutorlage plus 3 years. Longer if a safety report or an investigation involves them, until it is closed and the time for a claim has passed |

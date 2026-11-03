@@ -113,6 +113,7 @@ export const Footer: React.FC = () => {
             <Link to="/terms" className="hover:text-slate-300">Terms of Service</Link>
             <Link to="/privacy" className="hover:text-slate-300">Privacy Policy</Link>
             <Link to="/refunds" className="hover:text-slate-300">Refund Policy</Link>
+            <Link to="/delivery" className="hover:text-slate-300">Delivery Policy</Link>
           </div>
         </div>
 

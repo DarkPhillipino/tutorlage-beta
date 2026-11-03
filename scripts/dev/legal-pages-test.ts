@@ -24,6 +24,7 @@ const docs = {
   terms: read('src/content/legal/terms.md'),
   privacy: read('src/content/legal/privacy.md'),
   refunds: read('src/content/legal/refunds.md'),
+  delivery: read('src/content/legal/delivery.md'),
 };
 const html = (source: string) => renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(MarkdownText, { source })));
 
@@ -107,7 +108,11 @@ function partBSections(text: string): Set<string> {
   const r = docs.refunds;
   const ra = numberedSections(r);
   const rrefs = [...r.matchAll(/§(\d+)/g)].map((m) => m[1]);
-  check('refunds: every "§N" points at a section that exists, sections 1 to 9 are there', rrefs.every((n) => ra.has(n)) && [...Array(9)].every((_, i) => ra.has(String(i + 1))));
+  check('refunds: every "§N" points at a section that exists, sections 1 to 12 are there', rrefs.every((n) => ra.has(n)) && [...Array(12)].every((_, i) => ra.has(String(i + 1))));
+  const d = docs.delivery;
+  const da = numberedSections(d);
+  const drefs = [...d.matchAll(/§(\d+)/g)].map((m) => m[1]);
+  check('delivery: every "§N" points at a section that exists, sections 1 to 8 are there', drefs.every((n) => da.has(n)) && [...Array(8)].every((_, i) => da.has(String(i + 1))));
   const cross = [...t.matchAll(/Privacy Policy(?:,| \()\s*§(\d+)/g)].map((m) => m[1]);
   check('terms: the references into the Privacy Policy (§7, §8) exist there', cross.every((n) => pa.has(n)), cross.join(','));
 }
@@ -128,7 +133,8 @@ function partBSections(text: string): Set<string> {
   check('terms: a change to the Terms is announced in the app and blocks nobody; carrying on means accepting it (CEO, 17 Oct 2026)',
     /notice in the app/.test(t) && /Nobody is signed out or stopped from using Tutorlage because of a change/.test(t) && /If you keep using Tutorlage after a change, you accept the new version/.test(t) && !/ask you to accept the new version the next time you sign in/.test(t));
   check('terms and privacy: a learner under 18\'s camera is never used (CEO, 17 Oct 2026)', /A learner under 18's camera is never used/.test(t) && /A learner under 18's camera is never used/.test(p));
-  check('terms: the tutor\'s share goes through Paystack to the tutor and Tutorlage never holds it', /tutor's own bank account through Paystack/.test(t) && /never receives or holds the tutor's share/.test(t));
+  check('terms: money is received into Tutorlage\'s bank account, held in the wallet, and the tutor\'s share is credited only when the session is complete (CEO wallet design, 2 Nov 2026)',
+    /Money you add is received into Tutorlage's business bank account/.test(t) && /the tutor's share is credited to the tutor's own Tutorlage wallet/.test(t) && /not credited to the tutor until the session is complete/.test(t) && /We do not take card payments/.test(t));
   check('terms: SACE is optional and the police clearance is required (CEO, 14 Oct 2026)', /you \*\*may\*\* also give us your \*\*SACE certificate\*\*; you do not have to/.test(t) && /police clearance certificate\*\* issued in the last 6 months/.test(t));
   check('terms: keep or swap is described (the choice is the learner\'s after the first session)', /keep that tutor/.test(t) && /tutor is not told why/.test(t));
   check('terms: the video room is described, under 18s only in a booked session, never recorded', /video room/.test(t) && /only that/.test(t) && /never recorded/.test(t));
@@ -142,9 +148,14 @@ function partBSections(text: string): Set<string> {
     /start at a higher level\*\* because of a verified credential/.test(p) && /set a level for one tutor\*\*, and must write down the reason/.test(p));
   check('privacy: Cloudflare is named as carrying the video calls, with no recording', /Cloudflare\*\*[^\n]*relays video calls[^\n]*does not record or keep it/.test(p));
   check('privacy: every provider the product uses is listed', ['Supabase', 'Paystack', 'Cloudflare', 'Resend', 'GitHub', 'Google'].every((s) => p.includes(`**${s}**`)));
-  check('refunds: no charge if nobody accepts; the R1 check is refunded; refunds go back to the card', /you are not charged/.test(r) && /R1 check/.test(r) && /back to the card you paid with/.test(r));
+  check('refunds: the price is put on hold, goes straight back if nobody accepts, and refunds go into the wallet as credit (CEO wallet design, 2 Nov 2026)',
+    /put \*\*on hold\*\*/.test(r) && /goes straight back to your wallet/.test(r) && /into your Tutorlage wallet as credit/.test(r) && !/R1 check|back to the card you paid with/.test(r));
+  check('refunds: unused wallet money can be returned to the bank account on request, by hand', /send unused wallet money back by bank transfer, by hand/.test(r));
   check('refunds: the situations that are always refunded, the case-by-case rule and what is not refunded are all stated',
-    /When we always refund in full/.test(r) && /Every other case: decided one by one/.test(r) && /There is no fixed cancellation window/.test(r) && /What we do not refund/.test(r));
+    /When we always refund in full/.test(r) && /Every other case: decided one by one/.test(r) && /no fixed cancellation window/.test(r) && /What we do not refund/.test(r));
+  const dl = docs.delivery;
+  check('delivery: a service, not goods; confirmed when a tutor accepts; online, joined from the sessions list; wallet top-ups usually within 24 hours',
+    /a \*\*service\*\*/.test(dl) && /no delivery fees/.test(dl) && /confirmed the moment a tutor accepts/.test(dl) && /Join session/.test(dl) && /usually within 24 hours/.test(dl));
   check('refunds: an agreed refund is never left waiting more than 30 days', /never left waiting more than 30 days/.test(r));
 }
 

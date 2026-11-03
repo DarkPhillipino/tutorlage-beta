@@ -6,16 +6,17 @@ import { MarkdownText } from '../lib/miniMarkdown';
 import termsText from '../content/legal/terms.md?raw';
 import privacyText from '../content/legal/privacy.md?raw';
 import refundsText from '../content/legal/refunds.md?raw';
+import deliveryText from '../content/legal/delivery.md?raw';
 
-// The Terms of Service, Privacy Policy and Refund Policy. Public (not behind sign-in) so anyone can read them before
+// The Terms of Service, Privacy Policy, Refund Policy and Delivery Policy. Public (not behind sign-in) so anyone can read them before
 // signing up. The text lives in src/content/legal/*.md, one file each: edit it there, then raise LEGAL_VERSION and
 // set current_terms_version and current_privacy_version on the database to the same value (the CEO's yes; publish the
 // page first, confirm it is live, then change the two rows, never the rows first). Everyone then gets a notice in the
 // app that the terms were updated (CEO, 17 Oct 2026: nobody is signed out or stopped by a change).
 //
 // One product (CEO, 16 Oct 2026): these replaced the "tester notice" (version 2026-10-phase1-c) on 16 Oct 2026.
-export const LEGAL_VERSION = '2026-10-17-b';
-const LAST_UPDATED = '17 October 2026';
+export const LEGAL_VERSION = '2026-11-03';
+const LAST_UPDATED = '3 November 2026';
 // (17 Oct 2026: the "closed test" box that sat above the text was removed at the CEO's request. The closed-test data deletion
 // promise stays in the Privacy Policy, §14, last row.)
 
@@ -23,6 +24,7 @@ const DOCUMENTS = {
   terms: { title: 'Terms of Service', text: termsText },
   privacy: { title: 'Privacy Policy', text: privacyText },
   refunds: { title: 'Refund Policy', text: refundsText },
+  delivery: { title: 'Delivery Policy', text: deliveryText },
 } as const;
 
 export type LegalDocument = keyof typeof DOCUMENTS;

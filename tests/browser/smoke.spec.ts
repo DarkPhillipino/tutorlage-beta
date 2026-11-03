@@ -4,7 +4,7 @@ import { test, expect, cspViolations } from './fixtures';
 // FUNC-XBROWSER-01 (runs in chromium, firefox, webkit, an Android phone and an iPhone), FE-CONSOLE-01, FE-SPA-ROUTING-01.
 
 // Addresses a visitor can open directly without being signed in and without a link carrying a secret.
-const OPEN = ['/', '/login', '/signin/student', '/signin/tutor', '/signin/parent', '/signup/student', '/signup/tutor', '/signup/parent', '/forgot-password', '/forgot-password/tutor', '/terms', '/privacy', '/refunds'];
+const OPEN = ['/', '/login', '/signin/student', '/signin/tutor', '/signin/parent', '/signup/student', '/signup/tutor', '/signup/parent', '/forgot-password', '/forgot-password/tutor', '/terms', '/privacy', '/refunds', '/delivery'];
 
 test.describe('public pages open directly', () => {
   for (const path of OPEN) {
@@ -74,7 +74,7 @@ test.describe('a visitor who is not signed in', () => {
   test('the start page: the sign-in and sign-up links work, and the legal links open the legal pages', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Send one request. A tutor who fits accepts it.');
-    for (const [name, url] of [['Terms of Service', /\/terms$/], ['Privacy Policy', /\/privacy$/], ['Refund Policy', /\/refunds$/]] as const) {
+    for (const [name, url] of [['Terms of Service', /\/terms$/], ['Privacy Policy', /\/privacy$/], ['Refund Policy', /\/refunds$/], ['Delivery Policy', /\/delivery$/]] as const) {
       await page.goto('/');
       await page.getByRole('contentinfo').getByRole('link', { name }).click();
       await expect(page).toHaveURL(url);
