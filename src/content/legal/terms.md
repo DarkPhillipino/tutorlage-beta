@@ -59,7 +59,7 @@ Nothing in these Terms makes Tutorlage, a tutor and a learner each other's emplo
 
 - **One price, all in.** Each price level has one fixed price per hour, shown before you send a request. It is the full amount you pay, including any VAT we are required to charge. There are no booking fees or other costs added at checkout.
 - **Your wallet.** You pay for sessions from your Tutorlage wallet. Each adult account has one wallet, and a parent's or guardian's wallet pays for their children's sessions.
-  - **Adding money.** You add money by bank transfer (EFT) to Tutorlage's business bank account, using the reference the app gives you, and you upload proof of the transfer. We check our bank account and, when the money has arrived, add it to your wallet, usually within 24 hours. If we cannot match a transfer, we tell you why in the app.
+  - **Adding money.** You add money by bank transfer (EFT) to Tutorlage's business bank account, using the reference the app gives you, and you upload proof of the transfer. We check our bank account and, when the money has arrived, add it to your wallet, usually within one business day. If we cannot match a transfer, we tell you why in the app.
   - **Limits.** The Add money screen shows the smallest and largest amount you can add and the most your wallet can hold.
   - **Where the money sits.** Money you add is received into Tutorlage's business bank account. The wallet is Tutorlage's record of what is yours. It is not a bank account and it earns no interest.
   - **Getting it back.** Wallet money you have not used is yours. Ask us at support@tutorlage.com and we return it to you by bank transfer (Refund Policy §8).
@@ -260,7 +260,7 @@ These apply to you as well as Part A if you tutor on Tutorlage.
 1. **Your bank details.** To be paid, add your bank details (bank, account number, branch code and account holder's name) in the Teaching tab. We use them only to pay you. Only the people who pay you can open them, and each time is logged. Check them carefully: we pay the account you give us.
 2. **We collect for you.** You appoint Tutorlage as your limited agent to collect payment from learners for sessions booked through Tutorlage (Part A §6). A learner's payment for a session, put on hold in their wallet, settles what they owe you.
 3. **When your share is credited.** The learner's money stays on hold until the session is complete (Part A §9). Your share is then credited to your Tutorlage wallet. Until then the app shows it as "coming".
-4. **Getting paid out.** You can ask for a payout of your whole available wallet balance at any time. There is no minimum, and one request can be open at a time. We pay it by bank transfer from our bank account, usually within 24 hours. If it has not arrived after that, contact us through the Help button at the top of the site.
+4. **Getting paid out.** You can ask for a payout of your whole available wallet balance at any time. There is no minimum, and one request can be open at a time. We pay it by bank transfer from our bank account, usually within one business day. If it has not arrived after that, contact us through the Help button at the top of the site.
 
 ## B5. Refunds, cancellations and chargebacks: your share
 

@@ -25,13 +25,13 @@ export interface WalletClient {
 // ---- the words -------------------------------------------------------------------------------------------------------------------------------
 export const WALLET_COPY = {
   // The CEO's wording for a learner who has sent proof (adapted: the money is added to the wallet once the transfer is checked).
-  proofSentLine: 'We check transfers by hand. You could receive your money in the next 24 hours. If not, please contact support by clicking the Help button at the top of the page.',
-  proofSentUsually: 'Proof sent. We are checking your transfer, usually within 24 hours.',
+  proofSentLine: 'We check transfers by hand. You could receive your money within one business day. If not, please contact support by clicking the Help button at the top of the page.',
+  proofSentUsually: 'Proof sent. We are checking your transfer, usually within one business day.',
   moneyIsForLessons: 'Money in your wallet is for lessons. To take it out, contact support.',
   uploadHelp: 'After you pay, upload the proof of payment your bank gives you (PDF, JPG or PNG, up to 5 MB). Send the bank\'s proof as it is, and nothing else.',
   bankIntro: 'Pay this amount from your banking app. Use the reference exactly as shown, so we can find your payment.',
   // The CEO's wording for the tutor (the database's own notice says the same).
-  payoutSent: (rand: number) => `Your request was sent. You could receive ${rand0(rand)} within the next 24 hours. If you do not, contact support with the Help button at the top of the page.`,
+  payoutSent: (rand: number) => `Your request was sent. You could receive ${rand0(rand)} within one business day. If you do not, contact support with the Help button at the top of the page.`,
   payoutOpenNote: 'Your payout request is waiting to be paid. You can ask again, and change your bank details, once it is paid.',
   accountNumberNote: 'We keep your full account number private: only the last four digits are shown after you save it.',
   heldOnRequest: 'The price is put on hold in your wallet. If nobody accepts in time, or the tutor cannot take it, it goes straight back.',
@@ -455,7 +455,7 @@ export async function fetchPayouts(db: WalletClient, tutorId: string, limit = 10
 
 export function payoutStatusLine(p: Pick<Payout, 'status' | 'paidOn' | 'comment'>, formatDay: (iso: string) => string): string {
   switch (p.status) {
-    case 'requested': return 'Requested: you could receive it within 24 hours';
+    case 'requested': return 'Requested: you could receive it within one business day';
     case 'paid': return p.paidOn ? `Paid on ${formatDay(p.paidOn)}` : 'Paid';
     case 'could_not_pay': return `Could not pay${p.comment ? `: ${p.comment}` : ''}. The money is back in your wallet.`;
     default: return '';

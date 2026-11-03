@@ -2,7 +2,7 @@
 > - Tutorlage supplies a **service**: online tutoring sessions. There is nothing to post, no courier and no delivery fee.
 > - A session takes place online at the time you booked, in Tutorlage's own video room or through a meeting link your tutor adds.
 > - Your booking is confirmed when a tutor accepts. If no tutor accepts, nothing is booked and you pay nothing.
-> - Money you add to your wallet is credited once we have confirmed your bank transfer, usually within 24 hours.
+> - Money you add to your wallet is credited once we have confirmed your bank transfer, usually within one business day.
 
 ## 1. What we deliver
 
@@ -33,13 +33,13 @@
 ## 5. Adding money to your wallet
 
 - You add money by bank transfer (EFT) to Tutorlage's business bank account, using the reference the app gives you, and you upload proof of the transfer.
-- We check our bank account and, when the money has arrived, add it to your wallet. This is **usually within 24 hours**. The app tells you if a transfer cannot be matched and why.
+- We check our bank account and, when the money has arrived, add it to your wallet. This is **usually within one business day**. The app tells you if a transfer cannot be matched and why.
 - The screen shows the smallest and largest amount you can add and the most your wallet can hold.
 
 ## 6. Tutors: when you are paid
 
 - The learner's money stays on hold until the session is complete. Your share is then credited to your Tutorlage wallet.
-- You ask for a payout from your wallet whenever you like. We pay it by bank transfer from our bank account, **usually within 24 hours**. If it has not arrived after that, contact us through the Help button at the top of the site.
+- You ask for a payout from your wallet whenever you like. We pay it by bank transfer from our bank account, **usually within one business day**. If it has not arrived after that, contact us through the Help button at the top of the site.
 
 ## 7. Delays we cannot control
 

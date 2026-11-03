@@ -180,6 +180,7 @@ export default function Landing() {
       <footer className="border-t border-slate-200 bg-white">
         <div className="max-w-5xl mx-auto px-6 py-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-sm text-slate-700">
           <nav aria-label="Legal and help" className="flex flex-wrap gap-x-5 gap-y-2 font-semibold">
+            <Link to="/about" className="text-[#15803D] hover:underline">About</Link>
             <Link to="/terms" className="text-[#15803D] hover:underline">Terms of Service</Link>
             <Link to="/privacy" className="text-[#15803D] hover:underline">Privacy Policy</Link>
             <Link to="/refunds" className="text-[#15803D] hover:underline">Refund Policy</Link>

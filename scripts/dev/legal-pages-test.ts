@@ -154,8 +154,8 @@ function partBSections(text: string): Set<string> {
   check('refunds: the situations that are always refunded, the case-by-case rule and what is not refunded are all stated',
     /When we always refund in full/.test(r) && /Every other case: decided one by one/.test(r) && /no fixed cancellation window/.test(r) && /What we do not refund/.test(r));
   const dl = docs.delivery;
-  check('delivery: a service, not goods; confirmed when a tutor accepts; online, joined from the sessions list; wallet top-ups usually within 24 hours',
-    /a \*\*service\*\*/.test(dl) && /no delivery fees/.test(dl) && /confirmed the moment a tutor accepts/.test(dl) && /Join session/.test(dl) && /usually within 24 hours/.test(dl));
+  check('delivery: a service, not goods; confirmed when a tutor accepts; online, joined from the sessions list; wallet top-ups usually within one business day',
+    /a \*\*service\*\*/.test(dl) && /no delivery fees/.test(dl) && /confirmed the moment a tutor accepts/.test(dl) && /Join session/.test(dl) && /usually within one business day/.test(dl));
   check('refunds: an agreed refund is never left waiting more than 30 days', /never left waiting more than 30 days/.test(r));
 }
 

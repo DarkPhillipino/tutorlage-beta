@@ -28,6 +28,7 @@ export const PAGE_META: PageMeta[] = [
   { path: '/signup/tutor', title: 'Become a tutor | Tutorlage', description: 'Create a tutor account on Tutorlage. Tutors must be 18 or older and give an ID or passport and a police clearance certificate.', index: true },
   { path: '/signup/student', title: 'Join as a student | Tutorlage', description: 'Create a student account on Tutorlage to book an online tutor. Students must be 18 or older; learners under 18 are booked for by a parent or guardian.', index: true },
   { path: '/signup/parent', title: 'Join as a parent or guardian | Tutorlage', description: 'Create a parent or guardian account on Tutorlage to book online tutoring for a learner under 18.', index: true },
+  { path: '/about', title: 'About Tutorlage | Tutorlage', description: 'Who is behind Tutorlage, who it serves, how a booking works, how tutors are checked and how to reach us.', index: true },
   { path: '/terms', title: 'Terms of Service | Tutorlage', description: 'The terms for using Tutorlage as a learner, parent or guardian, or tutor.', index: true },
   { path: '/privacy', title: 'Privacy Policy | Tutorlage', description: 'What personal information Tutorlage collects, why, who sees it and how long it is kept.', index: true },
   { path: '/refunds', title: 'Refund Policy | Tutorlage', description: 'When Tutorlage refunds a booking, and how.', index: true },

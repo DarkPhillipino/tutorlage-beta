@@ -4,7 +4,7 @@ import { test, expect, cspViolations } from './fixtures';
 // FUNC-XBROWSER-01 (runs in chromium, firefox, webkit, an Android phone and an iPhone), FE-CONSOLE-01, FE-SPA-ROUTING-01.
 
 // Addresses a visitor can open directly without being signed in and without a link carrying a secret.
-const OPEN = ['/', '/login', '/signin/student', '/signin/tutor', '/signin/parent', '/signup/student', '/signup/tutor', '/signup/parent', '/forgot-password', '/forgot-password/tutor', '/terms', '/privacy', '/refunds', '/delivery'];
+const OPEN = ['/', '/login', '/signin/student', '/signin/tutor', '/signin/parent', '/signup/student', '/signup/tutor', '/signup/parent', '/forgot-password', '/forgot-password/tutor', '/about', '/terms', '/privacy', '/refunds', '/delivery'];
 
 test.describe('public pages open directly', () => {
   for (const path of OPEN) {

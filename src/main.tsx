@@ -40,6 +40,7 @@ const PaymentCallback = lazyRoute(() => import('./pages/PaymentCallback.tsx'));
 const AuthCallback = lazyRoute(() => import('./pages/AuthCallback.tsx'));
 const AccountClosed = lazyRoute(() => import('./pages/AccountClosed.tsx'));
 const LegalPage = lazyRoute(() => import('./pages/LegalPage.tsx'));
+const AboutPublic = lazyRoute(() => import('./pages/AboutPublic.tsx'));
 const GuardedApp = lazyRoute(() => import('./pages/guarded.tsx').then((m) => ({default: m.GuardedApp})));
 const GuardedRoom = lazyRoute(() => import('./pages/guarded.tsx').then((m) => ({default: m.GuardedRoom})));
 const GuardedTutorDocuments = lazyRoute(() => import('./pages/guarded.tsx').then((m) => ({default: m.GuardedTutorDocuments})));
@@ -79,6 +80,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/privacy" element={<LegalPage document="privacy" />} />
           <Route path="/refunds" element={<LegalPage document="refunds" />} />
           <Route path="/delivery" element={<LegalPage document="delivery" />} />
+          <Route path="/about" element={<AboutPublic />} />
           {/* Public on purpose: the page only asks server/index.ts to verify the
               reference, and the server records the result. Gating it behind
               sign-in meant a student whose session had lapsed during checkout

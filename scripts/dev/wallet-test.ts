@@ -55,12 +55,12 @@ const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 async function main() {
   // ---- the words (the CEO's, adapted to the top-up) ----
-  check('a learner who sent proof is told: could receive the money in the next 24 hours, if not contact support with the Help button at the top', /could receive your money in the next 24 hours/.test(WALLET_COPY.proofSentLine) && /contact support by clicking the Help button at the top of the page/.test(WALLET_COPY.proofSentLine));
-  check('the tutor is told: could receive R640 within the next 24 hours, otherwise contact support with the Help button at the top', WALLET_COPY.payoutSent(640) === 'Your request was sent. You could receive R640 within the next 24 hours. If you do not, contact support with the Help button at the top of the page.');
+  check('a learner who sent proof is told: could receive the money within one business day, if not contact support with the Help button at the top', /could receive your money within one business day/.test(WALLET_COPY.proofSentLine) && /contact support by clicking the Help button at the top of the page/.test(WALLET_COPY.proofSentLine));
+  check('the tutor is told: could receive R640 within one business day, otherwise contact support with the Help button at the top', WALLET_COPY.payoutSent(640) === 'Your request was sent. You could receive R640 within one business day. If you do not, contact support with the Help button at the top of the page.');
   check('the wallet page says money is for lessons and a withdrawal goes through support', /for lessons/.test(WALLET_COPY.moneyIsForLessons) && /contact support/.test(WALLET_COPY.moneyIsForLessons));
   check('every top-up state has plain words, and "not received" carries the CEO\'s comment',
     topupStatusLine({ status: 'awaiting_proof', comment: null, receivedRand: null, amountRand: 200 }) === 'Waiting for your proof of payment'
-    && /usually within 24 hours/.test(topupStatusLine({ status: 'proof_sent', comment: null, receivedRand: null, amountRand: 200 }))
+    && /usually within one business day/.test(topupStatusLine({ status: 'proof_sent', comment: null, receivedRand: null, amountRand: 200 }))
     && topupStatusLine({ status: 'successful', comment: null, receivedRand: 200, amountRand: 200 }) === 'Added to your wallet'
     && topupStatusLine({ status: 'successful', comment: 'Short by R20', receivedRand: 180, amountRand: 200 }) === 'Added to your wallet: R180 received'
     && topupStatusLine({ status: 'unsuccessful', comment: 'No payment with that reference', receivedRand: null, amountRand: 200 }) === 'Not received: No payment with that reference'
@@ -78,7 +78,7 @@ async function main() {
     && /Adjustment by Tutorlage: wrong reference/.test(ledgerLineText({ kind: 'adjustment', note: 'wrong reference' }, null, false)));
   check('the figure beside a ledger line is what moved: available, else the held money (a charge or a payout paid)', ledgerAmount({ availableDelta: -180, heldDelta: 180 }) === -180 && ledgerAmount({ availableDelta: 0, heldDelta: -180 }) === -180 && ledgerAmount({ availableDelta: 200, heldDelta: 0 }) === 200);
   const day = (iso: string) => `D(${iso})`;
-  check('payout states in words', /within 24 hours/.test(payoutStatusLine({ status: 'requested', paidOn: null, comment: null }, day)) && payoutStatusLine({ status: 'paid', paidOn: '2026-11-05', comment: null }, day) === 'Paid on D(2026-11-05)' && /Could not pay: no such account\. The money is back in your wallet/.test(payoutStatusLine({ status: 'could_not_pay', paidOn: null, comment: 'no such account' }, day)));
+  check('payout states in words', /within one business day/.test(payoutStatusLine({ status: 'requested', paidOn: null, comment: null }, day)) && payoutStatusLine({ status: 'paid', paidOn: '2026-11-05', comment: null }, day) === 'Paid on D(2026-11-05)' && /Could not pay: no such account\. The money is back in your wallet/.test(payoutStatusLine({ status: 'could_not_pay', paidOn: null, comment: 'no such account' }, day)));
   check('"Coming: R360 from 2 sessions waiting to be completed" (and one session in the singular)', comingLine({ rand: 360, sessions: 2 }) === 'Coming: R360 from 2 sessions waiting to be completed' && comingLine({ rand: 180, sessions: 1 }) === 'Coming: R180 from 1 session waiting to be completed');
 
   // ---- money: whole rands, the shortfall, the split ----
