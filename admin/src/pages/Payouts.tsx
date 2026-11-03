@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Loader2, Banknote, AlertTriangle, Landmark, CheckCircle2 } from 'lucide-react';
 import { fetchPayoutBatches, fetchPaymentsNeedingAttention, fetchTutorPayoutAccounts, upsertSystemSetting } from '../lib/queries';
 import { PayoutBatch, PaymentAttentionItem, TutorPayoutAccountRow } from '../types';
 import { formatRand } from '../lib/rand';
 import { supabase } from '../lib/supabaseClient';
 import { useAdminAuth } from '../lib/AuthContext';
-import { WalletTabs } from '../components/WalletTabs';
+import { WalletTabs, walletTabFromSearch } from '../components/WalletTabs';
 import { canUseWallet, WalletAdminClient } from '../lib/walletAdmin';
 import { paymentStatusLabel } from '../lib/paymentStatus';
 
@@ -25,6 +26,9 @@ const VALIDATION_LABEL: Record<string, string> = {
 export const Payouts: React.FC = () => {
   const { adminProfile } = useAdminAuth();
   const showWallet = canUseWallet(adminProfile?.adminRole);
+  // A clicked Windows notification opens /payouts?wallet=topups (or payouts, wallets, settings); the key remounts the tabs when the link changes.
+  const [searchParams] = useSearchParams();
+  const walletTab = walletTabFromSearch(searchParams.get('wallet'));
   const [attention, setAttention] = useState<PaymentAttentionItem[]>([]);
   const [accounts, setAccounts] = useState<TutorPayoutAccountRow[]>([]);
   const [batches, setBatches] = useState<PayoutBatch[]>([]);
@@ -70,6 +74,8 @@ export const Payouts: React.FC = () => {
 
       {showWallet && (
         <WalletTabs
+          key={walletTab ?? 'default'}
+          initialTab={walletTab}
           client={walletClient}
           role={adminProfile?.adminRole}
           saveSetting={(key, value, description) => upsertSystemSetting(key, value, adminProfile!.id, description ?? undefined)}

@@ -44,7 +44,8 @@ export interface RunSummary {
   waiting: number;
 }
 
-export const STORAGE_BUCKETS = ['school-results', 'tutor-documents'] as const;
+// payment-proofs (wallet phase 6): the daily proof clean-up and an account closure with no money owed queue the removal of proof-of-payment files.
+export const STORAGE_BUCKETS = ['school-results', 'tutor-documents', 'payment-proofs'] as const;
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CODE_SHAPE = /^[A-Za-z0-9_-]{1,100}$/;
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

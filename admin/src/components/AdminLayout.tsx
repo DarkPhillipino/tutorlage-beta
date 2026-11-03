@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { ShieldCheck, AlertTriangle, Users, Banknote, Settings, ScrollText, LogOut, BarChart3, GraduationCap, Layers, BookCheck, Library, Bug, ShieldAlert, UserX } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Users, Banknote, Settings, ScrollText, LogOut, BarChart3, GraduationCap, Layers, BookCheck, Library, Bug, ShieldAlert, UserX, Bell } from 'lucide-react';
 import { useAdminAuth } from '../lib/AuthContext';
 import { AdminRole } from '../types';
 
@@ -29,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/settings', label: 'System Settings', icon: Settings, roles: ['super_admin'] },
   { to: '/errors', label: 'Errors', icon: Bug, roles: ['super_admin'] },
   { to: '/audit-log', label: 'Audit Log', icon: ScrollText, roles: ['support_agent', 'verification_officer', 'finance_manager', 'super_admin'] },
+  { to: '/notifications', label: 'Notifications', icon: Bell, roles: ['support_agent', 'verification_officer', 'finance_manager', 'super_admin'] },
   { to: '/phase-1', label: 'Phase 1 Numbers', icon: BarChart3, roles: ['support_agent', 'verification_officer', 'finance_manager', 'super_admin'] },
 ];
 

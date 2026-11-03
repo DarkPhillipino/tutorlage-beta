@@ -7,6 +7,7 @@ import {
   formatAmount,
   formatHours,
   formatSessionTime,
+  walletNotes,
 } from '../lib/closeAccount';
 
 // What the close-account flow draws, for each step (src/components/CloseAccountFlow.tsx holds the state and makes the calls). Kept apart
@@ -101,6 +102,9 @@ export const CloseAccountView: React.FC<CloseAccountViewProps> = (p) => {
                 {CLOSE_COPY.payoutOwed(formatAmount(a.payoutOwed, 'ZAR', p.symbolOf))}
               </p>
             )}
+            {walletNotes(a.wallet, a.role, p.symbolOf).map((note) => (
+              <p key={note} data-wallet-note className="mt-1.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 font-semibold text-amber-900">{note}</p>
+            ))}
           </div>
         ))}
 

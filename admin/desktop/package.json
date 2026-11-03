@@ -18,6 +18,7 @@
     },
     "files": [
       "main.cjs",
+      "preload.cjs",
       "icon.png",
       "package.json"
     ],

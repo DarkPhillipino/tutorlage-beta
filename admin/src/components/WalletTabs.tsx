@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  BankDetails, PayoutQueue, PayoutRow, SettingWriter, SettingsLoad, TopupQueue, TopupRow, TotalsResult, WalletAdminClient, WalletDetail, WalletList, WalletListRow,
-  SWITCH_KEY, adjustWallet, canAdjustWallet, canUseWallet, fetchPayoutQueue, fetchTopupQueue, fetchTotals, fetchWalletDetail, fetchWalletList, fetchWalletSettings,
-  markPayoutCannotPay, markPayoutPaid, markTopupSuccessful, markTopupUnsuccessful, openBankDetails, planSettingSaves, rand0, runBalanceCheck, saveSettingWrites,
-  settingLabel, viewProof, walletErrorMessage,
+  BankDetails, ClosedWallets, PayoutQueue, PayoutRow, SettingWriter, SettingsLoad, TopupQueue, TopupRow, TotalsResult, WalletAdminClient, WalletDetail, WalletList, WalletListRow,
+  SWITCH_KEY, addTopupByHand, adjustWallet, canAdjustWallet, canUseWallet, fetchClosedAccountWallets, fetchPayoutQueue, fetchTopupQueue, fetchTotals, fetchWalletDetail,
+  fetchWalletList, fetchWalletSettings, markPayoutCannotPay, markPayoutPaid, markTopupSuccessful, markTopupUnsuccessful, openBankDetails, openTutorBankDetails, planSettingSaves,
+  rand0, refreshWalletRow, refundResultSentence, refundToWallet, returnWalletMoney, runBalanceCheck, saveSettingWrites, settingLabel, viewProof, walletErrorMessage,
 } from '../lib/walletAdmin';
+import type { EdgeHandlers } from './WalletEdgeForms';
 import type { AdminRole } from '../types';
 import { DocumentViewer, type ViewerDocument } from './DocumentViewer';
 import { AccessLogNote } from './AccessLogNote';
@@ -18,12 +19,16 @@ import { WalletSettingsBody } from './WalletSettingsBody';
 // *Body components, the rules and every database call are in lib/walletAdmin.ts. The database client is a prop (the page hands in the admin
 // app's own), so a practice page can hand in a pretend one. Nothing renders for an admin who is not a finance manager or a super admin.
 
-type TabId = 'topups' | 'payouts' | 'wallets' | 'settings';
+export type TabId = 'topups' | 'payouts' | 'wallets' | 'settings';
+export const walletTabFromSearch = (value: string | null | undefined): TabId | undefined =>
+  value === 'topups' || value === 'payouts' || value === 'wallets' || value === 'settings' ? value : undefined;
 interface Props {
   client: WalletAdminClient;
   role: AdminRole | null | undefined;
   // The System Settings write path (queries.ts upsertSystemSetting, bound to the signed-in admin).
   saveSetting: SettingWriter;
+  // The tab to open first (a clicked Windows notification opens /payouts?wallet=topups ...). Default: top-ups to check.
+  initialTab?: TabId;
 }
 
 const TopupsTab: React.FC<{ client: WalletAdminClient; onChanged: () => void }> = ({ client, onChanged }) => {
@@ -91,10 +96,12 @@ const WalletsTab: React.FC<{ client: WalletAdminClient; role: AdminRole | null |
   const [term, setTerm] = useState('');
   const [selected, setSelected] = useState<{ row: WalletListRow; detail: WalletDetail | null } | null>(null);
   const [check, setCheck] = useState<CheckState>({ state: 'idle' });
+  const [closed, setClosed] = useState<ClosedWallets | null>(null);
 
   const loadTotals = useCallback(() => { void fetchTotals(client).then(setTotals); }, [client]);
   const search = useCallback((text: string) => { void fetchWalletList(client, text).then(setList); }, [client]);
-  useEffect(() => { loadTotals(); search(''); }, [loadTotals, search]);
+  const loadClosed = useCallback(() => { void fetchClosedAccountWallets(client).then(setClosed); }, [client]);
+  useEffect(() => { loadTotals(); search(''); loadClosed(); }, [loadTotals, search, loadClosed]);
 
   const select = (row: WalletListRow | null) => {
     if (!row) return setSelected(null);
@@ -105,7 +112,48 @@ const WalletsTab: React.FC<{ client: WalletAdminClient; role: AdminRole | null |
     setCheck({ state: 'running' });
     runBalanceCheck(client).then((result) => setCheck({ state: 'done', result })).catch((e) => setCheck({ state: 'error', message: walletErrorMessage(e) }));
   };
-  const refresh = () => { loadTotals(); search(term); };
+  const refresh = () => { loadTotals(); search(term); loadClosed(); };
+
+  // After a money action: the figures, the lists and this person's card are loaded again, but the card keeps its old content until the new one arrives, so the
+  // sentence saying what just happened stays on the screen.
+  const reloadSelected = async (row: WalletListRow) => {
+    refresh();
+    onChanged();
+    const fresh = await refreshWalletRow(client, row);
+    setSelected((cur) => (cur && cur.row.profileId === row.profileId ? { row: fresh, detail: cur.detail } : cur));
+    const detail = await fetchWalletDetail(client, row.profileId);
+    setSelected((cur) => (cur && cur.row.profileId === row.profileId ? { row: fresh, detail } : cur));
+  };
+  const edge: EdgeHandlers = {
+    onRefund: async (session, amount, reason, takeBack, key) => {
+      try {
+        const result = await refundToWallet(client, session.sessionId, amount, reason, takeBack, key);
+        if (selected) await reloadSelected(selected.row);
+        return { ok: true, message: refundResultSentence(result, session.tutorName) };
+      } catch (e) {
+        return { ok: false, error: walletErrorMessage(e) };
+      }
+    },
+    onReturn: async (row, amount, reason, reference, key) => {
+      try {
+        const result = await returnWalletMoney(client, row.profileId, amount, reason, reference, key);
+        await reloadSelected(row);
+        return { ok: true, message: result.already ? 'That was already recorded. Nothing more was posted.' : `${rand0(amount)} recorded as returned to ${row.name}. It is in their ledger.` };
+      } catch (e) {
+        return { ok: false, error: walletErrorMessage(e) };
+      }
+    },
+    onHandTopup: async (row, amount, reason, reference, key) => {
+      try {
+        const result = await addTopupByHand(client, row.profileId, amount, reference, reason, key);
+        await reloadSelected(row);
+        return { ok: true, message: result.already ? 'That top-up was already added. Nothing more was posted.' : `${rand0(amount)} added to ${row.name}'s wallet (reference ${result.reference}). They were told.` };
+      } catch (e) {
+        return { ok: false, error: walletErrorMessage(e) };
+      }
+    },
+    onOpenTutorBank: (row) => openTutorBankDetails(client, row.profileId),
+  };
 
   if (!totals || !list) return <Loading text="Loading wallets…" />;
   return (
@@ -121,6 +169,8 @@ const WalletsTab: React.FC<{ client: WalletAdminClient; role: AdminRole | null |
       onRunCheck={runCheck}
       canAdjust={canAdjustWallet(role)}
       onRetry={refresh}
+      closed={closed}
+      edge={edge}
       onAdjust={async (row, amount, reason, key) => {
         try {
           await adjustWallet(client, row.profileId, amount, reason, key);
@@ -173,8 +223,8 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'settings', label: 'Wallet settings' },
 ];
 
-export const WalletTabs: React.FC<Props> = ({ client, role, saveSetting }) => {
-  const [tab, setTab] = useState<TabId>('topups');
+export const WalletTabs: React.FC<Props> = ({ client, role, saveSetting, initialTab }) => {
+  const [tab, setTab] = useState<TabId>(initialTab ?? 'topups');
   const [totals, setTotals] = useState<TotalsResult | null>(null);
   const loadTotals = useCallback(() => { void fetchTotals(client).then(setTotals); }, [client]);
   useEffect(() => { if (canUseWallet(role)) loadTotals(); }, [loadTotals, role]);

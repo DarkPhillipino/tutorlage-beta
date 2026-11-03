@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { RefreshCw, Search, ShieldCheck } from 'lucide-react';
 import {
-  BalanceCheck, TotalsResult, WalletDetail, WalletList, WalletListRow, adjustConfirmText, balanceCheckSentence, checkAdjustment, formatSast, ledgerAmountText,
+  BalanceCheck, ClosedWallets, TotalsResult, WalletDetail, WalletList, WalletListRow, adjustConfirmText, balanceCheckSentence, checkAdjustment, closedToListRow, formatSast, ledgerAmountText,
   ledgerKindLabel, newAdjustKey, rand0,
 } from '../lib/walletAdmin';
 import { ConfirmBox, Empty, ErrorLine, FieldLabel, Loading, NotAvailable, Pill, inputClass } from './WalletParts';
+import { ClosedAccountsSection, EdgeHandlers, HandTopupForm, ReturnMoneyForm, WalletSessionsSection } from './WalletEdgeForms';
 
 // Tab 3, "Wallets": the figure the CEO must always find in the bank for other people ("held for others"), the daily balance check on demand, a search for
 // one person, and, for a SUPER ADMIN ONLY, "Adjust wallet" (a new ledger line with a written reason, never below zero; a one-time key stops a double click
@@ -25,6 +26,10 @@ interface Props {
   canAdjust: boolean;
   onAdjust: (row: WalletListRow, amount: number, reason: string, key: string) => Promise<string | null>;
   onRetry: () => void;
+  // Wallet phase 6, all optional (a page that does not hand them in simply does not draw them): closed accounts that still have money, and the
+  // refund / return-by-hand / hand top-up forms inside a person's card.
+  closed?: ClosedWallets | null;
+  edge?: EdgeHandlers;
 }
 
 const Figure: React.FC<{ label: string; value: string; note?: string }> = ({ label, value, note }) => (
@@ -95,7 +100,7 @@ const AdjustForm: React.FC<{ row: WalletListRow; onAdjust: Props['onAdjust'] }> 
   );
 };
 
-const DetailCard: React.FC<{ row: WalletListRow; detail: WalletDetail | null; canAdjust: boolean; onClose: () => void; onAdjust: Props['onAdjust'] }> = ({ row, detail, canAdjust, onClose, onAdjust }) => (
+const DetailCard: React.FC<{ row: WalletListRow; detail: WalletDetail | null; canAdjust: boolean; onClose: () => void; onAdjust: Props['onAdjust']; edge?: EdgeHandlers }> = ({ row, detail, canAdjust, onClose, onAdjust, edge }) => (
   <div data-wallet-detail className="bg-white rounded-2xl border border-slate-300 p-4">
     <div className="flex items-start justify-between gap-3">
       <div>
@@ -128,7 +133,7 @@ const DetailCard: React.FC<{ row: WalletListRow; detail: WalletDetail | null; ca
           <div>
             <h4 className="font-extrabold text-[#0F172A] mb-1">Top-ups</h4>
             {detail.topups.length === 0 ? <p className="text-slate-500">None.</p> : detail.topups.map((t) => (
-              <p key={t.id} className="text-slate-600"><span className="font-mono">{t.reference}</span> {rand0(t.claimedRand)} · {t.status.replace('_', ' ')}</p>
+              <p key={t.id} className="text-slate-600"><span className="font-mono">{t.reference}</span> {rand0(t.claimedRand)} · {t.status.replace('_', ' ')}{t.proofDeletedAt ? ' · proof file deleted' : ''}</p>
             ))}
           </div>
           <div>
@@ -140,11 +145,14 @@ const DetailCard: React.FC<{ row: WalletListRow; detail: WalletDetail | null; ca
         </div>
       </div>
     )}
+    {detail && edge?.onRefund && <WalletSessionsSection row={row} sessions={detail.sessions} onRefund={edge.onRefund} />}
+    {edge?.onHandTopup && <HandTopupForm row={row} onHandTopup={edge.onHandTopup} />}
+    {edge?.onReturn && <ReturnMoneyForm row={row} onReturn={edge.onReturn} onOpenTutorBank={edge.onOpenTutorBank} />}
     {canAdjust && <AdjustForm row={row} onAdjust={onAdjust} />}
   </div>
 );
 
-export const WalletBalancesBody: React.FC<Props> = ({ totals, list, term, onTerm, onSearch, selected, onSelect, check, onRunCheck, canAdjust, onAdjust, onRetry }) => (
+export const WalletBalancesBody: React.FC<Props> = ({ totals, list, term, onTerm, onSearch, selected, onSelect, check, onRunCheck, canAdjust, onAdjust, onRetry, closed, edge }) => (
   <div className="space-y-6">
     <section>
       <h2 className="text-sm font-extrabold text-[#0F172A] mb-2">Money held for other people</h2>
@@ -179,6 +187,9 @@ export const WalletBalancesBody: React.FC<Props> = ({ totals, list, term, onTerm
       {check.state === 'error' && <NotAvailable message={check.message} failed />}
     </section>
 
+    {closed?.state === 'ok' && <ClosedAccountsSection rows={closed.rows} onOpen={(r) => onSelect(closedToListRow(r))} />}
+    {closed?.state === 'error' && <NotAvailable message={closed.message} failed onRetry={onRetry} />}
+
     <section>
       <h2 className="text-sm font-extrabold text-[#0F172A] mb-2">Wallets</h2>
       <form onSubmit={(e) => { e.preventDefault(); onSearch(); }} className="flex gap-2 mb-3">
@@ -204,6 +215,6 @@ export const WalletBalancesBody: React.FC<Props> = ({ totals, list, term, onTerm
       )}
     </section>
 
-    {selected && <DetailCard key={selected.row.profileId} row={selected.row} detail={selected.detail} canAdjust={canAdjust} onClose={() => onSelect(null)} onAdjust={onAdjust} />}
+    {selected && <DetailCard key={selected.row.profileId} row={selected.row} detail={selected.detail} canAdjust={canAdjust} onClose={() => onSelect(null)} onAdjust={onAdjust} edge={edge} />}
   </div>
 );

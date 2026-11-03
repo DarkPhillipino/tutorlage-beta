@@ -108,13 +108,15 @@ export interface TopupRow {
   receivedRand: number | null;
   decidedAt: string | null;
   comment: string | null;
+  // when the daily clean-up queued the removal of the proof file (the record itself is kept 7 years); null while the file is kept
+  proofDeletedAt: string | null;
 }
 export type TopupQueue =
   | { state: 'ok'; proofSent: TopupRow[]; awaiting: TopupRow[]; recent: TopupRow[] }
   | { state: 'not_available'; note: string }
   | { state: 'error'; message: string };
 
-const TOPUP_COLUMNS = 'id, profile_id, reference, amount_rand, status, proof_path, proof_attached_at, received_rand, decided_at, decision_comment, created_at';
+const TOPUP_COLUMNS = 'id, profile_id, reference, amount_rand, status, proof_path, proof_attached_at, proof_deleted_at, received_rand, decided_at, decision_comment, created_at';
 
 export async function fetchTopupQueue(client: WalletAdminClient): Promise<TopupQueue> {
   try {
@@ -132,6 +134,7 @@ export async function fetchTopupQueue(client: WalletAdminClient): Promise<TopupQ
         reference: str(r.reference), claimedRand: int(r.amount_rand), status: str(r.status), proofPath: strOrNull(r.proof_path),
         proofSentAt: strOrNull(r.proof_attached_at), createdAt: str(r.created_at),
         receivedRand: r.received_rand == null ? null : int(r.received_rand), decidedAt: strOrNull(r.decided_at), comment: strOrNull(r.decision_comment),
+        proofDeletedAt: strOrNull(r.proof_deleted_at),
       };
     };
     const openRows = rows(open.data).map(map);
@@ -371,12 +374,14 @@ export async function fetchWalletList(client: WalletAdminClient, term = ''): Pro
 }
 
 export interface LedgerLine { id: string; kind: string; availableDelta: number; heldDelta: number; availableAfter: number; heldAfter: number; note: string | null; createdAt: string }
-export interface WalletDetail { ledger: LedgerLine[]; topups: TopupRow[]; payouts: PayoutRow[] }
+export interface WalletDetail { ledger: LedgerLine[]; topups: TopupRow[]; payouts: PayoutRow[]; sessions: WalletSession[] }
 
 export const LEDGER_KIND_LABELS: Record<string, string> = {
   topup: 'Top-up added', hold: 'Put on hold for a request', release: 'Hold returned', charge: 'Paid for a session', refund: 'Refund as credit',
   session_credit: 'Session earnings credited', payout_hold: 'Payout requested', payout_paid: 'Payout paid', payout_release: 'Payout could not be paid, money returned',
   adjustment: 'Adjusted by hand',
+  refund_reversal: 'Taken back: the learner was refunded for a session',
+  withdrawal: 'Money returned to the person by hand',
 };
 export const ledgerKindLabel = (kind: string): string => LEDGER_KIND_LABELS[kind] ?? kind;
 
@@ -390,12 +395,14 @@ export async function fetchWalletDetail(client: WalletAdminClient, profileId: st
       return [];
     }
   };
-  const [ledger, topups, payouts] = await Promise.all([
+  const [ledger, topups, payouts, sessions] = await Promise.all([
     safe(() => client.from('wallet_ledger').select('id, kind, available_delta, held_delta, available_after, held_after, note, created_at').eq('profile_id', profileId).order('seq', { ascending: false }).limit(15)),
     safe(() => client.from('wallet_topups').select(TOPUP_COLUMNS).eq('profile_id', profileId).order('created_at', { ascending: false }).limit(10)),
     safe(() => client.from('payout_requests').select(PAYOUT_COLUMNS).eq('tutor_id', profileId).order('requested_at', { ascending: false }).limit(10)),
+    fetchWalletSessions(client, profileId),
   ]);
   return {
+    sessions,
     ledger: ledger.map((r) => ({
       id: str(r.id), kind: str(r.kind), availableDelta: int(r.available_delta), heldDelta: int(r.held_delta), availableAfter: int(r.available_after),
       heldAfter: int(r.held_after), note: strOrNull(r.note), createdAt: str(r.created_at),
@@ -403,7 +410,7 @@ export async function fetchWalletDetail(client: WalletAdminClient, profileId: st
     topups: topups.map((r) => ({
       id: str(r.id), payerId: profileId, payerName: '', payerIsParent: null, reference: str(r.reference), claimedRand: int(r.amount_rand), status: str(r.status),
       proofPath: null, proofSentAt: strOrNull(r.proof_attached_at), createdAt: str(r.created_at), receivedRand: r.received_rand == null ? null : int(r.received_rand),
-      decidedAt: strOrNull(r.decided_at), comment: strOrNull(r.decision_comment),
+      decidedAt: strOrNull(r.decided_at), comment: strOrNull(r.decision_comment), proofDeletedAt: strOrNull(r.proof_deleted_at),
     })),
     payouts: payouts.map((r) => ({
       id: str(r.id), tutorId: profileId, tutorName: '', amountRand: int(r.amount_rand), status: str(r.status), requestedAt: str(r.requested_at),
@@ -435,6 +442,187 @@ export const adjustConfirmText = (name: string, amount: number): string =>
 export const newAdjustKey = (): string => globalThis.crypto.randomUUID();
 export async function adjustWallet(client: WalletAdminClient, profileId: string, amount: number, reason: string, key: string): Promise<Decision> {
   return decide(client, 'admin_adjust_wallet', { p_profile: profileId, p_amount: amount, p_reason: reason, p_key: key });
+}
+
+// ---- 3b. edge cases (wallet phase 6; migration 20261103100000_wallet_edges.sql) ------------------------------------------------------------------------
+// A refund after the tutor was credited or paid, money returned to a person by hand, a transfer credited by hand, a tutor's bank details for money that is
+// not on a payout request, and the list of closed accounts that still have money. Finance managers and super admins only (the database refuses everyone else).
+// Each money click carries a one-time key made when the form opens, so a double click or a retry posts once. Whole rands.
+export const EDGE_MAX_RAND = 100000;
+const wholeRands = (text: string): number | null => (/^[0-9]{1,6}$/.test(text.trim()) && Number(text) >= 1 && Number(text) <= EDGE_MAX_RAND ? Number(text) : null);
+
+export interface WalletSession {
+  sessionId: string;
+  scheduledStart: string;
+  status: string;
+  priceRand: number;
+  refundedRand: number;
+  tutorId: string;
+  tutorName: string;
+  tutorShareRand: number;
+  tutorCredited: boolean;
+  tutorReducedRand: number;
+}
+// The sessions one person's wallet paid for (newest first). Tolerant: a database without the function, or a failing call, gives an empty list.
+export async function fetchWalletSessions(client: WalletAdminClient, profileId: string): Promise<WalletSession[]> {
+  try {
+    const { data, error } = await client.rpc('admin_wallet_sessions', { p_profile: profileId });
+    if (error) return [];
+    const list = rows(data);
+    const people = await fetchPeople(client, list.map((r) => str(r.tutor_id)));
+    return list.map((r) => ({
+      sessionId: str(r.session_id), scheduledStart: str(r.scheduled_start), status: str(r.status), priceRand: int(r.price_rand), refundedRand: int(r.refunded_rand),
+      tutorId: str(r.tutor_id), tutorName: personName(people, str(r.tutor_id)), tutorShareRand: int(r.tutor_share_rand), tutorCredited: r.tutor_credited === true,
+      tutorReducedRand: int(r.tutor_reduced_rand),
+    }));
+  } catch {
+    return [];
+  }
+}
+export const refundableRand = (s: Pick<WalletSession, 'priceRand' | 'refundedRand'>): number => Math.max(0, s.priceRand - s.refundedRand);
+// Only a finished session with something left; a booked session is cancelled instead (the database says the same).
+export const canRefundSession = (s: Pick<WalletSession, 'status' | 'priceRand' | 'refundedRand'>): boolean => s.status === 'completed' && refundableRand(s) > 0;
+export function refundSessionLine(s: WalletSession): string {
+  const parts = [`${formatSast(s.scheduledStart)} · paid ${rand0(s.priceRand)}`];
+  if (s.refundedRand > 0) parts.push(`${rand0(s.refundedRand)} already refunded`);
+  parts.push(s.status === 'completed' ? (s.tutorCredited ? `tutor was credited ${rand0(s.tutorShareRand)}${s.tutorReducedRand > 0 ? `, ${rand0(s.tutorReducedRand)} taken back` : ''}` : 'tutor was not credited') : s.status.replace(/_/g, ' '));
+  return parts.join(' · ');
+}
+
+export function checkRefund(maxRand: number, amountText: string, reason: string): Checked<{ amount: number; reason: string }> {
+  const amount = wholeRands(amountText);
+  if (amount === null) return { ok: false, error: 'Give the amount to refund in whole rands (at least 1).' };
+  if (amount > maxRand) return { ok: false, error: `At most ${rand0(maxRand)} can still be refunded for this session.` };
+  const why = reason.trim();
+  if (why.length < 5) return { ok: false, error: 'Write the reason (at least 5 characters). The learner reads it.' };
+  if (why.length > 500) return { ok: false, error: 'The reason is too long (500 characters at most).' };
+  return { ok: true, amount, reason: why };
+}
+export const refundConfirmText = (learnerName: string, amount: number, tutorName: string, takeBack: boolean): string =>
+  `Put ${rand0(amount)} back in ${learnerName}'s wallet as credit?${takeBack ? ` ${tutorName}'s share is taken back only if their wallet still covers it.` : ` ${tutorName} keeps their credit.`}`;
+
+export interface RefundResult {
+  already: boolean;
+  refundedRand: number;
+  refundedTotalRand: number;
+  priceRand: number;
+  tutorCredited: boolean;
+  tutorReducedRand: number;
+  tutorShortfallRand: number;
+}
+// What happened, in words: the learner's side first, then the tutor's. A shortfall tells the finance admin exactly what is left to settle by hand.
+export function refundResultSentence(r: RefundResult, tutorName: string): string {
+  if (r.already) return 'That refund was already done. Nothing more was posted.';
+  const learner = `${rand0(r.refundedRand)} is back in the learner's wallet (${rand0(r.refundedTotalRand)} of ${rand0(r.priceRand)} refunded in all).`;
+  if (r.tutorReducedRand > 0) return `${learner} ${rand0(r.tutorReducedRand)} was taken from ${tutorName}'s wallet.`;
+  if (r.tutorShortfallRand > 0) return `${learner} ${tutorName}'s wallet could not cover their share, so nothing was taken from it: ${tutorName} still owes ${rand0(r.tutorShortfallRand)}. Settle that with them by hand.`;
+  return `${learner} ${r.tutorCredited ? `Nothing was taken from ${tutorName}.` : `${tutorName} had not been credited yet, so nothing was taken.`}`;
+}
+export async function refundToWallet(client: WalletAdminClient, sessionId: string, amount: number, reason: string, takeBack: boolean, key: string): Promise<RefundResult> {
+  const { data, error } = await client.rpc('admin_refund_to_wallet', { p_session: sessionId, p_amount: amount, p_comment: reason, p_take_back: takeBack, p_key: key });
+  if (error) throw new Error(walletErrorMessage(error));
+  const d = (data ?? {}) as Record<string, unknown>;
+  return {
+    already: d.already === true, refundedRand: int(d.refunded_rand), refundedTotalRand: int(d.refunded_total_rand), priceRand: int(d.price_rand),
+    tutorCredited: d.tutor_credited === true, tutorReducedRand: int(d.tutor_reduced_rand), tutorShortfallRand: int(d.tutor_shortfall_rand),
+  };
+}
+
+// Money returned to a person by hand (no button for them): the finance admin sends it from the bank app, then records it here with a reason.
+export function checkReturn(availableRand: number, amountText: string, reason: string, reference: string): Checked<{ amount: number; reason: string; reference: string | null }> {
+  const amount = wholeRands(amountText);
+  if (amount === null) return { ok: false, error: 'Give the amount in whole rands (at least 1).' };
+  if (amount > availableRand) return { ok: false, error: `Only ${rand0(availableRand)} is available to return. Money on hold belongs to a payout request: mark that request paid or cannot-pay first.` };
+  const why = reason.trim();
+  if (why.length < 5) return { ok: false, error: 'Write the reason (at least 5 characters), for example who asked and how you checked it was them.' };
+  if (why.length > 400) return { ok: false, error: 'The reason is too long (400 characters at most).' };
+  const ref = reference.trim();
+  if (ref.length > 60) return { ok: false, error: 'The bank reference is too long (60 characters at most).' };
+  return { ok: true, amount, reason: why, reference: ref || null };
+}
+export const returnConfirmText = (name: string, amount: number): string =>
+  `Record that you sent ${rand0(amount)} back to ${name}? Do this only after the money has left the bank account. It comes out of their wallet.`;
+export const returnWalletMoney = (client: WalletAdminClient, profileId: string, amount: number, reason: string, reference: string | null, key: string) =>
+  decide(client, 'admin_return_wallet_money', { p_profile: profileId, p_amount: amount, p_reason: reason, p_bank_reference: reference, p_key: key });
+
+// A transfer that came with no proof, or the wrong reference: credited by hand as a real top-up record.
+export function checkHandTopup(amountText: string, reason: string, reference: string): Checked<{ amount: number; reason: string; reference: string | null }> {
+  const amount = wholeRands(amountText);
+  if (amount === null) return { ok: false, error: 'Give the amount you received in whole rands (at least 1).' };
+  const why = reason.trim();
+  if (why.length < 5) return { ok: false, error: 'Write why there is no proof, or why the reference is wrong (at least 5 characters).' };
+  if (why.length > 380) return { ok: false, error: 'The reason is too long (380 characters at most).' };
+  const ref = reference.trim();
+  if (ref.length > 60) return { ok: false, error: 'The bank reference is too long (60 characters at most).' };
+  return { ok: true, amount, reason: why, reference: ref || null };
+}
+export const handTopupConfirmText = (name: string, amount: number): string =>
+  `Add ${rand0(amount)} to ${name}'s wallet as a transfer you found in the bank? They will be told. Check the money is really in the account first.`;
+export async function addTopupByHand(client: WalletAdminClient, profileId: string, amount: number, reference: string | null, reason: string, key: string): Promise<{ already: boolean; reference: string }> {
+  const { data, error } = await client.rpc('admin_add_topup_by_hand', { p_profile: profileId, p_amount: amount, p_bank_reference: reference, p_comment: reason, p_key: key });
+  if (error) throw new Error(walletErrorMessage(error));
+  const d = (data ?? {}) as Record<string, unknown>;
+  return { already: d.already === true, reference: str(d.reference) };
+}
+
+// A tutor's full bank details (for money not on a payout request, for example a closed tutor). Every opening writes one audit line in the database.
+export async function openTutorBankDetails(client: WalletAdminClient, tutorId: string): Promise<Pick<BankDetails, 'bankName' | 'accountHolder' | 'branchCode' | 'accountNumber'>> {
+  const { data, error } = await client.rpc('admin_open_tutor_bank_details', { p_tutor: tutorId });
+  if (error) throw new Error(walletErrorMessage(error));
+  const d = (data ?? {}) as Record<string, unknown>;
+  return { bankName: str(d.bank_name), accountHolder: str(d.account_holder), branchCode: str(d.branch_code), accountNumber: str(d.account_number) };
+}
+
+export interface ClosedWalletRow {
+  profileId: string;
+  role: string;
+  name: string;
+  availableRand: number;
+  heldRand: number;
+  openPayoutRand: number;
+  unconfirmedRand: number;
+  closureId: string;
+  closureStatus: string;
+  closedAt: string;
+  topupReferences: string[];
+  hasBankDetails: boolean;
+}
+export type ClosedWallets = { state: 'ok'; rows: ClosedWalletRow[] } | { state: 'not_available'; note: string } | { state: 'error'; message: string };
+export async function fetchClosedAccountWallets(client: WalletAdminClient): Promise<ClosedWallets> {
+  try {
+    const { data, error } = await client.rpc('admin_closed_account_wallets', {});
+    if (error) return failure(error);
+    return {
+      state: 'ok',
+      rows: rows(data).map((r) => ({
+        profileId: str(r.profile_id), role: str(r.role), name: str(r.display_name) || 'Closed account', availableRand: int(r.available_rand), heldRand: int(r.held_rand),
+        openPayoutRand: int(r.open_payout_rand), unconfirmedRand: int(r.unconfirmed_rand), closureId: str(r.closure_id), closureStatus: str(r.closure_status), closedAt: str(r.closed_at),
+        topupReferences: Array.isArray(r.topup_references) ? (r.topup_references as unknown[]).filter((x): x is string => typeof x === 'string') : [], hasBankDetails: r.has_bank_details === true,
+      })),
+    };
+  } catch (e) {
+    return { state: 'error', message: walletErrorMessage(e) };
+  }
+}
+// The person's balance as it is now (after a money action), keeping the name and role already on the screen. Tolerant: on any failure the old row is returned.
+export async function refreshWalletRow(client: WalletAdminClient, row: WalletListRow): Promise<WalletListRow> {
+  try {
+    const { data, error } = await client.from('wallets').select('profile_id, available_rand, held_rand').eq('profile_id', row.profileId);
+    if (error) return row;
+    const w = rows(data)[0];
+    return w ? { ...row, availableRand: int(w.available_rand), heldRand: int(w.held_rand), hasWallet: true } : row;
+  } catch {
+    return row;
+  }
+}
+// A closed account opened from the list becomes a row of the wallet list, so the same detail card (ledger, sessions, return money) is used.
+export const closedToListRow = (r: ClosedWalletRow): WalletListRow => ({ profileId: r.profileId, name: r.name, role: r.role, availableRand: r.availableRand, heldRand: r.heldRand, hasWallet: true });
+export function closedWalletSentence(r: ClosedWalletRow): string {
+  const parts: string[] = [];
+  if (r.availableRand > 0) parts.push(`${rand0(r.availableRand)} available`);
+  if (r.heldRand > 0) parts.push(`${rand0(r.heldRand)} on hold${r.openPayoutRand > 0 ? ` (${rand0(r.openPayoutRand)} is an open payout request: mark it paid first)` : ''}`);
+  if (r.unconfirmedRand > 0) parts.push(`${rand0(r.unconfirmedRand)} in a bank transfer with proof you have not decided on`);
+  return parts.join(' · ') || 'Nothing left';
 }
 
 // ---- 4. wallet settings ------------------------------------------------------------------------------------------------------------------------

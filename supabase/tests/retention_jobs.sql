@@ -231,7 +231,8 @@ begin
     run1 := (j ->> 'run_id')::uuid;
     r := r || format('B0 %s run 1: errors=%s (want 0), files queued=%s (want 4)', case when (j ->> 'errors') = '0' and (j ->> 'files_queued') = '4' then 'ok' else 'FAIL' end, j ->> 'errors', j ->> 'files_queued') || E'\n';
     select count(*), count(distinct category), count(*) filter (where error is null) into n, n2, n3 from retention_deletion_records where run_id = run1;
-    r := r || format('B1 %s the journal: one row per category for the run (%s rows, %s categories, %s without an error; want 5, 5, 5)', case when n = 5 and n2 = 5 and n3 = 5 then 'ok' else 'FAIL' end, n, n2, n3) || E'\n';
+    -- six categories since wallet phase 6 (wallet_records joined: 20261103100000_wallet_edges.sql; run this suite with that migration applied, or change the 6 back to 5)
+    r := r || format('B1 %s the journal: one row per category for the run (%s rows, %s categories, %s without an error; want 6, 6, 6)', case when n = 6 and n2 = 6 and n3 = 6 then 'ok' else 'FAIL' end, n, n2, n3) || E'\n';
     select (deleted ->> 'tutor_verification_documents')::int, (deleted ->> 'tutor_verification_audits')::int, (deleted ->> 'tier1_academic_records')::int, files_queued, protected_skipped
       into n, n2, n3, n4, nlines from retention_deletion_records where run_id = run1 and category = 'tutor_documents';
     r := r || format('B2 %s tutor documents: deleted %s documents, %s audit line, %s Tier 1 record (want 2, 1, 1), files queued=%s (4), held tutor skipped=%s (>=1)',

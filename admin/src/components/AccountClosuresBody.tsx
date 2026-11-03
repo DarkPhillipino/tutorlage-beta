@@ -90,7 +90,7 @@ const ClosureRowCard: React.FC<{ row: ClosureRow; client: ClosuresClient; onChan
       {row.deferredUntil && <Pill tone="amber">Deletion waits until {formatWhen(row.deferredUntil)}{row.deferredReason ? `: ${row.deferredReason}` : ''}</Pill>}
       {row.overdue && <Pill tone="rose">Past the 90-day limit</Pill>}
       {row.cardsKept && <Pill tone="slate">Card kept for a refund</Pill>}
-      {row.payoutKept && <Pill tone="slate">Payout details kept</Pill>}
+      {row.payoutKept && <Pill tone="amber">Money still owed: payout details kept (Payments, Wallets, Closed accounts with money)</Pill>}
       {row.openTasks > 0 && <Pill tone="slate">{row.openTasks} outside step{row.openTasks === 1 ? '' : 's'} waiting</Pill>}
       <Pill tone="slate">{row.sessionsCancelled} session{row.sessionsCancelled === 1 ? '' : 's'} cancelled</Pill>
     </div>

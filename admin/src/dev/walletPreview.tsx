@@ -101,6 +101,23 @@ const client: WalletAdminClient = {
       db.wallet_ledger.unshift({ id: `l${db.wallet_ledger.length + 5}`, seq: db.wallet_ledger.length + 5, profile_id: args.p_profile, kind: 'adjustment', available_delta: args.p_amount, held_delta: 0, available_after: w.available_rand, held_after: w.held_rand, note: args.p_reason, created_at: new Date().toISOString() });
       return ok({ already: false });
     }
+    // Wallet phase 6 (pretend answers; nothing is saved): closed accounts with money, the sessions a wallet paid for, a refund, money returned, a hand top-up.
+    if (fn === 'admin_closed_account_wallets') {
+      return ok([{ profile_id: ID(9), role: 'student', display_name: 'Former learner', available_rand: 500, held_rand: 0, open_payout_rand: 0, unconfirmed_rand: 150, closure_id: 'z1', closure_status: 'db_deleted',
+        closed_at: hoursAgo(24 * 33), topup_references: ['TL-OLD123'], has_bank_details: false }]);
+    }
+    if (fn === 'admin_wallet_sessions') {
+      return ok([{ session_id: 's9', scheduled_start: hoursAgo(72), status: 'completed', price_rand: 200, refunded_rand: 0, tutor_id: ID(3), tutor_share_rand: 140, tutor_credited: true, tutor_reduced_rand: 0 },
+        { session_id: 's10', scheduled_start: new Date(Date.now() + 5 * 86_400_000).toISOString(), status: 'scheduled', price_rand: 100, refunded_rand: 0, tutor_id: ID(3), tutor_share_rand: 0, tutor_credited: false, tutor_reduced_rand: 0 }]);
+    }
+    if (fn === 'admin_refund_to_wallet') {
+      const covered = Number(args.p_amount) <= 60;
+      return ok({ already: false, refunded_rand: args.p_amount, refunded_total_rand: args.p_amount, price_rand: 200, tutor_credited: true,
+        tutor_reduced_rand: args.p_take_back && covered ? Math.round(Number(args.p_amount) * 0.7) : 0, tutor_shortfall_rand: args.p_take_back && !covered ? Math.round(Number(args.p_amount) * 0.7) : 0 });
+    }
+    if (fn === 'admin_return_wallet_money') return ok({ already: false });
+    if (fn === 'admin_add_topup_by_hand') return ok({ already: false, reference: 'TL-HAND22' });
+    if (fn === 'admin_open_tutor_bank_details') return ok({ bank_name: 'Pretend Bank', account_holder: 'S Pretend', branch_code: '000000', account_number: '1111111111' });
     if (fn === 'log_document_access') return ok('row');
     return fail('function does not exist');
   },

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import { AdminProfile } from '../types';
+import { noteManualSignOut } from './desktopBridge';
 
 interface AdminAuthContextValue {
   session: Session | null;
@@ -68,6 +69,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const signOut = async () => {
+    noteManualSignOut(); // so the background alerts do not read the admin's own sign-out as a lapsed sign-in
     await supabase.auth.signOut();
   };
 

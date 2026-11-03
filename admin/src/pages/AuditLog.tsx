@@ -24,6 +24,8 @@ const ACTION_LABELS: Record<string, string> = {
   wallet_payout_cannot_pay: 'Payout: cannot pay',
   wallet_bank_details_opened: 'Bank details opened',
   wallet_adjusted: 'Wallet adjusted by hand',
+  wallet_refunded_to_learner: 'Session refunded into a wallet',
+  wallet_money_returned: 'Wallet money returned by hand',
 };
 
 export const AuditLog: React.FC = () => {

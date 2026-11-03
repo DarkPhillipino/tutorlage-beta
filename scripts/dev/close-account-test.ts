@@ -107,7 +107,7 @@ const task = (id: number, kind: string, payload: Record<string, unknown>, attemp
     const s = await runClosureTasks(w.deps);
     check('eleven bad steps are all reported as failed and none touched Storage, Paystack, Auth or mail',
       s.failed === 11 && w.reports.every((r) => !r.outcome.ok && !r.outcome.waiting && (r.outcome.detail ?? '').length > 0) && w.calls.length === 1, w.calls.join(' | '));
-    check('the buckets this can delete from are exactly the two the database queues', STORAGE_BUCKETS.length === 2 && STORAGE_BUCKETS.includes('school-results') && STORAGE_BUCKETS.includes('tutor-documents'));
+    check('the buckets this can delete from are exactly the three the database queues (the third is the wallet proofs)', STORAGE_BUCKETS.length === 3 && STORAGE_BUCKETS.includes('school-results') && STORAGE_BUCKETS.includes('tutor-documents') && STORAGE_BUCKETS.includes('payment-proofs'));
   }
 
   // ---- failures and "already gone" --------------------------------------------------------------------------------------------

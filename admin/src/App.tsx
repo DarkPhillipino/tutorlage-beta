@@ -19,9 +19,13 @@ import { Curricula } from './pages/Curricula';
 import { ClientErrors } from './pages/ClientErrors';
 import { SafetyHolds } from './pages/SafetyHolds';
 import { AccountClosures } from './pages/AccountClosures';
+import { Notifications } from './pages/Notifications';
+import { AlertRunner } from './components/AlertRunner';
 
 export default function App() {
   return (
+    <>
+    <AlertRunner />
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route
@@ -49,7 +53,9 @@ export default function App() {
         <Route path="errors" element={<ClientErrors />} />
         <Route path="safety-holds" element={<SafetyHolds />} />
         <Route path="account-closures" element={<AccountClosures />} />
+        <Route path="notifications" element={<Notifications />} />
       </Route>
     </Routes>
+    </>
   );
 }

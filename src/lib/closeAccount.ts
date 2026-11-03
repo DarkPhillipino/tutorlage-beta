@@ -27,6 +27,12 @@ export const CLOSE_COPY = {
       ? `${n} upcoming ${n === 1 ? 'session' : 'sessions'} will be cancelled. Each learner is refunded in full and told.`
       : `${n} upcoming ${n === 1 ? 'session' : 'sessions'} will be cancelled and refunded in full.`,
   payoutOwed: (amount: string) => `You are owed ${amount}. Closing keeps your bank details until it is paid. You can still go ahead.`,
+  // Wallet (wallet phase 6): closing never deletes money. The finance admin returns it by hand.
+  walletBalance: (amount: string) =>
+    `Your wallet holds ${amount}. Closing does not delete it. We send it back, by hand, to the bank account it came from: write to support after you close.`,
+  walletPayoutOpen: (amount: string) => `Your payout request of ${amount} stays open and is paid as normal.`,
+  walletUnconfirmed: (amount: string) =>
+    `You sent a bank transfer of ${amount} that we have not confirmed yet. If it reached us, we send that money back to you too.`,
   deletedTitle: 'What we delete',
   deletedLead: (after: number, by: number) => `We delete these ${after} days after you close, and always within ${by} days:`,
   keptTitle: 'What we keep, and for how long',
@@ -74,12 +80,21 @@ export interface ClosureSession {
   amount: number;
   currency: string;
 }
+// The wallet of a person who is about to close (null when there is nothing in it). Whole rands.
+export interface ClosureWallet {
+  availableRand: number;
+  heldRand: number;
+  openPayoutRand: number;
+  openTopups: number;
+  unconfirmedRand: number;
+}
 export interface ClosureAccount {
   profileId: string;
   name: string;
   role: string;
   sessions: ClosureSession[];
   payoutOwed: number | null;
+  wallet: ClosureWallet | null;
 }
 export interface ClosureKept {
   what: string;
@@ -112,6 +127,36 @@ const num = (v: unknown, fallback = 0): number => {
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' ? (v as Record<string, unknown>) : {});
 
+// A database without the wallet sends no "wallet" key at all: that, and an empty one, both mean "nothing to say".
+export function parseClosureWallet(v: unknown): ClosureWallet | null {
+  if (!v || typeof v !== 'object') return null;
+  const w = v as Record<string, unknown>;
+  const wallet = {
+    availableRand: Math.round(num(w.available_rand)),
+    heldRand: Math.round(num(w.held_rand)),
+    openPayoutRand: Math.round(num(w.open_payout_rand)),
+    openTopups: Math.round(num(w.open_topups)),
+    unconfirmedRand: Math.round(num(w.unconfirmed_rand)),
+  };
+  return wallet.availableRand + wallet.heldRand + wallet.openPayoutRand + wallet.unconfirmedRand > 0 ? wallet : null;
+}
+
+// What the closing screen says about the wallet, one plain sentence each. A tutor's balance is already in "you are owed" (payoutOwed counts the wallet),
+// so a tutor is only told that an open payout request stays open; everyone else is told their balance and any bank transfer not yet confirmed.
+export function walletNotes(wallet: ClosureWallet | null, role: string, symbolOf?: (code: string) => string): string[] {
+  if (!wallet) return [];
+  const money = (n: number) => formatAmount(n, 'ZAR', symbolOf);
+  const notes: string[] = [];
+  if (role === 'tutor') {
+    if (wallet.openPayoutRand > 0) notes.push(CLOSE_COPY.walletPayoutOpen(money(wallet.openPayoutRand)));
+    return notes;
+  }
+  const total = wallet.availableRand + wallet.heldRand;
+  if (total > 0) notes.push(CLOSE_COPY.walletBalance(money(total)));
+  if (wallet.unconfirmedRand > 0) notes.push(CLOSE_COPY.walletUnconfirmed(money(wallet.unconfirmedRand)));
+  return notes;
+}
+
 export function parseClosurePreview(data: unknown): ClosurePreview {
   const d = obj(data);
   return {
@@ -132,6 +177,7 @@ export function parseClosurePreview(data: unknown): ClosurePreview {
           };
         }),
         payoutOwed: o.payout_owed === null || o.payout_owed === undefined ? null : num(o.payout_owed),
+        wallet: parseClosureWallet(o.wallet),
       };
     }),
     blocked: d.blocked === true,
