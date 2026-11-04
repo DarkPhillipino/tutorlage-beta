@@ -77,7 +77,7 @@ A request stays open for up to **48 hours**, or until **30 minutes after the sta
 
 ## 8. Cancelling and refunds
 
-For 7 days after you send a request, you can cancel an upcoming session yourself from your sessions list and the full price goes back to your wallet at once. Outside that, we decide cancellations and refunds case by case, fairly, and we set no fixed deadlines for asking: email support@tutorlage.com as early as you can. Refunds are paid into your wallet as credit, and you can ask us to return unused wallet money to your bank account. The Refund Policy has the detail.
+Until a session starts, you can cancel it yourself from your sessions list and the full price goes back to your wallet at once. A request no tutor has accepted yet can be cancelled the same way, and the held price goes straight back. Once a session has started, we decide refunds case by case, fairly, and we set no fixed deadlines for asking: email support@tutorlage.com as early as you can. Refunds are paid into your wallet as credit, and you can ask us to return unused wallet money to your bank account. The Refund Policy has the detail.
 
 1. **We always refund in full when:**
    - no tutor accepts your request (the price on hold goes straight back to your wallet);

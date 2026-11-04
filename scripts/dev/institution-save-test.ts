@@ -36,7 +36,7 @@ async function main() {
 
   check('learner, no learner chosen: own profile', institutionSaveTarget('student', false) === 'own-profile');
   check('admin: own profile', institutionSaveTarget('admin', false) === 'own-profile');
-  check('parent with a learner chosen: remembered on this device', institutionSaveTarget('parent', true) === 'device-for-learner');
+  check('parent with a learner chosen: saved on the learner by the database function (4 Nov 2026)', institutionSaveTarget('parent', true) === 'learner-by-guardian');
   check('parent with no learner chosen: this search only', institutionSaveTarget('parent', false) === 'this-search-only');
   check('tutor: this search only', institutionSaveTarget('tutor', false) === 'this-search-only');
   check('tutor is never given a learner row even if a learner is chosen', institutionSaveTarget('tutor', true) === 'this-search-only');
@@ -47,7 +47,9 @@ async function main() {
   for (const role of roles) {
     for (const hasLearner of [true, false]) {
       const target = institutionSaveTarget(role, hasLearner);
-      if (target === 'own-profile') continue;
+      // Only a write the database confirms may say "saved": a learner's own row, or a guardian's through set_learner_institution (App.tsx
+      // says it only after that call succeeds; on a failure it uses the device message instead).
+      if (target === 'own-profile' || target === 'learner-by-guardian') continue;
       const text = institutionMessage(role, target, 'Test High School');
       if (/\b(saved|updated)\b/i.test(text)) lies += 1; // only an own-profile write may say "saved"
     }
@@ -55,6 +57,7 @@ async function main() {
   check('no message for a choice that is NOT saved says "saved" or "updated"', lies === 0);
   check('the saved message names the institution', institutionMessage('student', 'own-profile', 'Test High School') === 'Institution saved: "Test High School"');
   check('the device message says this device only', /this device only/.test(institutionMessage('parent', 'device-for-learner', 'X')));
+  check('the guardian message says it was saved for the learner', /saved for this learner/.test(institutionMessage('parent', 'learner-by-guardian', 'X')));
   check('the tutor message points to Teaching', /Teaching/.test(institutionMessage('tutor', 'this-search-only', 'X')));
   check('the parent-with-no-learner message says to choose a learner', /Choose a learner/.test(institutionMessage('parent', 'this-search-only', 'X')));
 

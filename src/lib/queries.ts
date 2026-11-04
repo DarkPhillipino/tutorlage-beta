@@ -107,6 +107,15 @@ export async function setLearnerGrade(learnerId: string, gradeLevel: string): Pr
   return String(data);
 }
 
+// A parent or guardian saves a linked learner's institution (4 Nov 2026). Like the grade, the learner's row is read-only to a parent, so this
+// goes through the database function set_learner_institution (migration 20261104100000), which checks the guardian's active consent and
+// that the institution exists. Throws the database's own plain sentence, or a "function not found" error before that migration is applied
+// (the caller then keeps the choice on this device, as before).
+export async function setLearnerInstitution(learnerId: string, institutionId: string): Promise<void> {
+  const { error } = await supabase.rpc('set_learner_institution', { p_learner: learnerId, p_institution: institutionId });
+  if (error) throw error;
+}
+
 // A learner's institution (student_profiles.school_id) — account-level info like the grade, so it has to
 // survive a reload or a new sign-in (master 7cq: it used to live only in the page's memory and was lost every
 // time). A learner reads and writes their own row; a parent can read a linked learner's row (RLS: "Parents can
@@ -1389,11 +1398,19 @@ export async function fetchMyWaitingRequests(
 }
 
 // Cancels an upcoming session with a full refund. The database decides who
-// may and when (cancel_session): the learner or whoever booked, inside the
-// cancellation window set in system_settings (7 days by default, per legal's
-// ECTA s44 working answer), and the tutor any time before it starts.
+// may and when (cancel_session): the learner, whoever booked, the learner's
+// guardian, or the tutor, any time before the session starts (CEO, 4 Nov
+// 2026: no 7-day window for a wallet booking any more; the window setting
+// still governs a card payment).
 export async function cancelSession(sessionId: string, reason?: string): Promise<void> {
   const { error } = await supabase.rpc('cancel_session', { p_session_id: sessionId, p_reason: reason ?? null });
+  if (error) throw error;
+}
+
+// Cancels a request that is still waiting for a tutor (4 Nov 2026). The database function cancel_waiting_request checks who may (the person
+// who made it, the learner, the learner's guardian) and that no tutor has taken it; a price held in a wallet goes straight back.
+export async function cancelWaitingRequest(requestId: string): Promise<void> {
+  const { error } = await supabase.rpc('cancel_waiting_request', { p_request_id: requestId });
   if (error) throw error;
 }
 

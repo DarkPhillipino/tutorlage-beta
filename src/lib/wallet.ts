@@ -40,6 +40,7 @@ export const WALLET_COPY = {
   waitingNote: 'Your request is waiting for a tutor to accept it. The price is on hold in your wallet. If nobody accepts in time it ends, and the money goes straight back.',
   sessionBadge: 'Paid from your wallet',
   cancelNote: 'Cancel this session? The payment goes back into your wallet as credit.',
+  cancelRequestNote: 'Cancel this request? The price on hold goes straight back into your wallet.',
   tutorQueueNote: "Paid from the learner's wallet. Your share goes into your wallet when the session is complete.",
   tutorSessionNote: "Paid from the learner's wallet. Your share goes into your wallet when you mark the session complete (or 48 hours after it ends).",
   tutorCancelNote: "Cancel this session? The learner's payment goes back into their wallet as credit.",

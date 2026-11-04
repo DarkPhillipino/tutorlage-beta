@@ -7,12 +7,14 @@ import type { UserRole } from '../types';
 //
 //  - own-profile:        a learner, or an admin (an admin account has a learner row too): saved on the person's own
 //                        student_profiles row, and loaded back on sign-in.
-//  - device-for-learner: a guardian who has chosen a learner to book for. A guardian can read a linked learner's
-//                        profile but not change it, so the choice is remembered in this browser only (institutionMemory.ts).
+//  - learner-by-guardian: a guardian who has chosen a learner to book for. A guardian cannot write a linked learner's row directly, so
+//                        the save goes through the database function set_learner_institution (4 Nov 2026), after which it is loaded
+//                        back on any device. Before that migration is applied (or if the save fails) the choice falls back to
+//                        'device-for-learner': remembered in this browser only (institutionMemory.ts).
 //  - this-search-only:   a tutor (their own institution is set under Teaching), or a guardian with no learner chosen
 //                        yet. It filters this search and is not kept.
 
-export type InstitutionSaveTarget = 'own-profile' | 'device-for-learner' | 'this-search-only';
+export type InstitutionSaveTarget = 'own-profile' | 'learner-by-guardian' | 'device-for-learner' | 'this-search-only';
 
 export function savesOnOwnProfile(role: UserRole | undefined): boolean {
   return role === 'student' || role === 'admin';
@@ -20,7 +22,7 @@ export function savesOnOwnProfile(role: UserRole | undefined): boolean {
 
 export function institutionSaveTarget(role: UserRole | undefined, guardianHasChosenLearner: boolean): InstitutionSaveTarget {
   if (savesOnOwnProfile(role)) return 'own-profile';
-  if (role === 'parent' && guardianHasChosenLearner) return 'device-for-learner';
+  if (role === 'parent' && guardianHasChosenLearner) return 'learner-by-guardian';
   return 'this-search-only';
 }
 
@@ -30,6 +32,8 @@ export function institutionMessage(role: UserRole | undefined, target: Instituti
   switch (target) {
     case 'own-profile':
       return `Institution saved: "${institutionName}"`;
+    case 'learner-by-guardian':
+      return `Institution saved for this learner: "${institutionName}"`;
     case 'device-for-learner':
       return `"${institutionName}" is remembered for this learner on this device only.`;
     case 'this-search-only':

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Loader2, AlertTriangle, Video, Star, Check, AlertCircle } from 'lucide-react';
 import { StudentSessionDetail, ProblemReason, WaitingRequest } from '../types';
-import { fetchStudentSessionDetails, fetchLearnerSessionDetails, fetchMyWaitingRequests, submitReview, cancelSession, reportSessionProblem } from '../lib/queries';
+import { fetchStudentSessionDetails, fetchLearnerSessionDetails, fetchMyWaitingRequests, submitReview, cancelSession, cancelWaitingRequest, reportSessionProblem } from '../lib/queries';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate } from '../lib/format';
 import { fetchMyLearners, type LinkedLearner } from '../lib/guardian';
@@ -183,6 +183,18 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                     ? WALLET_COPY.waitingNote
                     : "Your request is waiting for a tutor to accept it. You're charged only when one does. If nobody accepts in time it ends, and you're not charged."}
                 </p>
+                <CancelSessionControl
+                  kind="request"
+                  sessionId={r.id}
+                  walletNote={
+                    freeRequestIds.has(r.id)
+                      ? 'Cancel this request? It is a free session, so nothing is charged.'
+                      : walletRequestIds.has(r.id)
+                      ? WALLET_COPY.cancelRequestNote
+                      : 'Cancel this request? You have not been charged.'
+                  }
+                  onCancelled={() => setRetryCount((c) => c + 1)}
+                />
               </div>
             );
           })}
@@ -369,11 +381,14 @@ export const SessionRoomControl: React.FC<{ sessionId: string; scheduledStart: s
 
 // A two-step cancel: first click asks for confirmation, so a stray tap can't
 // cancel a booking. The database enforces the window and issues the refund.
-export const CancelSessionControl: React.FC<{ sessionId: string; onCancelled: () => void; walletNote?: string; freeNote?: string }> = ({
+// Also used for a request still waiting for a tutor (kind="request": the id is the request's, the words say request, and
+// cancel_waiting_request does the work; a price held in a wallet goes straight back).
+export const CancelSessionControl: React.FC<{ sessionId: string; onCancelled: () => void; walletNote?: string; freeNote?: string; kind?: 'session' | 'request' }> = ({
   sessionId,
   onCancelled,
   walletNote,
   freeNote,
+  kind = 'session',
 }) => {
   const [isConfirming, setIsConfirming] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -383,10 +398,11 @@ export const CancelSessionControl: React.FC<{ sessionId: string; onCancelled: ()
     setIsCancelling(true);
     setError(null);
     try {
-      await cancelSession(sessionId);
+      if (kind === 'request') await cancelWaitingRequest(sessionId);
+      else await cancelSession(sessionId);
       onCancelled();
     } catch (e) {
-      setError(getErrorMessage(e, 'Could not cancel this session.'));
+      setError(getErrorMessage(e, kind === 'request' ? 'Could not cancel this request.' : 'Could not cancel this session.'));
       setIsCancelling(false);
     }
   };
@@ -415,7 +431,7 @@ export const CancelSessionControl: React.FC<{ sessionId: string; onCancelled: ()
         </div>
       ) : (
         <button onClick={() => setIsConfirming(true)} className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer">
-          Cancel session
+          {kind === 'request' ? 'Cancel request' : 'Cancel session'}
         </button>
       )}
       {error && (

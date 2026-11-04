@@ -119,7 +119,9 @@ async function main() {
     check('the police-clearance check (and the verified check) run BEFORE the free block is reached: a free request cannot skip them', verified > 0 && police > verified && raisePolice > police && anchor > raisePolice, `${verified} ${police} ${raisePolice} ${anchor}`);
   }
   check('no later migration redefines the three patched functions (so the anchors are read from the newest text)', ['claim_session_request', 'cancel_session', 'closure_cancel_session'].every((fn) => {
-    const defs = readdirSync('supabase/migrations').filter((f) => f.endsWith('.sql') && !f.endsWith('_free_sessions_mode.sql') && new RegExp(`create or replace function public\\.${fn}\\(`).test(read(`supabase/migrations/${f}`))).sort();
+    // Only migrations BEFORE the free-sessions one matter: it patches the live text when applied. A later migration may replace a function whole
+    // (e.g. 20261104100100_cancel_any_time_before_start.sql replaces cancel_session, keeping the free and wallet branches it was given).
+    const defs = readdirSync('supabase/migrations').filter((f) => f.endsWith('.sql') && f < files[0] && !f.endsWith('_free_sessions_mode.sql') && new RegExp(`create or replace function public\\.${fn}\\(`).test(read(`supabase/migrations/${f}`))).sort();
     const newest = { claim_session_request: '20261020180000_police_clearance_checks.sql', cancel_session: '20260930239500_split_payments_charge_on_accept.sql', closure_cancel_session: '20261021140000_close_account.sql' }[fn];
     return defs[defs.length - 1] === newest;
   }));

@@ -250,8 +250,9 @@ begin
 
   -- ---- cancelling: refunded as wallet credit ------------------------------------------------------------------------------------------------------
   update session_requests set charged_at = now() - interval '8 days' where id = q1;
-  r := r || pg_temp.chk('B37', 'the learner is bound by the cancellation window, as for a card',
-    pg_temp.run_as(v_l, format('select (select 1 from (select public.cancel_session(%L, null)) x)::text', s_1)), 'ERR: The 7 day cancellation window for this booking has closed');
+  -- 4 Nov 2026 (CEO): a wallet booking has NO cancellation window for the learner any more; the learner cancelling long after paying is B43.
+  select status::text into t from sessions where id = s_1;
+  r := r || pg_temp.chk('B37', 'the booking was paid 8 days ago and is still upcoming', t, 'scheduled');
   select status::text into t from sessions where id = s_1;
   r := r || pg_temp.chk('B38', 'and nothing moved', t || ' / ' || pg_temp.wb(v_l) || ' / ' || pg_temp.nl('refund:' || s_1), 'scheduled / 320/0 / 0');
   r := r || pg_temp.chk('B39', 'the tutor can always cancel', pg_temp.run_as(v_t, format('select (select 1 from (select public.cancel_session(%L, ''tutor ill'')) x)::text', s_1)), '1');
@@ -266,7 +267,8 @@ begin
   perform pg_temp.send(v_l, q3);
   perform pg_temp.try_claim(q3, v_t);
   select resulting_session_id into s_3 from session_requests where id = q3;
-  r := r || pg_temp.chk('B43', 'the learner cancels inside the window', pg_temp.run_as(v_l, format('select (select 1 from (select public.cancel_session(%L, ''test'')) x)::text', s_3)), '1');
+  update session_requests set charged_at = now() - interval '30 days' where id = q3;
+  r := r || pg_temp.chk('B43', 'the learner cancels 30 days after paying, before the session starts (no window)', pg_temp.run_as(v_l, format('select (select 1 from (select public.cancel_session(%L, ''test'')) x)::text', s_3)), '1');
   select s.status::text || ' ' || q.payment_status into t from sessions s join session_requests q on q.resulting_session_id = s.id where s.id = s_3;
   r := r || pg_temp.chk('B44', 'cancelled by the learner, refunded as credit; the tutor and the payer are told',
     t || ' / ' || pg_temp.wb(v_l) || ' / ' || pg_temp.nn(v_t, 'session_cancelled', 'The learner cancelled the session. Reason: test') || ' ' || pg_temp.nn(v_l, 'session_cancelled', '%R100 is back in your wallet as credit%'),

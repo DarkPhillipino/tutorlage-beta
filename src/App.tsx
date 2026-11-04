@@ -31,7 +31,8 @@ import { BookingFormState, SuggestionItem, UserAccount, PriceLevel, Institution,
 import { describeDate, toIsoDate } from './lib/format';
 import { SA_ZONE_LABEL } from './lib/saTime';
 import { DEFAULT_SESSION_HOURS, describeLength } from './lib/requestSchedule';
-import { fetchUpcomingStudentSessions, fetchUpcomingTutorSessions, fetchStudentGradeLevel, fetchStudentInstitution, updateStudentInstitution, fetchPriceLevelById } from './lib/queries';
+import { fetchUpcomingStudentSessions, fetchUpcomingTutorSessions, fetchStudentGradeLevel, fetchStudentInstitution, updateStudentInstitution, setLearnerInstitution, fetchPriceLevelById } from './lib/queries';
+import { isMissingDatabaseFunction } from './lib/keepOrSwap';
 import { defaultBookAgainSchedule, type MyTutor } from './lib/keepOrSwap';
 import type { BookAgainLearner } from './components/MyTutorsPanel';
 import { rememberInstitution, recallInstitution } from './lib/institutionMemory';
@@ -315,7 +316,23 @@ export default function App() {
         });
       return;
     }
-    if (user && target === 'device-for-learner' && bookingFor) rememberInstitution(user.id, bookingFor.id, institution);
+    // 4 Nov 2026: a guardian's choice for the learner they are booking for is saved on the learner (set_learner_institution), so it follows the
+    // learner to any device. If the database function is not there yet, or the save fails, it is kept on this device and the toast says so.
+    if (user && target === 'learner-by-guardian' && bookingFor) {
+      const learnerId = bookingFor.id;
+      setLearnerInstitution(learnerId, institution.id)
+        .then(() => showToast(institutionMessage(role, target, institution.name)))
+        .catch((err) => {
+          console.error('setLearnerInstitution failed:', err);
+          rememberInstitution(user.id, learnerId, institution);
+          showToast(
+            isMissingDatabaseFunction(err)
+              ? institutionMessage(role, 'device-for-learner', institution.name)
+              : `"${institution.name}" is set for this search and remembered on this device, but could not be saved for this learner. Please try again.`,
+          );
+        });
+      return;
+    }
     showToast(institutionMessage(role, target, institution.name));
   };
 
