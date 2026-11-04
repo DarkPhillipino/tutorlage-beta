@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2, GraduationCap, BookOpen, AlertCircle, MailCheck, Us
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../lib/AuthContext';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
+import { PasswordInput } from '../components/PasswordInput';
 import { fetchCurrentPolicyVersions, PolicyVersions } from '../lib/queries';
 import { ADULT_AGE, COPY, ROLE_LABELS, ageFromIsoDate, isPlausibleDateOfBirth, parseSignupRole } from '../lib/accountRules';
 import { FEATURES } from '../lib/features';
@@ -251,12 +252,12 @@ export default function CreateAccount() {
               <>
                 <div>
                   <label className={labelClass} htmlFor="password">Password</label>
-                  <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`} className={inputClass} />
+                  <PasswordInput id="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`} className={inputClass} />
                 </div>
 
                 <div>
                   <label className={labelClass} htmlFor="confirmPassword">Confirm password</label>
-                  <input id="confirmPassword" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" className={inputClass} />
+                  <PasswordInput id="confirmPassword" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" className={inputClass} />
                 </div>
 
                 {/* Legal spec §1: never pre-ticked; the account can't be created without it. */}

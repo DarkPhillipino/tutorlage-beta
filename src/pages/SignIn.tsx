@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2, GraduationCap, BookOpen, AlertCircle, Users } from 
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../lib/AuthContext';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
+import { PasswordInput } from '../components/PasswordInput';
 import { ROLE_LABELS, parseSignupRole, toSignInEmail } from '../lib/accountRules';
 import { FEATURES } from '../lib/features';
 import { describeSignInError } from '../lib/authHelpers';
@@ -113,9 +114,8 @@ export default function SignIn() {
 
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1.5" htmlFor="password">Password</label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

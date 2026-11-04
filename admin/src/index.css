@@ -1,1 +1,7 @@
 @import "tailwindcss";
+
+/* Edge draws its own "show password" eye inside password boxes; ours (src/components/PasswordInput.tsx) replaces it so there is only one. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}

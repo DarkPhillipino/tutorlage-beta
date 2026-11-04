@@ -20,6 +20,7 @@ import { supabase } from '../lib/supabaseClient';
 import { getCurrencySymbol } from '../lib/currencies';
 import { CLOSE_COPY, CloseAccountSetup, ClosureClient, formatClosureDate } from '../lib/closeAccount';
 import { CloseAccountFlow } from './CloseAccountFlow';
+import { PasswordInput } from './PasswordInput';
 import { SchoolResultsPanel } from './SchoolResultsPanel';
 
 // The parent/guardian home (backlog 7k): the learners they're responsible
@@ -480,11 +481,11 @@ const AddLearnerForm: React.FC<{ onCancel: () => void; onAdded: (name: string, s
         </div>
         <div>
           <label className={labelClass} htmlFor="learnerPassword">Password for the learner</label>
-          <input id="learnerPassword" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" className={inputClass} autoComplete="new-password" />
+          <PasswordInput id="learnerPassword" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" className={inputClass} autoComplete="new-password" />
         </div>
         <div>
           <label className={labelClass} htmlFor="learnerPasswordConfirm">Confirm password</label>
-          <input id="learnerPasswordConfirm" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} autoComplete="new-password" />
+          <PasswordInput id="learnerPasswordConfirm" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputClass} autoComplete="new-password" />
         </div>
       </div>
 

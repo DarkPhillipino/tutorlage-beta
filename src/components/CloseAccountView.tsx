@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertCircle, Loader2 } from 'lucide-react';
+import { PasswordInput } from './PasswordInput';
 import {
   CLOSE_COPY,
   ClosurePreview,
@@ -192,9 +193,8 @@ export const CloseAccountView: React.FC<CloseAccountViewProps> = (p) => {
       {p.needsPassword && (
         <div>
           <label className={labelClass} htmlFor="closeAccountPassword">{CLOSE_COPY.passwordLabel}</label>
-          <input
+          <PasswordInput
             id="closeAccountPassword"
-            type="password"
             value={p.password}
             onChange={(e) => p.onPassword(e.target.value)}
             autoComplete="current-password"

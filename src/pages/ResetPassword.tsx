@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, CheckCircle2, KeyRound, Loader2 } from 'lucide-react';
+import { PasswordInput } from '../components/PasswordInput';
 import { supabase } from '../lib/supabaseClient';
 import { AUTH_COPY, MIN_PASSWORD_LENGTH, describeUpdatePasswordError, validateNewPassword } from '../lib/authHelpers';
 import { arrivedWithLinkError, checkRecoveryLink, clearRecoveryPending, markRecoveryPending } from '../lib/recoveryLink';
@@ -238,9 +239,8 @@ export default function ResetPassword() {
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1.5" htmlFor="newPassword">New password</label>
-                  <input
+                  <PasswordInput
                     id="newPassword"
-                    type="password"
                     autoComplete="new-password"
                     required
                     value={password}
@@ -252,9 +252,8 @@ export default function ResetPassword() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1.5" htmlFor="confirmNewPassword">Confirm new password</label>
-                  <input
+                  <PasswordInput
                     id="confirmNewPassword"
-                    type="password"
                     autoComplete="new-password"
                     required
                     value={confirmation}

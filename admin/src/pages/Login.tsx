@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Loader2, AlertCircle } from 'lucide-react';
+import { PasswordInput } from '../components/PasswordInput';
 import { useAdminAuth } from '../lib/AuthContext';
 
 // No self-signup here, deliberately — admin accounts are provisioned by
@@ -61,9 +62,8 @@ export const Login: React.FC = () => {
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1.5" htmlFor="password">Password</label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
