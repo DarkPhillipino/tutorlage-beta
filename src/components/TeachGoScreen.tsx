@@ -21,7 +21,7 @@ interface TeachGoScreenProps {
 // weren't: no 15-minute rule exists, and subjects have no descriptions).
 const TIPS = [
   'Start the video call from "Your upcoming sessions" when it is time. It opens 15 minutes before the session starts.',
-  'Mark the session complete when it ends. Otherwise it completes by itself 48 hours later, unless a problem was reported.',
+  'Mark the session complete when it ends. Otherwise it completes by itself: 2 hours later if you and your learner were both in its video call, or 48 hours later if not. A reported problem holds it.',
   'Only add subjects and grades you could teach confidently.',
 ];
 
