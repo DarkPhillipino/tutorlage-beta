@@ -81,7 +81,7 @@ check('the start page makes no earnings or price figure (no "R" followed by a nu
 check('the start page makes no "certified", "validated" or "qualified" claim and says nothing about "guarantee", "best" or "top"', !/certified|validated|qualified|guarantee|\bbest\b|\btop\b/i.test(landingText));
 check('the start page has no sign-up-for-news form or mailing list', !/<form|<input|newsletter|subscribe|mailing list|waitlist/i.test(landingText));
 check('the start page links Terms, Privacy, Refund Policy and the sign-in page, and the tutor sign-up', ['to="/terms"', 'to="/privacy"', 'to="/refunds"', 'to="/login"', 'to="/signup/tutor"', 'to="/signup/parent"', 'to="/signup/student"'].every((s) => landing.includes(s)));
-check('the start page shows the payments-not-open notice only while the switch is on (and uses the CEO\'s own line)', /\{PAYMENTS_NOT_OPEN && \(\s*<p role="status" data-landing-payments-notice[\s\S]{0,260}\{PAYMENTS_NOT_OPEN_NOTICE\}/.test(landing));
+check('the start page no longer carries the "payments are not open" notice (CEO, 4 Nov 2026: wallet top-ups by bank transfer are live; only card payments are closed)', !/PAYMENTS_NOT_OPEN|data-landing-payments-notice/.test(landingText));
 check('the start page has one h1 and the page is a header, a main and a footer', (landing.match(/<h1\b/g) ?? []).length === 1 && /<header\b/.test(landing) && /<main>/.test(landing) && /<footer\b/.test(landing));
 
 // ---- the Content-Security-Policy ----

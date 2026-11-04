@@ -9,7 +9,7 @@ import { fetchTutorManagedSessions, setSessionMeetingLink, completeSession } fro
 import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
 import { sessionHasEnded } from '../lib/sessionTiming';
-import { formatSaDateTime } from '../lib/saTime';
+import { formatSaDateTime, formatSaTime } from '../lib/saTime';
 import { CancelSessionControl, ReportProblemControl, SessionRoomControl } from './UpcomingSessionsPanel';
 import { LearnersITaughtPanel } from './LearnersITaughtPanel';
 
@@ -130,6 +130,15 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
             until an hour after the session should have ended (the card says when it opens until then). */}
         {!hasEnded && FEATURES.videoRooms && (
           <SessionRoomControl sessionId={s.id} scheduledStart={s.scheduledStart} durationHours={s.durationHours} isTutor />
+        )}
+
+        {/* CEO, 4 Nov 2026: a tutor left the video call early and could not see why the session was not complete. The database lets a
+            session be marked complete only once its scheduled time has ended, and leaving the call does not complete it. */}
+        {!hasEnded && (
+          <p data-complete-from className="text-[11px] text-slate-500">
+            You can mark this session complete from {formatSaTime(start.getTime() + s.durationHours * 3_600_000)}, when its scheduled time ends.
+            Leaving the video call does not complete it.
+          </p>
         )}
 
         {hasEnded ? (

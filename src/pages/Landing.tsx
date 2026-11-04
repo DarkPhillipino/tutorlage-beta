@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Send, UserCheck, Video, ShieldCheck, GraduationCap, BookOpen } from 'lucide-react';
-import { PAYMENTS_NOT_OPEN, PAYMENTS_NOT_OPEN_NOTICE } from '../lib/features';
 import { SUPPORT_EMAIL } from '../lib/businessInfo';
 
 // The front door of tutorlage.com for someone who is not signed in. Plain on purpose (CEO, 1 Nov 2026: marketing's copy never arrived and
@@ -9,6 +8,9 @@ import { SUPPORT_EMAIL } from '../lib/businessInfo';
 // code that decides who may accept a request. Left out on purpose: prices and earnings figures, any "qualified", "certified" or
 // "validated" claim about tutors, a mailing-list form, and anything about payments that are not open yet. The sign-in page is one click
 // away from every part of the page.
+//
+// 4 Nov 2026 (CEO): the "Payments are not open yet" line was taken off this page. Wallet top-ups by bank transfer have been live since 3 Nov,
+// so it was no longer true. Only card payments (Paystack) are still closed, and the booking screen says so where it matters.
 //
 // When something here stops being true, change this file: the list of claims it relies on is in the programmer's report of 1 Nov 2026.
 
@@ -96,11 +98,6 @@ export default function Landing() {
               Become a tutor
             </Link>
           </div>
-          {PAYMENTS_NOT_OPEN && (
-            <p role="status" data-landing-payments-notice className="mt-6 max-w-xl text-sm font-semibold rounded-lg px-3 py-2.5 bg-amber-50 border border-amber-300 text-amber-900">
-              {PAYMENTS_NOT_OPEN_NOTICE}
-            </p>
-          )}
         </section>
 
         <section aria-labelledby="how-heading" className="bg-white border-y border-slate-200">
