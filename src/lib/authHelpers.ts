@@ -48,6 +48,9 @@ export const AUTH_COPY = {
   passwordTooShort: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
   samePassword: 'Your new password must be different from your old one.',
   rateLimited: 'Too many tries. Please wait a minute and try again.',
+  // Sign-up only (burst-readiness, 4 Nov 2026): the account form used to show the server's own words ("Error sending confirmation email").
+  signUpEmailFailed: 'We could not send your confirmation email just now. Please try again in a few minutes.',
+  signUpBusy: 'A lot of people are signing up right now, so confirmation emails are delayed. Please try again in a few minutes.',
 } as const;
 
 // ---------------------------------------------------------------------------------------------------------
@@ -221,6 +224,21 @@ export function describeResendError(error: unknown): string {
   return reason
     ? `We could not send the link. Please try again in a minute. (${reason})`
     : 'We could not send the link. Please try again in a minute.';
+}
+
+// A failed SIGN-UP that is our side's fault, not the person's mistake: the confirmation email could not be sent (the 1 Nov 2026 fault: a refused
+// SMTP login), the project's hourly email cap or the 60-second window was hit, or Supabase answered with a server fault. Returns the plain
+// sentence to show and whether it should also be written to the error log (so the admin app's "new error" alert fires). Null = not one of these
+// (a wrong date of birth, a weak password ...): the caller keeps its own wording and does not log.
+// Not logged: no answer at all (the person is offline, status 0): that is their connection, not our fault.
+export function describeSignUpFault(error: unknown): { text: string; log: boolean } | null {
+  if (/database error/i.test(authErrorMessage(error))) return null; // the age-rule trigger, worded by the sign-up page itself
+  if (isRateLimited(error)) return { text: isOneMinuteWindow(error) ? AUTH_COPY.resendTooSoon : AUTH_COPY.signUpBusy, log: !isOneMinuteWindow(error) };
+  const status = authErrorStatus(error);
+  if (field(error, 'name') === 'AuthRetryableFetchError' && (status === null || status === 0)) return { text: AUTH_COPY.unreachable, log: false };
+  if (/error sending|sending .*email|smtp/i.test(authErrorMessage(error))) return { text: AUTH_COPY.signUpEmailFailed, log: true };
+  if (status !== null && status >= 500) return { text: AUTH_COPY.signUpEmailFailed, log: true };
+  return null;
 }
 
 export interface SignInProblem {

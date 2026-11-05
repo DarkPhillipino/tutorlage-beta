@@ -12,6 +12,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "regress": "node scripts/dev/run-all.mjs",
+    "pulse": "tsx scripts/ops/site-pulse.ts",
     "test:browsers": "playwright test"
   },
   "dependencies": {

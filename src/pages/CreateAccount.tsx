@@ -9,7 +9,8 @@ import { fetchCurrentPolicyVersions, PolicyVersions } from '../lib/queries';
 import { ADULT_AGE, COPY, ROLE_LABELS, ageFromIsoDate, isPlausibleDateOfBirth, parseSignupRole } from '../lib/accountRules';
 import { FEATURES } from '../lib/features';
 import { signupConfirmationRedirect } from '../lib/authRedirects';
-import { MIN_PASSWORD_LENGTH, noteSendStarted, signupResendKey, validateNewPassword } from '../lib/authHelpers';
+import { MIN_PASSWORD_LENGTH, describeSignUpFault, noteSendStarted, signupResendKey, validateNewPassword } from '../lib/authHelpers';
+import { logClientError } from '../lib/errorLog';
 import { ResendConfirmation } from '../lib/ResendConfirmation';
 
 const inputClass = 'w-full bg-slate-100 text-[#0F172A] placeholder-slate-400 text-sm font-semibold px-4 py-3.5 rounded-xl border border-transparent focus:outline-none focus:border-[#15803D] focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 transition-all';
@@ -114,10 +115,14 @@ export default function CreateAccount() {
     if (signUpError) {
       // The database refuses sign-ups that break the age rules; Supabase
       // reports that as a generic database error, so name the likely reason.
+      // A fault on OUR side (the confirmation email could not be sent, the hourly email cap, a server error) gets a plain sentence and is also
+      // written to the error log, so the admin app's alerts tell the CEO (burst-readiness, 4 Nov 2026).
+      const fault = describeSignUpFault(signUpError);
+      if (fault?.log) logClientError(signUpError, 'logged');
       setError(
         /database error/i.test(signUpError.message)
           ? 'We could not create this account. Check your date of birth — tutors and parents must be 18 or older.'
-          : signUpError.message,
+          : fault?.text ?? signUpError.message,
       );
       return;
     }
