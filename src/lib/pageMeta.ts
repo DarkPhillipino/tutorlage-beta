@@ -40,6 +40,7 @@ export const PAGE_META: PageMeta[] = [
   { path: '/auth/callback', title: 'Signing you in | Tutorlage', description: 'Finishing your sign-in to Tutorlage.', index: false },
   { path: '/account-closed', title: 'Account closed | Tutorlage', description: 'Your Tutorlage account has been closed.', index: false },
   { path: '/payment/callback', title: 'Confirming your card | Tutorlage', description: 'Confirming your card with Tutorlage.', index: false },
+  { path: '/wallet/topup-return', title: 'Checking your payment | Tutorlage', description: 'Checking that your payment to your Tutorlage wallet has arrived.', index: false },
   { path: '/room', title: 'Video room | Tutorlage', description: 'Tutorlage video room.', index: false },
   { path: '/tutor-documents', title: 'Your documents | Tutorlage', description: 'Add the documents Tutorlage needs to verify a tutor.', index: false },
 ];

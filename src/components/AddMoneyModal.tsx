@@ -15,6 +15,8 @@ import {
 import { walletDb } from '../lib/walletHooks';
 import { getErrorMessage } from '../lib/errors';
 import { waitingLine } from '../lib/topupNotice';
+import { ONLINE_COPY, createOnlineTopup, fetchOnlineAvailable, startOnlinePayment, type CreatedOnlineTopup } from '../lib/walletOnline';
+import { goToBankPage, onlineRequest } from '../lib/walletOnlineHooks';
 import { PilotNotice } from './PilotNotice';
 
 interface AddMoneyModalProps {
@@ -30,7 +32,8 @@ interface AddMoneyModalProps {
   onChanged?: () => void;
 }
 
-type Step = 'amount' | 'pay' | 'sent';
+// 'method' = "How would you like to pay?" (shown only when pay by bank, instant is open for this person; otherwise the amount goes straight to 'pay').
+type Step = 'amount' | 'method' | 'pay' | 'sent';
 interface Topup { topupId: string; reference: string; amountRand: number }
 
 const CopyButton: React.FC<{ value: string; label: string }> = ({ value, label }) => {
@@ -62,13 +65,22 @@ const DetailRow: React.FC<{ label: string; value: string; strong?: boolean }> = 
 );
 
 // "Add money" to the wallet by bank transfer: choose an amount, get Tutorlage's bank details and the reference to type in the bank app, then
-// upload the proof of payment (private storage, then the database is told). The CEO checks his bank and credits the wallet by hand.
+// upload the proof of payment (private storage, then the database is told). A person checks the bank and credits the wallet by hand.
+// PAY BY BANK, INSTANT (9 Nov 2026, src/lib/walletOnline.ts): when the database says it is open for this person (wallet_online_available(): the platform
+// setting wallet_online_mode is `on`, or `staff` and this person is listed), the amount is followed by a choice of two ways to pay. The bank transfer
+// above is one of them, exactly as before, and it is the only way shown when the choice is not open, the database or Worker lacks the feature, or anything fails.
 export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, payerId, suggestedRand = null, resume = null, onChanged }) => {
   const [details, setDetails] = useState<PaymentDetails | null>(null);
   const [detailsLoaded, setDetailsLoaded] = useState(false);
   const [step, setStep] = useState<Step>('amount');
   const [amountText, setAmountText] = useState('');
   const [topup, setTopup] = useState<Topup | null>(null);
+  // Pay by bank, instant: is the choice open for this person; the amount chosen; the online top-up if starting its payment failed (so "try again" reuses it);
+  // and "on the way to the bank" (buttons stay off until the page has gone).
+  const [onlineAvailable, setOnlineAvailable] = useState(false);
+  const [chosenRand, setChosenRand] = useState(0);
+  const [onlineTopup, setOnlineTopup] = useState<CreatedOnlineTopup | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -89,11 +101,18 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
     setTopup(resume);
     setStep(resume ? 'pay' : 'amount');
     setAmountText('');
+    setOnlineAvailable(false);
+    setChosenRand(0);
+    setOnlineTopup(null);
+    setRedirecting(false);
     setDetailsLoaded(false);
     let cancelled = false;
-    fetchPaymentDetails(walletDb).then((d) => {
+    // Both questions are asked together and answered together, so the amount step never changes under the person's hands. A person finishing a top-up
+    // that is waiting for its proof (`resume`) is never offered the choice.
+    Promise.all([fetchPaymentDetails(walletDb), resume ? Promise.resolve(false) : fetchOnlineAvailable(walletDb)]).then(([d, online]) => {
       if (cancelled) return;
       setDetails(d);
+      setOnlineAvailable(!!d && online);
       setDetailsLoaded(true);
       if (d && !resume) {
         const prefill = suggestedTopup(suggestedRand, d.minRand, d.maxRand);
@@ -106,6 +125,19 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
     // `resume` and `suggestedRand` are read when the window opens, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  // Coming back from the bank's page with the browser's Back button can show this window again exactly as it was left: let go of the "on the way" state.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setRedirecting(false);
+        busyRef.current = false;
+        setBusy(false);
+      }
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -131,12 +163,48 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
       setError(parsed.message);
       return;
     }
+    // Pay by bank, instant is open for this person: ask how they want to pay before anything is created.
+    if (onlineAvailable) {
+      setError(null);
+      setChosenRand(parsed.rand);
+      setStep('method');
+      return;
+    }
     void run(async () => {
       const created = await createTopup(walletDb, parsed.rand);
       setTopup(created);
       setStep('pay');
       onChanged?.();
     }, 'Could not start the top-up.');
+  };
+
+  // The second choice: the usual bank transfer with proof (unchanged), for the amount chosen.
+  const handleChooseTransfer = () => {
+    void run(async () => {
+      const created = await createTopup(walletDb, chosenRand);
+      setTopup(created);
+      setStep('pay');
+      onChanged?.();
+    }, 'Could not start the top-up.');
+  };
+
+  // The first choice: make the online top-up (the database checks the amount and the limits), ask the Worker to start the payment, go to the bank's page.
+  // If starting fails, the same top-up is tried again; the person can also choose the bank transfer instead.
+  const handlePayByBank = () => {
+    void run(async () => {
+      const created = onlineTopup ?? (await createOnlineTopup(walletDb, chosenRand));
+      setOnlineTopup(created);
+      onChanged?.();
+      const started = await startOnlinePayment(onlineRequest, created.topupId);
+      if (!('redirectUrl' in started)) {
+        setError(started.message);
+        // a top-up the Worker has closed cannot be tried again: the next try makes a fresh one
+        if (started.rowClosed) setOnlineTopup(null);
+        return;
+      }
+      setRedirecting(true);
+      goToBankPage(started.redirectUrl);
+    }, 'Could not start the payment.');
   };
 
   const handlePickFile = async (picked: File | null) => {
@@ -199,9 +267,15 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
             ) : (
               <>
                 <PilotNotice />
-                <p className="text-xs text-slate-600">
-                  You add money by bank transfer. Choose how much, from {rand0(details.minRand)} to {rand0(details.maxRand)}. We then show you where to pay and the reference to use.
-                </p>
+                {onlineAvailable ? (
+                  <p className="text-xs text-slate-600">
+                    Choose how much to add, from {rand0(details.minRand)} to {rand0(details.maxRand)}. Next you choose how to pay.
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-600">
+                    You add money by bank transfer. Choose how much, from {rand0(details.minRand)} to {rand0(details.maxRand)}. We then show you where to pay and the reference to use.
+                  </p>
+                )}
                 <label className="block">
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Amount (rand)</span>
                   <div className="mt-1 flex items-center bg-white rounded-xl px-3 border border-slate-200 focus-within:ring-2 focus-within:ring-[#15803D]/20">
@@ -219,6 +293,41 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
                 </label>
               </>
             )
+          ) : step === 'method' ? (
+            <>
+              <p className="text-xs text-slate-600">
+                Adding <span className="font-bold text-[#0F172A]">{rand0(chosenRand)}</span> to your wallet. {ONLINE_COPY.chooseHeading}
+              </p>
+              <div className="space-y-2" role="group" aria-label={ONLINE_COPY.chooseHeading}>
+                <button
+                  type="button"
+                  onClick={handlePayByBank}
+                  disabled={busy || redirecting}
+                  data-pay-online
+                  className="w-full text-left bg-white rounded-2xl border-2 border-[#15803D]/40 hover:border-[#15803D] disabled:opacity-60 px-4 py-3 cursor-pointer"
+                >
+                  <span className="block text-sm font-extrabold text-[#0F172A]">{ONLINE_COPY.onlineTitle}</span>
+                  <span className="block text-xs text-slate-600 mt-0.5">{ONLINE_COPY.onlineBody}</span>
+                  {onlineTopup && !redirecting && !busy && <span className="block text-[11px] font-bold text-[#15803D] mt-1">{ONLINE_COPY.tryAgain}</span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleChooseTransfer}
+                  disabled={busy || redirecting}
+                  data-pay-transfer
+                  className="w-full text-left bg-white rounded-2xl border border-slate-200 hover:border-slate-400 disabled:opacity-60 px-4 py-3 cursor-pointer"
+                >
+                  <span className="block text-sm font-extrabold text-[#0F172A]">{ONLINE_COPY.manualTitle}</span>
+                  <span className="block text-xs text-slate-600 mt-0.5">{ONLINE_COPY.manualBody}</span>
+                </button>
+              </div>
+              {(busy || redirecting) && (
+                <div role="status" className="flex items-center gap-2 text-xs font-semibold text-slate-600" data-opening-bank>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>{redirecting ? ONLINE_COPY.opening : 'One moment…'} {redirecting ? ONLINE_COPY.openingHelp : ''}</span>
+                </div>
+              )}
+            </>
           ) : step === 'pay' && topup ? (
             <>
               <PilotNotice />
@@ -274,6 +383,15 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
                 {busy ? 'One moment…' : 'Continue'}
               </button>
             </>
+          )}
+          {step === 'method' && (
+            <button
+              onClick={() => { setError(null); setOnlineTopup(null); setStep('amount'); }}
+              disabled={busy || redirecting}
+              className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-[#0F172A] cursor-pointer"
+            >
+              Change the amount
+            </button>
           )}
           {step === 'pay' && (
             <>

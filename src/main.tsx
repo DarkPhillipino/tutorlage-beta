@@ -42,6 +42,7 @@ const CreateAccount = lazyRoute(() => import('./pages/CreateAccount.tsx'));
 const ForgotPassword = lazyRoute(() => import('./pages/ForgotPassword.tsx'));
 const ResetPassword = lazyRoute(() => import('./pages/ResetPassword.tsx'));
 const PaymentCallback = lazyRoute(() => import('./pages/PaymentCallback.tsx'));
+const TopupReturn = lazyRoute(() => import('./pages/TopupReturn.tsx'));
 const AuthCallback = lazyRoute(() => import('./pages/AuthCallback.tsx'));
 const AccountClosed = lazyRoute(() => import('./pages/AccountClosed.tsx'));
 const LegalPage = lazyRoute(() => import('./pages/LegalPage.tsx'));
@@ -91,6 +92,9 @@ createRoot(document.getElementById('root')!).render(
               sign-in meant a student whose session had lapsed during checkout
               was bounced to /login and the payment was never recorded. */}
           <Route path="/payment/callback" element={<PaymentCallback />} />
+          {/* Where the bank's page sends a payer back after Pay by bank, instant. Public so it loads even if the session is slow to come back; it shows a
+              sign-in button when nobody is signed in, and it only READS the payer's own top-up (it can never credit anything). */}
+          <Route path="/wallet/topup-return" element={<TopupReturn />} />
           {/* Video rooms (master 7bm), switched off with FEATURES.videoRooms until the CEO says so. */}
           {FEATURES.videoRooms && (
             <>

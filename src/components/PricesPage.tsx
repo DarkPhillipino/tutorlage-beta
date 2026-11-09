@@ -343,17 +343,18 @@ export const PricesPage: React.FC<PricesPageProps> = ({
         requestedTutorId: bookAgain?.tutorId ?? null,
       });
 
+      // `&request=<id>` in the confirmation address only says WHICH of the payer's own requests that page should watch (the database decides whether it is theirs).
       if (freeOpen) {
         // No card check: the database makes the request visible to tutors, and the confirmation page says so.
         await sendMyRequestFree(created.id);
-        window.location.href = siteUrl('/payment/callback?free=1');
+        window.location.href = siteUrl(`/payment/callback?free=1&request=${created.id}`);
         return;
       }
 
       if (walletMode) {
         // The price goes on hold in the wallet and the request becomes visible to tutors; no card is involved.
         await sendMyRequestWallet(created.id);
-        window.location.href = siteUrl('/payment/callback?wallet=1');
+        window.location.href = siteUrl(`/payment/callback?wallet=1&request=${created.id}`);
         return;
       }
 

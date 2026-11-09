@@ -234,6 +234,32 @@ export default function App() {
     window.scrollTo({ top: 0 });
   };
 
+  // Back from the bank's page (src/pages/TopupReturn.tsx, "Go to your wallet") arrives as /?view=wallet: open the wallet once and drop the word from the
+  // address, so a reload does not do it again.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('view') !== 'wallet') return;
+    params.delete('view');
+    const rest = params.toString();
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`);
+    openWalletPage();
+    // Once, when the app first opens; `openWalletPage` only sets state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // "View my sessions" on the request waiting screen (src/pages/PaymentCallback.tsx) arrives as /?view=sessions: open the Sessions & history page once and
+  // drop the word from the address (a separate effect from the wallet one above, which is left exactly as it was).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('view') !== 'sessions') return;
+    params.delete('view');
+    const rest = params.toString();
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`);
+    openSessionsPage();
+    // Once, when the app first opens; `openSessionsPage` only sets state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleOpenNotification = (notification: AppNotification) => {
     const target = notificationTarget(notification.type);
     if (target === 'wallet') openWalletPage();

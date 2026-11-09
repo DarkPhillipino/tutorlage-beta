@@ -6,6 +6,7 @@ import { useWalletOpen, walletDb } from '../lib/walletHooks';
 import { formatSaDateTime } from '../lib/saTime';
 import { waitingLine } from '../lib/topupNotice';
 import { AddMoneyModal } from './AddMoneyModal';
+import { OnlineTopupActions } from './OnlineTopupActions';
 import { PilotNotice } from './PilotNotice';
 import { TutorWalletPanel } from './TutorWalletPanel';
 import { WalletHistory } from './WalletHistory';
@@ -125,6 +126,7 @@ const LearnerWallet: React.FC<{ userId: string }> = ({ userId }) => {
                 </button>
               )}
               {t.status === 'proof_sent' && <p className="text-[11px] text-slate-500">{WALLET_COPY.proofSentLine}</p>}
+              {t.status === 'awaiting_payment' && t.method === 'online' && <OnlineTopupActions topupId={t.id} onChanged={() => setVersion((v) => v + 1)} />}
             </div>
           ))
         )}

@@ -31,6 +31,11 @@ export const WALLET_COPY = {
   moneyIsForLessons: 'Money in your wallet is for lessons. To take it out, contact support.',
   uploadHelp: 'After you pay, upload the proof of payment your bank gives you (PDF, JPG or PNG, up to 5 MB). Send the bank\'s proof as it is, and nothing else.',
   bankIntro: 'Pay this amount from your banking app. Use the reference exactly as shown, so we can find your payment.',
+  // A top-up paid on the bank's own page (pay by bank, instant; src/lib/walletOnline.ts). The stored comment is never shown for these.
+  onlineWaiting: 'Waiting for your bank',
+  onlinePaid: 'Paid by bank and added to your wallet',
+  onlineNotCompleted: 'The payment did not go through. Nothing was added to your wallet.',
+  onlineCancelled: 'Cancelled. Nothing was added to your wallet.',
   // The CEO's wording for the tutor (the database's own notice says the same).
   payoutSent: (rand: number) => `Your request was sent. You could receive ${rand0(rand)} within one business day. If you do not, contact support with the Help button at the top of the page.`,
   payoutOpenNote: 'Your payout request is waiting to be paid. You can ask again, and change your bank details, once it is paid.',
@@ -90,12 +95,16 @@ export interface PaymentDetails {
   capRand: number;
 }
 export interface Balance { available: number; held: number }
-export type TopupStatus = 'awaiting_proof' | 'proof_sent' | 'successful' | 'unsuccessful' | 'cancelled';
+// 'awaiting_payment' is an online top-up (pay by bank, instant; src/lib/walletOnline.ts) whose payment is not finished yet.
+export type TopupStatus = 'awaiting_proof' | 'proof_sent' | 'awaiting_payment' | 'successful' | 'unsuccessful' | 'cancelled';
+// 'eft' = the bank transfer with proof (checked by a person); 'online' = paid on the bank's own page. A row without a method counts as 'eft'.
+export type TopupMethod = 'eft' | 'card' | 'online';
 export interface Topup {
   id: string;
   reference: string;
   amountRand: number;
   status: TopupStatus;
+  method: TopupMethod;
   receivedRand: number | null;
   comment: string | null;
   createdAt: string;
@@ -180,7 +189,7 @@ export async function fetchInFlight(db: WalletClient, profileId: string): Promis
   try {
     const [wallet, topups, payouts] = await Promise.all([
       db.from('wallets').select('available_rand, held_rand').eq('profile_id', profileId).maybeSingle(),
-      db.from('wallet_topups').select('id').eq('profile_id', profileId).in('status', ['awaiting_proof', 'proof_sent']).limit(1),
+      db.from('wallet_topups').select('id').eq('profile_id', profileId).in('status', ['awaiting_proof', 'proof_sent', 'awaiting_payment']).limit(1),
       db.from('payout_requests').select('id').eq('tutor_id', profileId).eq('status', 'requested').limit(1),
     ]);
     const money = !wallet.error && wallet.data && (asNumber(wallet.data.available_rand) > 0 || asNumber(wallet.data.held_rand) > 0);
@@ -193,7 +202,7 @@ export async function fetchInFlight(db: WalletClient, profileId: string): Promis
 export async function fetchTopups(db: WalletClient, profileId: string, limit = 20): Promise<Topup[]> {
   const { data, error } = await db
     .from('wallet_topups')
-    .select('id, reference, amount_rand, status, received_rand, decision_comment, created_at, decided_at, proof_attached_at')
+    .select('id, reference, amount_rand, status, method, received_rand, decision_comment, created_at, decided_at, proof_attached_at')
     .eq('profile_id', profileId)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -203,6 +212,7 @@ export async function fetchTopups(db: WalletClient, profileId: string, limit = 2
     reference: asString(r.reference),
     amountRand: asNumber(r.amount_rand),
     status: r.status as TopupStatus,
+    method: (r.method === 'online' ? 'online' : r.method === 'card' ? 'card' : 'eft') as TopupMethod,
     receivedRand: r.received_rand == null ? null : asNumber(r.received_rand),
     comment: r.decision_comment == null ? null : asString(r.decision_comment),
     createdAt: asString(r.created_at),
@@ -355,8 +365,19 @@ export async function sendProof(db: WalletClient, payerId: string, topupId: stri
 }
 
 // ---- words for the lists --------------------------------------------------------------------------------------------------------------------
-export function topupStatusLine(t: Pick<Topup, 'status' | 'comment' | 'receivedRand' | 'amountRand'>): string {
+export function topupStatusLine(t: Pick<Topup, 'status' | 'comment' | 'receivedRand' | 'amountRand'> & { method?: TopupMethod }): string {
+  // An online top-up (paid on the bank's own page) is worded on its own and never shows the stored comment, which is for our records.
+  if (t.method === 'online') {
+    switch (t.status) {
+      case 'awaiting_payment': return WALLET_COPY.onlineWaiting;
+      case 'successful': return WALLET_COPY.onlinePaid;
+      case 'unsuccessful': return WALLET_COPY.onlineNotCompleted;
+      case 'cancelled': return WALLET_COPY.onlineCancelled;
+      default: return '';
+    }
+  }
   switch (t.status) {
+    case 'awaiting_payment': return WALLET_COPY.onlineWaiting;
     case 'awaiting_proof': return 'Waiting for your proof of payment';
     case 'proof_sent': return WALLET_COPY.proofSentUsually;
     case 'successful': return t.receivedRand != null && t.receivedRand !== t.amountRand ? `Added to your wallet: ${rand0(t.receivedRand)} received` : 'Added to your wallet';
