@@ -12,6 +12,7 @@ import {loadCurrencySymbols} from './lib/currencies.ts';
 import {BASE_PATH} from './lib/siteUrl.ts';
 import {installGlobalErrorLogging, setErrorSender} from './lib/errorLog.ts';
 import {sendClientError} from './lib/errorLogSender.ts';
+import {rememberPromoCodeFromUrl} from './lib/promoCode.ts';
 // Side-effect import: initializes i18next before anything renders.
 import './lib/i18n.ts';
 // Ignore missing type declarations for CSS side-effect import
@@ -22,6 +23,10 @@ import './index.css';
 // page load, to the database's log_client_error. If the database does not have it yet, sending switches itself off quietly.
 setErrorSender(sendClientError);
 installGlobalErrorLogging();
+
+// PROMO CODES (CEO, 5 Nov 2026): a link tutorlage.com/?code=XYZ lands on the start page, which sends a signed-out visitor to the sign-in page and drops the
+// query string. The code is taken from the address first and remembered (30 days) for the sign-up form.
+rememberPromoCodeFromUrl();
 
 // Fire-and-forget: components render with the built-in ZAR fallback until
 // this resolves, so it doesn't need to block first paint.

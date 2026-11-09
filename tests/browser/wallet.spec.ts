@@ -128,7 +128,8 @@ test('signed-in student, wallet open: chip -> Wallet page (balance, on hold, top
   await dialog.getByLabel('Proof of payment').setInputFiles({ name: 'proof.png', mimeType: 'image/png', buffer: PNG_BYTES });
   await dialog.getByRole('button', { name: 'Send proof of payment' }).click();
   await expect(dialog.locator('[data-proof-sent]')).toBeVisible();
-  await expect(dialog.getByText(/could receive your money within one business day/)).toBeVisible();
+  // The older "We check transfers by hand. You could receive your money within one business day..." is retired (9 Nov 2026): the pilot notice holds the time.
+  await expect(dialog.getByText(/business day/)).toHaveCount(0);
   await expect(dialog.getByText(/Help button at the top of the page/)).toBeVisible();
 
   const upload = seen.findIndex((s) => s.startsWith('POST') && s.includes(`/storage/v1/object/payment-proofs/${ME}/${TOPUP}.png`));

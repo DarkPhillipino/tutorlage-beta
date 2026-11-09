@@ -10,6 +10,7 @@ import { groupWaitlistDemand, WaitlistDemand } from './waitlistDemand';
 import { countKeepOrSwap, KeepOrSwapCounts } from './keepOrSwapCounts';
 import { ClientErrorsResult, RawClientErrorRow, isMissingTable, mapClientError } from './clientErrors';
 import { countHowPaid, requestWasMatched, requestWasSent } from './paymentStatus';
+import { settingRow } from './settingRow';
 
 // Every admin mutation below calls this alongside its main write — the
 // admin_audit_logs.action enum names exactly what needs logging
@@ -381,8 +382,10 @@ export async function fetchPayoutBatches(): Promise<PayoutBatch[]> {
 // --- Payments needing a person (backlogs 7a and 7z) ---
 //
 // Split payments settle automatically, so there are no payout runs to do; what
-// needs a person is the exceptions the database flags. RLS: "Admins manage
-// session requests".
+// needs a person is the exceptions the database flags. A read only: RLS policy
+// "Admins read session requests" (migration 20261104210100; before it, "Admins
+// manage session requests"). The admin app never writes session_requests or
+// sessions directly; money moves through the audited admin_* functions.
 export async function fetchPaymentsNeedingAttention(): Promise<PaymentAttentionItem[]> {
   const { data, error } = await supabase
     .from('session_requests')
@@ -469,10 +472,13 @@ export async function fetchSystemSettings(): Promise<SystemSetting[]> {
   }));
 }
 
-export async function upsertSystemSetting(key: string, value: unknown, adminId: string, description?: string): Promise<void> {
+// RLS lets every active admin reach this table, but a trigger (migration 20261104210000) lets only a super admin change a non-wallet
+// setting; a `wallet_` setting stays with the finance manager and the super admin (trigger wallet_settings_guard). Called without a
+// description, the saved description is left alone (settingRow.ts); pass null to clear it on purpose.
+export async function upsertSystemSetting(key: string, value: unknown, adminId: string, description?: string | null): Promise<void> {
   const { error } = await supabase
     .from('system_settings')
-    .upsert({ setting_key: key, setting_value: value, description: description ?? null, last_updated_by: adminId, updated_at: new Date().toISOString() });
+    .upsert(settingRow(key, value, adminId, description));
   if (error) throw error;
 
   // admin_audit_logs.target_entity_id is a uuid column, but system_settings

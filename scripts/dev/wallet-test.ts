@@ -55,12 +55,12 @@ const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 async function main() {
   // ---- the words (the CEO's, adapted to the top-up) ----
-  check('a learner who sent proof is told: could receive the money within one business day, if not contact support with the Help button at the top', /could receive your money within one business day/.test(WALLET_COPY.proofSentLine) && /contact support by clicking the Help button at the top of the page/.test(WALLET_COPY.proofSentLine));
+  check('a learner who sent proof is told to contact support with the Help button at the top if it takes too long, and no second waiting time is promised (the older "within one business day" sentence is retired, 9 Nov; the time lives in the pilot notice)', /contact support by clicking the Help button at the top of the page/.test(WALLET_COPY.proofSentLine) && !/business day|hours|working day/i.test(WALLET_COPY.proofSentLine) && !/business day|hours|working day/i.test(WALLET_COPY.proofSentUsually));
   check('the tutor is told: could receive R640 within one business day, otherwise contact support with the Help button at the top', WALLET_COPY.payoutSent(640) === 'Your request was sent. You could receive R640 within one business day. If you do not, contact support with the Help button at the top of the page.');
   check('the wallet page says money is for lessons and a withdrawal goes through support', /for lessons/.test(WALLET_COPY.moneyIsForLessons) && /contact support/.test(WALLET_COPY.moneyIsForLessons));
   check('every top-up state has plain words, and "not received" carries the CEO\'s comment',
     topupStatusLine({ status: 'awaiting_proof', comment: null, receivedRand: null, amountRand: 200 }) === 'Waiting for your proof of payment'
-    && /usually within one business day/.test(topupStatusLine({ status: 'proof_sent', comment: null, receivedRand: null, amountRand: 200 }))
+    && topupStatusLine({ status: 'proof_sent', comment: null, receivedRand: null, amountRand: 200 }) === 'Proof sent. A person is checking your transfer.'
     && topupStatusLine({ status: 'successful', comment: null, receivedRand: 200, amountRand: 200 }) === 'Added to your wallet'
     && topupStatusLine({ status: 'successful', comment: 'Short by R20', receivedRand: 180, amountRand: 200 }) === 'Added to your wallet: R180 received'
     && topupStatusLine({ status: 'unsuccessful', comment: 'No payment with that reference', receivedRand: null, amountRand: 200 }) === 'Not received: No payment with that reference'
@@ -207,7 +207,7 @@ async function main() {
   // ---- the screens, read as source ----
   const prices = code('src/components/PricesPage.tsx');
   check('the booking page asks whether the wallet is open and works only in rand', /useWalletOpen\(\)/.test(prices) && /walletOpen && !freeOpen && selectedLevel\?\.currencyCode\.trim\(\) === 'ZAR'/.test(prices));
-  check('enough in the wallet: the button reads "Pay R180 from your wallet"', /`Pay \$\{rand0\(price\)\} from your wallet`/.test(prices) && /\(!walletMode \|\| walletEnough\) && \(/.test(prices));
+  check('enough in the wallet: the button reads "Pay R180 from your wallet"', /`Pay \$\{rand0\(payPrice\)\} from your wallet`/.test(prices) && /\(!walletMode \|\| walletEnough\) && \(/.test(prices));
   check('a wallet request is sent through send_request_wallet and returns BEFORE the card check; the free branch is still first', (() => {
     const free = prices.indexOf('await sendMyRequestFree(created.id)');
     const wal = prices.indexOf('await sendMyRequestWallet(created.id)');
@@ -215,7 +215,7 @@ async function main() {
     return free > 0 && wal > free && card > wal && /sendMyRequestWallet\(created\.id\);[\s\S]{0,160}return;/.test(prices);
   })());
   check('while the wallet is short the request is never created (the handler stops before createSessionRequest)', prices.indexOf('if (walletMode && !walletEnough) return;') > 0 && prices.indexOf('if (walletMode && !walletEnough) return;') < prices.indexOf('await createSessionRequest('));
-  check('short or empty: the box shows the shortfall sentence and "Add money" prefilled with what is missing', /WalletPayBox/.test(prices) && /suggestedRand=\{wallet\.state\.status === 'ready' \? shortfall\(price, wallet\.state\.available\) : null\}/.test(prices) && /shortfallSentence\(price, state\.available\)/.test(code('src/components/WalletPayBox.tsx')) && />\s*Add money\s*</.test(code('src/components/WalletPayBox.tsx')));
+  check('short or empty: the box shows the shortfall sentence and "Add money" prefilled with what is missing', /WalletPayBox/.test(prices) && /suggestedRand=\{wallet\.state\.status === 'ready' \? shortfall\(payPrice, wallet\.state\.available\) : null\}/.test(prices) && /shortfallSentence\(price, state\.available\)/.test(code('src/components/WalletPayBox.tsx')) && />\s*Add money\s*</.test(code('src/components/WalletPayBox.tsx')));
   check('the card wording, the free wording and the "payments are not open" notice are still there, and the notice stays while the wallet is closed', /You'll pay/.test(prices) && /FREE_FOR_NOW_NOTICE/.test(prices) && /PAYMENTS_NOT_OPEN && !freeOpen && !walletMode && \(/.test(prices) && /initializePayment/.test(prices));
   check('the wallet does not touch the Paystack code or the Worker', !/wallet/i.test(read('server/index.ts')) && !/wallet/i.test(read('src/lib/payments.ts')) && !/wallet/i.test(read('src/components/PayoutAccountPanel.tsx')));
   const callback = code('src/pages/PaymentCallback.tsx');

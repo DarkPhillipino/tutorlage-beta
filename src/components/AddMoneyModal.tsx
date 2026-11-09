@@ -14,6 +14,8 @@ import {
 } from '../lib/wallet';
 import { walletDb } from '../lib/walletHooks';
 import { getErrorMessage } from '../lib/errors';
+import { waitingLine } from '../lib/topupNotice';
+import { PilotNotice } from './PilotNotice';
 
 interface AddMoneyModalProps {
   isOpen: boolean;
@@ -71,12 +73,15 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
   const [fileError, setFileError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // When the proof was sent in this window ("Sent 14:05 SAST, waiting for a person to check it" on the last step).
+  const [sentAt, setSentAt] = useState<string | null>(null);
   const busyRef = useRef(false);
 
   // Each time the window opens: start again (at the upload when a waiting top-up was chosen) and read the bank details and limits.
   useEffect(() => {
     if (!isOpen) return;
     setError(null);
+    setSentAt(null);
     setFile(null);
     setFileError(null);
     setBusy(false);
@@ -147,6 +152,7 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
     if (!topup || !file) return;
     void run(async () => {
       await sendProof(walletDb, payerId, topup.topupId, file);
+      setSentAt(new Date().toISOString());
       setStep('sent');
       onChanged?.();
     }, 'Could not send your proof of payment.');
@@ -192,6 +198,7 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
               <p role="status" className="text-sm text-slate-600">Adding money is not available right now. Please try again later.</p>
             ) : (
               <>
+                <PilotNotice />
                 <p className="text-xs text-slate-600">
                   You add money by bank transfer. Choose how much, from {rand0(details.minRand)} to {rand0(details.maxRand)}. We then show you where to pay and the reference to use.
                 </p>
@@ -214,6 +221,7 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
             )
           ) : step === 'pay' && topup ? (
             <>
+              <PilotNotice />
               <p className="text-xs text-slate-600">{WALLET_COPY.bankIntro}</p>
               <div className="bg-white rounded-2xl border border-slate-200 px-4 py-1">
                 <DetailRow label="Amount" value={rand0(topup.amountRand)} strong />
@@ -240,6 +248,9 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h4 className="text-base font-extrabold text-[#0F172A]">Proof of payment sent</h4>
+              <p data-waiting-line className="text-xs font-bold text-[#0F172A]">{waitingLine(sentAt)}</p>
+              {/* The one place the waiting time is written (9 Nov 2026): the older "within one business day" sentence is retired. */}
+              <div className="text-left"><PilotNotice /></div>
               <p className="text-xs text-slate-600">{WALLET_COPY.proofSentLine}</p>
             </div>
           )}

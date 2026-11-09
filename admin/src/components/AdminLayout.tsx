@@ -1,8 +1,9 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { ShieldCheck, AlertTriangle, Users, Banknote, Settings, ScrollText, LogOut, BarChart3, GraduationCap, Layers, BookCheck, Library, Bug, ShieldAlert, UserX, Bell } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Users, Banknote, Settings, ScrollText, LogOut, BarChart3, GraduationCap, Layers, BookCheck, Library, Bug, ShieldAlert, UserX, Bell, Lightbulb, TicketPercent } from 'lucide-react';
 import { useAdminAuth } from '../lib/AuthContext';
 import { AdminRole } from '../types';
+import { SuggestionsNavBadge } from './SuggestionsNavBadge';
 
 interface NavItem {
   to: string;
@@ -12,6 +13,8 @@ interface NavItem {
   // just "don't show a super_admin-only screen to a support_agent," not a
   // security boundary. See CLAUDE.md's note on role-based nav vs role-based RLS.
   roles: AdminRole[];
+  // Draws the unread count of new suggestions beside the label (the Suggestions page).
+  badge?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -24,8 +27,10 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/tier1', label: 'Tier 1 Route', icon: GraduationCap, roles: ['verification_officer', 'super_admin'] },
   { to: '/school-results', label: 'School Results', icon: GraduationCap, roles: ['verification_officer', 'super_admin'] },
   { to: '/disputes', label: 'Disputes', icon: AlertTriangle, roles: ['support_agent', 'super_admin'] },
+  { to: '/suggestions', label: 'Suggestions', icon: Lightbulb, roles: ['support_agent', 'super_admin'], badge: true },
   { to: '/users', label: 'Users', icon: Users, roles: ['support_agent', 'verification_officer', 'super_admin'] },
   { to: '/payouts', label: 'Payments', icon: Banknote, roles: ['finance_manager', 'super_admin'] },
+  { to: '/codes', label: 'Codes', icon: TicketPercent, roles: ['finance_manager', 'super_admin'] },
   { to: '/settings', label: 'System Settings', icon: Settings, roles: ['super_admin'] },
   { to: '/errors', label: 'Errors', icon: Bug, roles: ['super_admin'] },
   { to: '/audit-log', label: 'Audit Log', icon: ScrollText, roles: ['support_agent', 'verification_officer', 'finance_manager', 'super_admin'] },
@@ -58,6 +63,7 @@ export const AdminLayout: React.FC = () => {
             >
               <item.icon className="w-4 h-4 shrink-0" />
               {item.label}
+              {item.badge && <SuggestionsNavBadge />}
             </NavLink>
           ))}
         </nav>

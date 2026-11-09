@@ -4,8 +4,10 @@ import { WALLET_COPY, rand0, shortfallSentence } from '../lib/wallet';
 import type { BalanceState } from '../lib/walletHooks';
 
 interface WalletPayBoxProps {
-  // The price of this request in whole rands (what the database will put on hold).
+  // The price of this request in whole rands (what the database will put on hold; with a promo code, the price after the discount).
   price: number;
+  // PROMO CODES (CEO, 5 Nov 2026): "10% code applied: R252 (lesson 1 of 3)", shown above the price when a code applies. null = no code applies.
+  promoLine?: string | null;
   state: BalanceState;
   onAddMoney: () => void;
   onRetry: () => void;
@@ -13,7 +15,7 @@ interface WalletPayBoxProps {
 
 // The wallet's part of the booking page (CEO, 2 Nov 2026): enough money -> what will happen to it (the button under it says "Pay R180 from
 // your wallet"); not enough, or empty -> the balance, how much is missing and the "Add money" button. The request is not created while short.
-export const WalletPayBox: React.FC<WalletPayBoxProps> = ({ price, state, onAddMoney, onRetry }) => {
+export const WalletPayBox: React.FC<WalletPayBoxProps> = ({ price, promoLine = null, state, onAddMoney, onRetry }) => {
   if (state.status === 'loading' || state.status === 'closed') {
     return (
       <div role="status" data-wallet-pay className="flex items-center justify-center mb-5 text-slate-400">
@@ -42,6 +44,7 @@ export const WalletPayBox: React.FC<WalletPayBoxProps> = ({ price, state, onAddM
         Your wallet: {rand0(state.available)}
       </div>
       {state.held > 0 && <p className="text-[11px] text-slate-500">{rand0(state.held)} is on hold for your other requests.</p>}
+      {promoLine && <p data-promo-applied className="text-xs font-extrabold text-[#15803D]">{promoLine}</p>}
       {enough ? (
         <>
           <p className="text-xs text-slate-600">

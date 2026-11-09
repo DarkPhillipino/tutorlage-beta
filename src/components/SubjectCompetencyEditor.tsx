@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Plus, Trash2, GraduationCap, AlertCircle, Info } from 'lucide-react';
 import { TutorSubjectCompetency } from '../types';
 import { addTutorSubjectCompetency, deleteTutorSubjectCompetency, fetchSubjectSuggestions, fetchGradeLevelSuggestions, logSubjectCandidate, fetchSubjectReviewNotes } from '../lib/queries';
 import { getErrorMessage } from '../lib/errors';
 import { competencyStatus, rejectedReasonLine, subjectAddedLine, subjectStatusLabel } from '../lib/subjectApproval';
+import { capsGradeBand } from '../lib/subjectGradeDefaults';
 
 // The colours of the status shown beside each subject (waiting, approved, not approved).
 const STATUS_STYLE = {
@@ -60,6 +61,8 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
   const [curriculum, setCurriculum] = useState(CURRICULUM_OPTIONS[0].value);
   const [minGradeLevel, setMinGradeLevel] = useState('');
   const [maxGradeLevel, setMaxGradeLevel] = useState('');
+  // True once the tutor has moved a grade box herself; until then a Grade R to 9 subject sets the boxes to the grades CAPS teaches it in.
+  const [gradesTouched, setGradesTouched] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +88,35 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
         setGradeLevelOptions([]);
       });
   }, []);
+
+  // The grade boxes follow a CAPS Grade R to 9 subject until the tutor moves one herself: the subject sets its own grades, and any other
+  // subject (or a clear box, or adding it) puts the boxes back to what they were before. Tutorlage still approves the grades that are saved.
+  const beforeBand = useRef<{ min: string; max: string } | null>(null);
+  const restoreGrades = () => {
+    if (!beforeBand.current) return;
+    setMinGradeLevel(beforeBand.current.min);
+    setMaxGradeLevel(beforeBand.current.max);
+    beforeBand.current = null;
+  };
+  const handleSubjectChange = (value: string) => {
+    setSubjectName(value);
+    if (gradesTouched || gradeLevelOptions.length === 0) return;
+    const band = capsGradeBand(value, gradeLevelOptions);
+    if (band) {
+      if (!beforeBand.current) beforeBand.current = { min: minGradeLevel, max: maxGradeLevel };
+      setMinGradeLevel(band.min);
+      setMaxGradeLevel(band.max);
+    } else {
+      restoreGrades();
+    }
+  };
+  const moveGrade = (which: 'min' | 'max', value: string) => {
+    setGradesTouched(true);
+    beforeBand.current = null;
+    if (which === 'min') setMinGradeLevel(value);
+    else setMaxGradeLevel(value);
+  };
+  const appliedBand = gradesTouched ? null : capsGradeBand(subjectName, gradeLevelOptions);
 
   const handleAdd = async () => {
     setError(null);
@@ -117,6 +149,8 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
       });
       onChange([...subjects, competency]);
       setSubjectName('');
+      setGradesTouched(false);
+      restoreGrades();
 
       if (!isKnownSubject) {
         logSubjectCandidate(tutorId, trimmedName, curriculum).catch((e) =>
@@ -196,7 +230,7 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
             type="text"
             list="subject-options"
             value={subjectName}
-            onChange={(e) => setSubjectName(e.target.value)}
+            onChange={(e) => handleSubjectChange(e.target.value)}
             placeholder="e.g. Mathematics, or type a new subject"
             className="flex-1 min-w-[8rem] bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
           />
@@ -218,7 +252,7 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
         <div className="flex items-center gap-2 flex-wrap">
           <select
             value={minGradeLevel}
-            onChange={(e) => setMinGradeLevel(e.target.value)}
+            onChange={(e) => moveGrade('min', e.target.value)}
             className="flex-1 min-w-[7rem] bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20 cursor-pointer"
           >
             {gradeLevelOptions.map((g) => (
@@ -228,7 +262,7 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
           <span className="text-xs text-slate-400">to</span>
           <select
             value={maxGradeLevel}
-            onChange={(e) => setMaxGradeLevel(e.target.value)}
+            onChange={(e) => moveGrade('max', e.target.value)}
             className="flex-1 min-w-[7rem] bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20 cursor-pointer"
           >
             {gradeLevelOptions.map((g) => (
@@ -244,6 +278,16 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
             Add
           </button>
         </div>
+        {appliedBand && (
+          <p className="text-[10px] text-slate-500">
+            CAPS teaches this subject in {appliedBand.min} to {appliedBand.max}. Change the grades if you teach fewer.
+          </p>
+        )}
+        {curriculum === 'primary_caps' && (
+          <p className="text-[10px] text-slate-500">
+            Choose CAPS if you teach learners at any school. Primary CAPS only matches learners at schools listed as primary schools.
+          </p>
+        )}
       </div>
 
       {error && (

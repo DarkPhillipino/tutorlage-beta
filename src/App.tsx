@@ -14,6 +14,8 @@ import { ScheduleModal } from './components/ScheduleModal';
 import { SuggestionDetailModal } from './components/SuggestionDetailModal';
 import { ManageAccountModal } from './components/ManageAccountModal';
 import { Footer } from './components/Footer';
+import { PlatformSuggestionBox } from './components/PlatformSuggestionBox';
+import { suggestionDb } from './lib/suggestionDb';
 import { LearnersPanel } from './components/LearnersPanel';
 import { SchoolResultsPanel } from './components/SchoolResultsPanel';
 import { SessionsHistoryPage } from './components/SessionsHistoryPage';
@@ -530,6 +532,14 @@ export default function App() {
         )}
 
       </main>
+
+      {/* Suggestions box (CEO, 5 Nov 2026): on both sides since 9 Nov 2026 (the learn page and the Teach page), for a signed-in person only, just above the footer.
+          Not on the wallet, sessions, prices, tiers or about screens. One component and one 5-a-day limit for both. */}
+      {(view === 'home' || view === 'teach') && user && (
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
+          <PlatformSuggestionBox userId={user.id} client={suggestionDb} />
+        </div>
+      )}
 
       {/* Footer */}
       <Footer />

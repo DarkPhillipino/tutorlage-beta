@@ -19,6 +19,8 @@ import { FREE_FOR_NOW_DETAIL, FREE_FOR_NOW_NOTICE } from '../lib/freeSessions';
 import { sendMyRequestFree, useFreeSessionsOpen } from '../lib/freeSessionsHooks';
 import { sendMyRequestWallet, useWalletBalance, useWalletOpen } from '../lib/walletHooks';
 import { WalletRefusal, rand0, shortfall, walletPrice } from '../lib/wallet';
+import { promoQuoteLine } from '../lib/promoCode';
+import { usePromoQuote } from '../lib/promoHooks';
 import { AddMoneyModal } from './AddMoneyModal';
 import { WalletPayBox } from './WalletPayBox';
 import { siteUrl } from '../lib/siteUrl';
@@ -284,7 +286,12 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   const wallet = useWalletBalance(user?.id, walletMode);
   const [addMoneyOpen, setAddMoneyOpen] = useState(false);
   const price = chargedAmount === null ? 0 : walletPrice(chargedAmount);
-  const walletEnough = walletMode && wallet.state.status === 'ready' && price > 0 && wallet.state.available >= price;
+  // PROMO CODES (CEO, 5 Nov 2026): a parent whose account carries a code, with lessons left, pays 10 percent less on their first 3 lessons. The database
+  // works the price out (my_promo_quote) with the same arithmetic it uses to put the money on hold; the tutor's pay does not change. Shown before sending:
+  // "10% code applied: R252 (lesson 1 of 3)". Wallet payments only; every doubt (no code, an old database, an error) means the full price.
+  const promo = usePromoQuote(walletMode, price);
+  const payPrice = promo ? promo.payRand : price;
+  const walletEnough = walletMode && wallet.state.status === 'ready' && payPrice > 0 && wallet.state.available >= payPrice;
 
   // Creates the request (payment_status 'initiated', invisible to tutors),
   // then hands off to Paystack's hosted checkout for the R1 card check that
@@ -695,7 +702,8 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   <>
                     {walletMode ? (
                       <WalletPayBox
-                        price={price}
+                        price={payPrice}
+                        promoLine={promo ? promoQuoteLine(promo) : null}
                         state={wallet.state}
                         onAddMoney={() => setAddMoneyOpen(true)}
                         onRetry={wallet.reload}
@@ -746,7 +754,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                       {isSending
                         ? (freeOpen || walletMode ? 'Sending your request…' : 'Redirecting to secure checkout…')
                         : walletMode
-                          ? `Pay ${rand0(price)} from your wallet`
+                          ? `Pay ${rand0(payPrice)} from your wallet`
                           : `${freeOpen ? 'Send request' : 'Save card & send request'}${bookAgain ? ` to ${bookAgain.firstName}` : ''}${learner ? ` for ${learner.firstName}` : ''}`}
                     </button>
                     )}
@@ -768,7 +776,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
             wallet.reload();
           }}
           payerId={user.id}
-          suggestedRand={wallet.state.status === 'ready' ? shortfall(price, wallet.state.available) : null}
+          suggestedRand={wallet.state.status === 'ready' ? shortfall(payPrice, wallet.state.available) : null}
           onChanged={wallet.reload}
         />
       )}

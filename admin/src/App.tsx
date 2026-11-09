@@ -20,6 +20,8 @@ import { ClientErrors } from './pages/ClientErrors';
 import { SafetyHolds } from './pages/SafetyHolds';
 import { AccountClosures } from './pages/AccountClosures';
 import { Notifications } from './pages/Notifications';
+import { Suggestions } from './pages/Suggestions';
+import { PromoCodes } from './pages/PromoCodes';
 import { AlertRunner } from './components/AlertRunner';
 
 export default function App() {
@@ -54,6 +56,8 @@ export default function App() {
         <Route path="safety-holds" element={<SafetyHolds />} />
         <Route path="account-closures" element={<AccountClosures />} />
         <Route path="notifications" element={<Notifications />} />
+        <Route path="suggestions" element={<Suggestions />} />
+        <Route path="codes" element={<PromoCodes />} />
       </Route>
     </Routes>
     </>

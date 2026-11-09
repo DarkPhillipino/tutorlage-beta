@@ -94,8 +94,9 @@ export const SuggestionsGrid: React.FC<SuggestionsGridProps> = ({ onSelectSugges
       
       {/* Section Header */}
       <div className="flex items-center justify-between mb-6">
+        {/* "Ways to learn" (5 Nov 2026): the word "Suggestions" now belongs to the Suggestions box (PlatformSuggestionBox) lower on this page. */}
         <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
-          Suggestions
+          Ways to learn
         </h2>
         <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
           {SUGGESTIONS_LIST.length} Formats Available

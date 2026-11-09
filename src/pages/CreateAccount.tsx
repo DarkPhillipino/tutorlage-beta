@@ -12,6 +12,8 @@ import { signupConfirmationRedirect } from '../lib/authRedirects';
 import { MIN_PASSWORD_LENGTH, describeSignUpFault, noteSendStarted, signupResendKey, validateNewPassword } from '../lib/authHelpers';
 import { logClientError } from '../lib/errorLog';
 import { ResendConfirmation } from '../lib/ResendConfirmation';
+import { forgetPromoCode, promoCheckMessage, promoSignupMetadata, recallPromoCode } from '../lib/promoCode';
+import { usePromoCodeCheck } from '../lib/promoHooks';
 
 const inputClass = 'w-full bg-slate-100 text-[#0F172A] placeholder-slate-400 text-sm font-semibold px-4 py-3.5 rounded-xl border border-transparent focus:outline-none focus:border-[#15803D] focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 transition-all';
 const labelClass = 'block text-xs font-bold text-slate-500 mb-1.5';
@@ -33,6 +35,11 @@ export default function CreateAccount() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [accepted, setAccepted] = useState(false);
+  // PROMO CODES (CEO, 5 Nov 2026): optional, for the people who pay (parents and learners). Pre-filled from a link tutorlage.com/?code=XYZ (remembered by
+  // src/main.tsx before any redirect). A wrong code never blocks the sign-up: it is told in one line and sent along anyway, so an admin can see it.
+  const [promoCode, setPromoCode] = useState(() => (role === 'tutor' ? '' : recallPromoCode() ?? ''));
+  const promoCheck = usePromoCodeCheck(role === 'tutor' ? '' : promoCode);
+  const promoMessage = promoCheckMessage(promoCheck);
   const [versions, setVersions] = useState<PolicyVersions | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +109,9 @@ export default function CreateAccount() {
           phone_number: phoneNumber,
           role,
           date_of_birth: dateOfBirth,
+          // The database attaches a valid code to the new account (or keeps what was typed for an admin). It travels in the sign-up metadata, so
+          // it survives the e-mail confirmation step.
+          ...(role !== 'tutor' ? promoSignupMetadata(promoCode) : {}),
           ...(versions && {
             accepted_terms_version: versions.termsVersion,
             accepted_privacy_version: versions.privacyVersion,
@@ -126,6 +136,9 @@ export default function CreateAccount() {
       );
       return;
     }
+
+    // The account has the code now (or the typed text): the link's remembered code has done its job.
+    forgetPromoCode();
 
     if (data.session) {
       navigate('/', { replace: true });
@@ -264,6 +277,28 @@ export default function CreateAccount() {
                   <label className={labelClass} htmlFor="confirmPassword">Confirm password</label>
                   <PasswordInput id="confirmPassword" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" className={inputClass} />
                 </div>
+
+                {role !== 'tutor' && (
+                  <div data-promo-code>
+                    <label className={labelClass} htmlFor="promoCode">Code (optional)</label>
+                    <input
+                      id="promoCode"
+                      type="text"
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      maxLength={40}
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value)}
+                      placeholder="If someone gave you a code"
+                      className={inputClass}
+                    />
+                    {promoMessage && (
+                      <p role="status" data-promo-message={promoMessage.tone} className={`text-[11px] mt-1.5 leading-relaxed font-semibold ${promoMessage.tone === 'good' ? 'text-[#15803D]' : 'text-slate-600'}`}>
+                        {promoMessage.text}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Legal spec §1: never pre-ticked; the account can't be created without it. */}
                 <label className="flex items-start space-x-2.5 text-sm text-slate-600 cursor-pointer pt-1">

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, CheckCircle2, XCircle, ShieldCheck, AlertCircle } from 'lucide-react';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, Loader2, CheckCircle2, XCircle, ShieldCheck, AlertCircle } from 'lucide-react';
+import { findNextTutor } from '../lib/verificationQueueExtras';
+import { TutorSubjectsReviewCard } from '../components/TutorSubjectsReviewCard';
 import { fetchTutorVerificationDetail, reviewDocument, approveTutor, rejectTutor, recordDateOfBirth } from '../lib/queries';
 import { useAdminAuth } from '../lib/AuthContext';
 import { TutorVerificationDetail as TutorDetail, DocumentType } from '../types';
@@ -28,10 +30,20 @@ function ageFrom(isoDate: string): number {
 }
 
 
+// One tutor at a time. After a decision the admin lands on the next tutor with documents waiting (same component, new tutor), so the page is
+// keyed on the tutor: everything typed for the last tutor (reasons, date of birth, errors) is dropped, never carried to the next one.
 export const TutorVerificationDetail: React.FC = () => {
   const { tutorId } = useParams<{ tutorId: string }>();
+  return <TutorVerificationDetailPage key={tutorId} />;
+};
+
+const TutorVerificationDetailPage: React.FC = () => {
+  const { tutorId } = useParams<{ tutorId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const notice = (location.state as { notice?: string } | null)?.notice ?? null;
   const { adminProfile } = useAdminAuth();
+  const [isSkipping, setIsSkipping] = useState(false);
   const [tutor, setTutor] = useState<TutorDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
@@ -112,13 +124,28 @@ export const TutorVerificationDetail: React.FC = () => {
     }
   };
 
+  // After a decision, or on "Next tutor": open the longest-waiting tutor with a document to review (lib/verificationQueueOrder.ts), else the queue.
+  const goToNext = async (done: string | null) => {
+    if (!tutorId) return;
+    const next = await findNextTutor(tutorId);
+    const lead = done ? `${done} ` : '';
+    if (next) navigate(`/verification/${next.id}`, { state: { notice: `${lead}Now showing ${next.name}, the tutor who has waited longest.` } });
+    else navigate('/verification', { state: { notice: `${lead}Nobody else has documents waiting.` } });
+  };
+
+  const handleSkip = async () => {
+    setIsSkipping(true);
+    await goToNext(null);
+    setIsSkipping(false);
+  };
+
   const handleApprove = async () => {
     if (!tutorId || !adminProfile) return;
     setError(null);
     setIsFinalizing(true);
     try {
       await approveTutor(tutorId, adminProfile.id);
-      navigate('/verification');
+      await goToNext(`${tutor?.name ?? 'The tutor'} was approved.`);
     } catch (e) {
       // The database refuses an approval without an ID document and a current police clearance certificate (migration 20261020180000).
       setError(describeApprovalError(e, 'Could not approve this tutor.'));
@@ -137,7 +164,7 @@ export const TutorVerificationDetail: React.FC = () => {
     setIsFinalizing(true);
     try {
       await rejectTutor(tutorId, adminProfile.id, rejectReason);
-      navigate('/verification');
+      await goToNext(`${tutor?.name ?? 'The tutor'} was not approved.`);
     } catch (e) {
       setError(getErrorMessage(e, 'Could not reject this tutor.'));
     } finally {
@@ -207,10 +234,29 @@ export const TutorVerificationDetail: React.FC = () => {
 
   return (
     <div className="max-w-2xl">
-      <Link to="/verification" className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-600 hover:text-[#0F172A] mb-4">
-        <ArrowLeft className="w-4 h-4" />
-        Back to queue
-      </Link>
+      <div className="flex items-center justify-between mb-4">
+        <Link to="/verification" className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-600 hover:text-[#0F172A]">
+          <ArrowLeft className="w-4 h-4" />
+          Back to queue
+        </Link>
+        <button
+          type="button"
+          onClick={handleSkip}
+          disabled={isSkipping || isFinalizing}
+          className="inline-flex items-center gap-1.5 text-sm font-bold text-[#15803D] hover:underline disabled:opacity-50 cursor-pointer"
+        >
+          {isSkipping ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+          Next tutor to review
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {notice && (
+        <div className="flex items-center gap-1.5 mb-4 text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" role="status">
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          {notice}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 mb-4">
         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -323,22 +369,6 @@ export const TutorVerificationDetail: React.FC = () => {
       <TutorLevelCard tutorId={tutor.id} documents={tutor.documents} />
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 mb-4">
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Subjects Claimed</h2>
-        {tutor.subjects.length === 0 ? (
-          <p className="text-xs text-slate-500">None added yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {tutor.subjects.map((s, idx) => (
-              <div key={idx} className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#0F172A]">{s.subjectName} ({s.minGradeLevel}–{s.maxGradeLevel})</span>
-                <span className="text-slate-400 capitalize">{s.verificationStatus ?? 'pending'}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 mb-4">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Documents</h2>
         <AccessLogNote show={logNotActive} />
         {tutor.documents.length > 0 && (
@@ -359,6 +389,10 @@ export const TutorVerificationDetail: React.FC = () => {
           onReview={handleDocReview}
         />
       </div>
+
+      {/* Replaces the read-only "Subjects Claimed" list: the same subjects, with the Subject approvals checklist right here, below the documents the
+          admin has just looked at (burst-readiness, 4 Nov 2026). */}
+      <TutorSubjectsReviewCard tutorId={tutor.id} />
 
       {viewerKey !== null && viewerDocs.length > 0 && (
         <DocumentViewer

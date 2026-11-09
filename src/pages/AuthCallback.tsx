@@ -4,6 +4,8 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { takePendingOAuthRole } from '../lib/oauth';
 import { convertNewAccountRole } from '../lib/queries';
+import { claimRememberedPromoCode } from '../lib/promoCode';
+import { promoDb } from '../lib/promoHooks';
 
 // Where Google sends the browser back after OAuth (see signInWithGoogle in
 // src/lib/oauth.ts). Supabase's client library exchanges the auth code for
@@ -57,6 +59,10 @@ export default function AuthCallback() {
           console.error('convertNewAccountRole failed:', e);
         }
       }
+
+      // PROMO CODES (CEO, 5 Nov 2026): a Google sign-up has no form to carry a code, so the one the link brought is claimed now (new accounts only; the
+      // database refuses anything else). Never blocks the sign-in.
+      await claimRememberedPromoCode(promoDb);
 
       navigate('/', { replace: true });
     };

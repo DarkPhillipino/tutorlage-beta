@@ -24,9 +24,10 @@ export interface WalletClient {
 
 // ---- the words -------------------------------------------------------------------------------------------------------------------------------
 export const WALLET_COPY = {
-  // The CEO's wording for a learner who has sent proof (adapted: the money is added to the wallet once the transfer is checked).
-  proofSentLine: 'We check transfers by hand. You could receive your money within one business day. If not, please contact support by clicking the Help button at the top of the page.',
-  proofSentUsually: 'Proof sent. We are checking your transfer, usually within one business day.',
+  // A learner who has sent proof (9 Nov 2026): the older "We check transfers by hand. You could receive your money within one business day..." is retired.
+  // The waiting time now lives in ONE place, the pilot notice (topup_pilot_notice, 6 hours by default; src/lib/topupNotice.ts), so no second time is promised here.
+  proofSentLine: 'If it is taking too long, please contact support by clicking the Help button at the top of the page.',
+  proofSentUsually: 'Proof sent. A person is checking your transfer.',
   moneyIsForLessons: 'Money in your wallet is for lessons. To take it out, contact support.',
   uploadHelp: 'After you pay, upload the proof of payment your bank gives you (PDF, JPG or PNG, up to 5 MB). Send the bank\'s proof as it is, and nothing else.',
   bankIntro: 'Pay this amount from your banking app. Use the reference exactly as shown, so we can find your payment.',
@@ -99,6 +100,8 @@ export interface Topup {
   comment: string | null;
   createdAt: string;
   decidedAt: string | null;
+  // When the proof of payment was sent (null while it is still awaited): the time in "Sent 14:05 SAST, waiting for a person to check it".
+  proofSentAt: string | null;
 }
 export type LedgerKind = 'topup' | 'hold' | 'release' | 'charge' | 'refund' | 'session_credit' | 'payout_hold' | 'payout_paid' | 'payout_release' | 'adjustment';
 export interface LedgerLine {
@@ -190,7 +193,7 @@ export async function fetchInFlight(db: WalletClient, profileId: string): Promis
 export async function fetchTopups(db: WalletClient, profileId: string, limit = 20): Promise<Topup[]> {
   const { data, error } = await db
     .from('wallet_topups')
-    .select('id, reference, amount_rand, status, received_rand, decision_comment, created_at, decided_at')
+    .select('id, reference, amount_rand, status, received_rand, decision_comment, created_at, decided_at, proof_attached_at')
     .eq('profile_id', profileId)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -204,6 +207,7 @@ export async function fetchTopups(db: WalletClient, profileId: string, limit = 2
     comment: r.decision_comment == null ? null : asString(r.decision_comment),
     createdAt: asString(r.created_at),
     decidedAt: r.decided_at == null ? null : asString(r.decided_at),
+    proofSentAt: r.proof_attached_at == null ? null : asString(r.proof_attached_at),
   }));
 }
 

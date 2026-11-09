@@ -4,7 +4,9 @@ import { COPY } from '../lib/accountRules';
 import { WALLET_COPY, fetchBalance, fetchLedger, fetchSubjectNames, fetchTopups, rand0, topupStatusLine, type Balance, type LedgerLine, type Topup } from '../lib/wallet';
 import { useWalletOpen, walletDb } from '../lib/walletHooks';
 import { formatSaDateTime } from '../lib/saTime';
+import { waitingLine } from '../lib/topupNotice';
 import { AddMoneyModal } from './AddMoneyModal';
+import { PilotNotice } from './PilotNotice';
 import { TutorWalletPanel } from './TutorWalletPanel';
 import { WalletHistory } from './WalletHistory';
 
@@ -96,6 +98,7 @@ const LearnerWallet: React.FC<{ userId: string }> = ({ userId }) => {
         )}
       </div>
       <p className="text-[11px] text-slate-500 -mt-3">{WALLET_COPY.moneyIsForLessons}</p>
+      {walletOpen && <PilotNotice />}
 
       <div className="space-y-2">
         <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Top-ups</h4>
@@ -108,7 +111,11 @@ const LearnerWallet: React.FC<{ userId: string }> = ({ userId }) => {
                 <div className="text-sm font-bold text-[#0F172A]">{rand0(t.amountRand)}</div>
                 <div className="text-[10px] text-slate-500">{formatSaDateTime(t.createdAt)} · {t.reference}</div>
               </div>
-              <p className={`text-xs ${t.status === 'unsuccessful' ? 'text-rose-700 font-semibold' : 'text-slate-600'}`}>{topupStatusLine(t)}</p>
+              {t.status === 'proof_sent' ? (
+                <p data-waiting-line className="text-xs font-bold text-[#0F172A]">{waitingLine(t.proofSentAt)}</p>
+              ) : (
+                <p className={`text-xs ${t.status === 'unsuccessful' ? 'text-rose-700 font-semibold' : 'text-slate-600'}`}>{topupStatusLine(t)}</p>
+              )}
               {t.status === 'awaiting_proof' && (
                 <button
                   onClick={() => setModal({ open: true, resume: { topupId: t.id, reference: t.reference, amountRand: t.amountRand } })}
