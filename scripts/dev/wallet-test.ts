@@ -206,17 +206,17 @@ async function main() {
 
   // ---- the screens, read as source ----
   const prices = code('src/components/PricesPage.tsx');
-  check('the booking page asks whether the wallet is open and works only in rand', /useWalletOpen\(\)/.test(prices) && /walletOpen && !freeOpen && selectedLevel\?\.currencyCode\.trim\(\) === 'ZAR'/.test(prices));
-  check('enough in the wallet: the button reads "Pay R180 from your wallet"', /`Pay \$\{rand0\(payPrice\)\} from your wallet`/.test(prices) && /\(!walletMode \|\| walletEnough\) && \(/.test(prices));
+  check('the booking page asks whether the wallet is open and works only in rand', /useWalletOpen\(\)/.test(prices) && /walletAvailable = walletOpen && !freeOpen && selectedLevel\?\.currencyCode\.trim\(\) === 'ZAR'/.test(prices));
+  check('enough in the wallet: the button reads "Pay R180 from your wallet"', /`Pay \$\{rand0\(payPrice\)\} from your wallet`/.test(prices) && /\{walletEnough && \(\s*<button\s*onClick=\{\(\) => handleSendRequest\(true\)\}/.test(prices) && /data-wallet-toggle/.test(prices) && /See more/.test(prices) && /useState\(false\)/.test(prices));
   check('a wallet request is sent through send_request_wallet and returns BEFORE the card check; the free branch is still first', (() => {
     const free = prices.indexOf('await sendMyRequestFree(created.id)');
     const wal = prices.indexOf('await sendMyRequestWallet(created.id)');
     const card = prices.indexOf('await initializePayment(reference)');
     return free > 0 && wal > free && card > wal && /sendMyRequestWallet\(created\.id\);[\s\S]{0,160}return;/.test(prices);
   })());
-  check('while the wallet is short the request is never created (the handler stops before createSessionRequest)', prices.indexOf('if (walletMode && !walletEnough) return;') > 0 && prices.indexOf('if (walletMode && !walletEnough) return;') < prices.indexOf('await createSessionRequest('));
+  check('while the wallet is short the request is never created (the handler stops before createSessionRequest)', prices.indexOf('if (useWallet && !(walletMode && walletEnough)) return;') > 0 && prices.indexOf('if (useWallet && !(walletMode && walletEnough)) return;') < prices.indexOf('await createSessionRequest('));
   check('short or empty: the box shows the shortfall sentence and "Add money" prefilled with what is missing', /WalletPayBox/.test(prices) && /suggestedRand=\{wallet\.state\.status === 'ready' \? shortfall\(payPrice, wallet\.state\.available\) : null\}/.test(prices) && /shortfallSentence\(price, state\.available\)/.test(code('src/components/WalletPayBox.tsx')) && />\s*Add money\s*</.test(code('src/components/WalletPayBox.tsx')));
-  check('the card wording, the free wording and the "payments are not open" notice are still there, and the notice stays while the wallet is closed', /You'll pay/.test(prices) && /FREE_FOR_NOW_NOTICE/.test(prices) && /PAYMENTS_NOT_OPEN && !freeOpen && !walletMode && \(/.test(prices) && /initializePayment/.test(prices));
+  check('the card wording, the free wording and the "payments are not open" notice are still there, and the notice stays while the wallet is closed', /You'll pay/.test(prices) && /FREE_FOR_NOW_NOTICE/.test(prices) && /PAYMENTS_NOT_OPEN && !freeOpen && \(/.test(prices) && /initializePayment/.test(prices));
   // Since the online top-up (Ozow, 9 Nov 2026) index.ts has two marked blocks and one import that mount the online-top-up routes; the rest of it must still not mention the wallet.
   const indexWithoutOnlineTopUps = read('server/index.ts').replace(/\/\/ --- ONLINE TOP-UPS: BEGIN[\s\S]*?\/\/ --- ONLINE TOP-UPS: END ---/g, '').replace(/^import .*walletOnline.*$/gm, '');
   check('the wallet does not touch the Paystack code or the Worker (except the marked online top-up wiring)', !/wallet/i.test(indexWithoutOnlineTopUps) && !/wallet/i.test(read('src/lib/payments.ts')) && !/wallet/i.test(read('src/components/PayoutAccountPanel.tsx')));

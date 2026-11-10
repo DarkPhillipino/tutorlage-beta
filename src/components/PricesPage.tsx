@@ -282,7 +282,10 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // from the learner's or parent's wallet instead of a card: enough money -> "Pay R180 from your wallet" (the price goes on hold); not enough ->
   // the balance, what is missing and "Add money". Every doubt (switch off, an error, an old database) means the wallet is closed and nothing here shows.
   const walletOpen = useWalletOpen();
-  const walletMode = walletOpen && !freeOpen && selectedLevel?.currencyCode.trim() === 'ZAR';
+  // 10 Nov 2026 (CEO, Paystack demos): the CARD is the main payment again; the wallet sits behind a collapsed "See more" under it and opens only when pressed.
+  const walletAvailable = walletOpen && !freeOpen && selectedLevel?.currencyCode.trim() === 'ZAR';
+  const [showWallet, setShowWallet] = useState(false);
+  const walletMode = walletAvailable && showWallet;
   const wallet = useWalletBalance(user?.id, walletMode);
   const [addMoneyOpen, setAddMoneyOpen] = useState(false);
   const price = chargedAmount === null ? 0 : walletPrice(chargedAmount);
@@ -298,9 +301,9 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // saves the card (backlog 7a). The server, not this page, confirms it with
   // Paystack on /payment/callback and the database makes the request visible
   // to tutors. The price is charged only when a tutor accepts.
-  const handleSendRequest = async () => {
-    if (PAYMENTS_NOT_OPEN && !freeOpen && !walletMode) return;
-    if (walletMode && !walletEnough) return;
+  const handleSendRequest = async (useWallet = false) => {
+    if (PAYMENTS_NOT_OPEN && !freeOpen && !useWallet) return;
+    if (useWallet && !(walletMode && walletEnough)) return;
     if (sendingRef.current) return;
     if (!user?.email || !selectedLevel || chargedAmount === null) return;
     if (isGuardian && !learner) return;
@@ -351,7 +354,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
         return;
       }
 
-      if (walletMode) {
+      if (useWallet) {
         // The price goes on hold in the wallet and the request becomes visible to tutors; no card is involved.
         await sendMyRequestWallet(created.id);
         window.location.href = siteUrl(`/payment/callback?wallet=1&request=${created.id}`);
@@ -362,7 +365,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
 
       window.location.href = authorizationUrl;
     } catch (e) {
-      setSendError(getErrorMessage(e, walletMode ? 'Could not send your request from your wallet.' : 'Could not start the card check.'));
+      setSendError(getErrorMessage(e, useWallet ? 'Could not send your request from your wallet.' : 'Could not start the card check.'));
       // The wallet changed under us (money spent elsewhere): read it again so the page shows the real shortfall.
       if (e instanceof WalletRefusal) wallet.reload();
       sendingRef.current = false;
@@ -701,15 +704,6 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   </>
                 ) : (
                   <>
-                    {walletMode ? (
-                      <WalletPayBox
-                        price={payPrice}
-                        promoLine={promo ? promoQuoteLine(promo) : null}
-                        state={wallet.state}
-                        onAddMoney={() => setAddMoneyOpen(true)}
-                        onRetry={wallet.reload}
-                      />
-                    ) : (<>
                     {freeOpen ? (
                       <div role="status" data-free-sessions className="mb-5 max-w-sm">
                         <p className="text-sm font-extrabold text-[#15803D] mb-1">{FREE_FOR_NOW_NOTICE}</p>
@@ -733,7 +727,9 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                     <p className="text-[11px] text-slate-500 mb-5 max-w-sm">
                       To save your card, Paystack makes a {getCurrencySymbol(selectedLevel.currencyCode)}1 check now and refunds it straight away.
                     </p>
-                    </>)}
+                    <p data-test-mode className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4 max-w-sm">
+                      Test mode: use a Paystack test card. No real money is taken.
+                    </p>
                     </>)}
                     {searchIsStale && (
                       <p className="text-[11px] font-semibold text-amber-700 mb-3 max-w-sm">
@@ -741,23 +737,55 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                         Press "Update results" on the left, then choose a price again.
                       </p>
                     )}
-                    {PAYMENTS_NOT_OPEN && !freeOpen && !walletMode && (
+                    {PAYMENTS_NOT_OPEN && !freeOpen && (
                       <p role="status" data-payments-not-open className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3 max-w-sm">
                         {PAYMENTS_NOT_OPEN_NOTICE}
                       </p>
                     )}
-                    {(!walletMode || walletEnough) && (
                     <button
-                      onClick={handleSendRequest}
-                      disabled={isSending || (PAYMENTS_NOT_OPEN && !freeOpen && !walletMode)}
+                      onClick={() => handleSendRequest(false)}
+                      disabled={isSending || (PAYMENTS_NOT_OPEN && !freeOpen)}
                       className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
                     >
                       {isSending
-                        ? (freeOpen || walletMode ? 'Sending your request…' : 'Redirecting to secure checkout…')
-                        : walletMode
-                          ? `Pay ${rand0(payPrice)} from your wallet`
-                          : `${freeOpen ? 'Send request' : 'Save card & send request'}${bookAgain ? ` to ${bookAgain.firstName}` : ''}${learner ? ` for ${learner.firstName}` : ''}`}
+                        ? (freeOpen ? 'Sending your request…' : 'Redirecting to secure checkout…')
+                        : `${freeOpen ? 'Send request' : 'Save card & send request'}${bookAgain ? ` to ${bookAgain.firstName}` : ''}${learner ? ` for ${learner.firstName}` : ''}`}
                     </button>
+                    {walletAvailable && (
+                      <div className="mt-4 max-w-sm">
+                        <button
+                          type="button"
+                          data-wallet-toggle
+                          aria-expanded={showWallet}
+                          onClick={() => setShowWallet((v) => !v)}
+                          className="text-xs font-bold text-slate-600 hover:text-[#0F172A] cursor-pointer inline-flex items-center gap-1"
+                        >
+                          See more
+                          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" className={showWallet ? 'rotate-180 transition-transform' : 'transition-transform'}>
+                            <path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                        {showWallet && (
+                          <div className="mt-3">
+                            <WalletPayBox
+                              price={payPrice}
+                              promoLine={promo ? promoQuoteLine(promo) : null}
+                              state={wallet.state}
+                              onAddMoney={() => setAddMoneyOpen(true)}
+                              onRetry={wallet.reload}
+                            />
+                            {walletEnough && (
+                              <button
+                                onClick={() => handleSendRequest(true)}
+                                disabled={isSending}
+                                className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+                              >
+                                {isSending ? 'Sending your request…' : `Pay ${rand0(payPrice)} from your wallet`}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </>
                 )}
