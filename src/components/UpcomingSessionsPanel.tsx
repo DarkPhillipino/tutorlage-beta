@@ -181,7 +181,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                     ? FREE_WAITING_NOTE
                     : walletRequestIds.has(r.id)
                     ? WALLET_COPY.waitingNote
-                    : "Your request is waiting for a tutor to accept it. You're charged only when one does. If nobody accepts in time it ends, and you're not charged."}
+                    : "Your request is waiting for a tutor to accept it."}
                 </p>
                 <CancelSessionControl
                   kind="request"

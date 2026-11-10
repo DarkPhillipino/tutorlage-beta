@@ -12,7 +12,6 @@ import {
   requestStartIso,
 } from '../lib/requestSchedule';
 import { PriceLadder } from './PriceLadder';
-import { chosenLevelLine } from '../lib/ladderCopy';
 import type { LadderRow } from '../lib/ladderCopy';
 import { initializePayment } from '../lib/payments';
 import { FREE_FOR_NOW_DETAIL, FREE_FOR_NOW_NOTICE } from '../lib/freeSessions';
@@ -684,7 +683,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                 <p className="text-sm font-bold text-[#0F172A] mb-1">
                   {bookAgain
                     ? `This request goes to ${bookAgain.firstName}`
-                    : chosenLevelLine(available ? (available.get(selectedLevel.id) ?? 0) : selectedLevel.tutors)}
+                    : `${getCurrencySymbol(selectedLevel.currencyCode)}${formatRate(chargedAmount ?? 0)}`}
                 </p>
                 {isViewOnlyLearner ? (
                   <p className="text-xs text-slate-600 max-w-sm bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
@@ -710,23 +709,6 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                         <p className="text-xs text-slate-500">{FREE_FOR_NOW_DETAIL}</p>
                       </div>
                     ) : (<>
-                    <p className="text-xs text-slate-500 mb-5 max-w-sm">
-                      You'll pay <span className="font-bold text-[#0F172A]">{getCurrencySymbol(selectedLevel.currencyCode)}{formatRate(chargedAmount ?? 0)}</span>,
-                      {bookAgain ? (
-                        <>
-                          {' '}charged to your card only when {bookAgain.firstName} accepts. If {bookAgain.firstName} does not accept in
-                          time, you're never charged and you can send the request to any available tutor in one tap.
-                        </>
-                      ) : (
-                        <>
-                          {' '}charged to your card only when a tutor at this level or above accepts. You'll see who they are before the
-                          session. If nobody accepts in time, you're never charged.
-                        </>
-                      )}
-                    </p>
-                    <p className="text-[11px] text-slate-500 mb-5 max-w-sm">
-                      To save your card, Paystack makes a {getCurrencySymbol(selectedLevel.currencyCode)}1 check now and refunds it straight away.
-                    </p>
                     <p data-test-mode className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4 max-w-sm">
                       Test mode: use a Paystack test card. No real money is taken.
                     </p>

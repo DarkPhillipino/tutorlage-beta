@@ -146,7 +146,7 @@ async function main() {
   check('booking: the wallet check, the button, the shortfall and the top-up suggestion all use the discounted price',
     /payPrice = promo \? promo\.payRand : price/.test(prices) && /available >= payPrice/.test(prices) && /Pay \$\{rand0\(payPrice\)\} from your wallet/.test(prices) && /shortfall\(payPrice, wallet\.state\.available\)/.test(prices));
   check('booking: the line is shown through the wallet box', /promoLine=\{promo \? promoQuoteLine\(promo\) : null\}/.test(prices));
-  check('booking: the card path is untouched (the card text still names the full price)', /You'll pay <span[^>]*>\{getCurrencySymbol\(selectedLevel\.currencyCode\)\}\{formatRate\(chargedAmount \?\? 0\)\}/.test(prices));
+  check('booking: the card path is untouched (the heading names the full price only)', /getCurrencySymbol\(selectedLevel\.currencyCode\)\}\$\{formatRate\(chargedAmount \?\? 0\)\}`/.test(prices));
   const hooks = code('src/lib/promoHooks.ts');
   check('hooks: the quote and the sign-up check are bound to the app client; the sign-up check waits for typing to stop', /usePromoQuote/.test(hooks) && /usePromoCodeCheck/.test(hooks) && /setTimeout\(/.test(hooks) && /clearTimeout/.test(hooks));
   check('the database calls are the ones the migration makes: check_promo_code, attach_my_promo_code, my_promo_quote', ['check_promo_code', 'attach_my_promo_code', 'my_promo_quote'].every((f) => code('src/lib/promoCode.ts').includes(`'${f}'`) && read('supabase/migrations/20261105200100_promo_codes.sql').includes(`function public.${f}(`)));

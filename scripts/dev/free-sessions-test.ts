@@ -63,7 +63,7 @@ async function main() {
   const freeBranch = prices.indexOf('await sendMyRequestFree(created.id)');
   const cardCall = prices.indexOf('await initializePayment(reference)');
   check('a free request is sent through send_request_free, returns, and never reaches the card check', freeBranch > 0 && cardCall > freeBranch && /sendMyRequestFree\(created\.id\);[\s\S]{0,160}return;/.test(prices));
-  check('the page says "Free for now" and does not name a price or a card check in free mode', /\{freeOpen \? \([\s\S]{0,300}FREE_FOR_NOW_NOTICE[\s\S]{0,200}\) : \(<>[\s\S]{0,400}You'll pay/.test(prices) && /PAYMENTS_NOT_OPEN && !freeOpen && \(/.test(prices));
+  check('the page says "Free for now" and does not name a price or a card check in free mode', /\{freeOpen \? \([\s\S]{0,300}FREE_FOR_NOW_NOTICE[\s\S]{0,200}\) : \(<>[\s\S]{0,400}data-test-mode/.test(prices) && /PAYMENTS_NOT_OPEN && !freeOpen && \(/.test(prices));
   const callback = code('src/pages/PaymentCallback.tsx');
   check('the confirmation page for a free request needs no card check and says "Free for now"', /searchParams\.get\('free'\) === '1'/.test(callback) && /FREE_FOR_NOW_NOTICE/.test(callback));
 

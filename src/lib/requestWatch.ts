@@ -224,7 +224,7 @@ export const WATCH_COPY = {
   // One line per way of paying.
   waitingWallet: 'The price is on hold in your wallet. If nobody accepts in time, it goes straight back.',
   waitingFree: `${FREE_FOR_NOW_NOTICE} If nobody accepts in time, the request ends.`,
-  waitingCard: 'Your card is charged only when a tutor accepts. If nobody accepts in time, the request ends and you are not charged.',
+  waitingCard: 'Your request is waiting for a tutor to accept it.',
   bookedTitle: 'Your session is booked',
   bookedLead: (tutorName: string) => `${tutorName} accepted your request.`,
   bookedMeeting: 'Open My sessions for your tutor and, closer to the time, the meeting link.',
