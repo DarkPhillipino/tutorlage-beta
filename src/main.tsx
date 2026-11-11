@@ -13,6 +13,7 @@ import {BASE_PATH} from './lib/siteUrl.ts';
 import {installGlobalErrorLogging, setErrorSender} from './lib/errorLog.ts';
 import {sendClientError} from './lib/errorLogSender.ts';
 import {rememberPromoCodeFromUrl} from './lib/promoCode.ts';
+import {countCodeOpenFromUrl} from './lib/foundingCount.ts';
 // Side-effect import: initializes i18next before anything renders.
 import './lib/i18n.ts';
 // Ignore missing type declarations for CSS side-effect import
@@ -27,6 +28,8 @@ installGlobalErrorLogging();
 // PROMO CODES (CEO, 5 Nov 2026): a link tutorlage.com/?code=XYZ lands on the start page, which sends a signed-out visitor to the sign-in page and drops the
 // query string. The code is taken from the address first and remembered (30 days) for the sign-up form.
 rememberPromoCodeFromUrl();
+// The same address's ?code= is also counted (the Codes page's "opens"), with the founding page's own counter and the same random visitor id.
+countCodeOpenFromUrl();
 
 // Fire-and-forget: components render with the built-in ZAR fallback until
 // this resolves, so it doesn't need to block first paint.
@@ -47,6 +50,7 @@ const AuthCallback = lazyRoute(() => import('./pages/AuthCallback.tsx'));
 const AccountClosed = lazyRoute(() => import('./pages/AccountClosed.tsx'));
 const LegalPage = lazyRoute(() => import('./pages/LegalPage.tsx'));
 const AboutPublic = lazyRoute(() => import('./pages/AboutPublic.tsx'));
+const FoundingTutors = lazyRoute(() => import('./pages/FoundingTutors.tsx'));
 const GuardedApp = lazyRoute(() => import('./pages/guarded.tsx').then((m) => ({default: m.GuardedApp})));
 const GuardedRoom = lazyRoute(() => import('./pages/guarded.tsx').then((m) => ({default: m.GuardedRoom})));
 const GuardedTutorDocuments = lazyRoute(() => import('./pages/guarded.tsx').then((m) => ({default: m.GuardedTutorDocuments})));
@@ -87,6 +91,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/refunds" element={<LegalPage document="refunds" />} />
           <Route path="/delivery" element={<LegalPage document="delivery" />} />
           <Route path="/about" element={<AboutPublic />} />
+          {/* The founding tutors list (CEO, 10 Nov 2026): public, kept out of search results (pageMeta.ts) and linked from nowhere on the site. */}
+          <Route path="/teach" element={<FoundingTutors />} />
           {/* Public on purpose: the page only asks server/index.ts to verify the
               reference, and the server records the result. Gating it behind
               sign-in meant a student whose session had lapsed during checkout

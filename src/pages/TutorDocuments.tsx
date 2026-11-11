@@ -4,6 +4,8 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { onboardingStage, useTutorOnboarding } from '../lib/useTutorOnboarding';
 import { TutorOnboardingFlow } from '../components/TutorOnboardingGate';
+import { useFoundingGate } from '../lib/foundingGateHooks';
+import { gateBlocksTutorSide } from '../lib/foundingList';
 
 // Master 7cx: the same second and third sign-up pages, opened from the reminder on the Teach screen. Only for tutors
 // who still have something to do (a tutor that existed before the feature goes straight back to the app).
@@ -11,8 +13,11 @@ export default function TutorDocuments() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const { state, error, reload } = useTutorOnboarding(user?.id ?? null, true);
+  // Founding tutors list: a place that has not opened yet cannot use this page (the Teach screen says why). Open (the gate off) changes nothing.
+  const { gate, loading: gateLoading } = useFoundingGate();
 
   if (profile && profile.role !== 'tutor') return <Navigate to="/" replace />;
+  if (!gateLoading && gateBlocksTutorSide(gate.state)) return <Navigate to="/" replace />;
 
   if (error && !state) {
     return (

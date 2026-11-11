@@ -8,6 +8,7 @@ import { getCurrencySymbol } from '../lib/currencies';
 import type { CloseAccountSetup, ClosureClient, ClosureResult } from '../lib/closeAccount';
 import { CloseAccountSection } from './CloseAccountSection';
 import { TeachingProfilePanel } from './TeachingProfilePanel';
+import { FoundingTeachingGate } from './FoundingGate';
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel';
 import type { MyTutor } from '../lib/keepOrSwap';
 import type { BookAgainLearner } from './MyTutorsPanel';
@@ -328,7 +329,8 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
             </div>
           )}
 
-          {activeTab === 'teaching' && <TeachingProfilePanel tutorId={tutorId} />}
+          {/* Founding tutors list (off until the CEO says on): the Teaching tab is not reachable by a place that has not opened. */}
+          {activeTab === 'teaching' && <FoundingTeachingGate><TeachingProfilePanel tutorId={tutorId} /></FoundingTeachingGate>}
 
         </div>
 

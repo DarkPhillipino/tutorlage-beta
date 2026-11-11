@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { getErrorMessage } from '../lib/errors';
 import { POLICE_MAX_AGE_MONTHS, addMonthsIso, formatIsoLong, linkProblem, normaliseLink, policeCertificateProblem, todayIsoSAST } from '../lib/tutorOnboarding';
 import { addLinkDocument, isLinkUrl } from '../lib/tutorOnboardingData';
+import { FoundingDocumentsGate } from './FoundingGate';
 
 // Backlog 7h: tutors upload the documents Tutorlage checks before verifying
 // them — identity, screening clearances (the CEO's 2026-09-30 decision:
@@ -59,7 +60,7 @@ const hostOf = (link: string) => {
   }
 };
 
-export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tutorId }) => {
+const DocumentsPanelBody: React.FC<{ tutorId: string }> = ({ tutorId }) => {
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [documentType, setDocumentType] = useState(DOCUMENT_TYPES[0].value);
@@ -297,3 +298,11 @@ export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tuto
     </div>
   );
 };
+
+// Founding tutors list (CEO, 10 Nov 2026; the gate is off until he says on): a tutor whose place has not opened sees the plain sentence here instead of the upload
+// (the database refuses the upload as well). With the gate off, or if the database cannot say, this is the panel exactly as before.
+export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tutorId }) => (
+  <FoundingDocumentsGate>
+    <DocumentsPanelBody tutorId={tutorId} />
+  </FoundingDocumentsGate>
+);

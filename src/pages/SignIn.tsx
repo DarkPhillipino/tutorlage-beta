@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useFoundingGateOn } from '../lib/foundingGatePublic';
 import { ArrowLeft, Loader2, GraduationCap, BookOpen, AlertCircle, Users } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../lib/AuthContext';
@@ -12,6 +13,8 @@ import { ResendConfirmation } from '../lib/ResendConfirmation';
 
 export default function SignIn() {
   const { role: rawRole } = useParams<{ role: string }>();
+  // Founding tutors list: while its gate is ON, a tutor with no account is sent to the list page instead of the tutor sign-up (off today).
+  const gateOn = useFoundingGateOn();
   const role = parseSignupRole(rawRole);
   const roleLabel = ROLE_LABELS[role];
   const navigate = useNavigate();
@@ -159,9 +162,15 @@ export default function SignIn() {
 
           <p className="text-center text-xs text-slate-500 mt-6">
             New to Tutorlage?{' '}
-            <Link to={`/signup/${role}`} className="font-bold text-[#15803D] hover:underline">
-              Create a {roleLabel} account
-            </Link>
+            {role === 'tutor' && gateOn ? (
+              <Link to="/teach" className="font-bold text-[#15803D] hover:underline">
+                Join the founding tutors list
+              </Link>
+            ) : (
+              <Link to={`/signup/${role}`} className="font-bold text-[#15803D] hover:underline">
+                Create a {roleLabel} account
+              </Link>
+            )}
           </p>
         </div>
 

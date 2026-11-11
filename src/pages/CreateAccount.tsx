@@ -131,7 +131,11 @@ export default function CreateAccount() {
       if (fault?.log) logClientError(signUpError, 'logged');
       setError(
         /database error/i.test(signUpError.message)
-          ? 'We could not create this account. Check your date of birth — tutors and parents must be 18 or older.'
+          ? (role === 'tutor'
+            // Founding tutors list (switch off until the CEO says on): while it is on, a tutor account is refused for someone whose place has not opened, and Supabase
+            // reports that as the same generic database error, so name both likely reasons.
+            ? 'We could not create this tutor account. Tutoring places open in groups: if you have not joined the founding tutors list yet, join it first (tutorlage.com/teach). Otherwise check your date of birth, because tutors must be 18 or older.'
+            : 'We could not create this account. Check your date of birth — tutors and parents must be 18 or older.')
           : fault?.text ?? signUpError.message,
       );
       return;

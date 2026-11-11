@@ -43,6 +43,8 @@ export const PAGE_META: PageMeta[] = [
   { path: '/wallet/topup-return', title: 'Checking your payment | Tutorlage', description: 'Checking that your payment to your Tutorlage wallet has arrived.', index: false },
   { path: '/room', title: 'Video room | Tutorlage', description: 'Tutorlage video room.', index: false },
   { path: '/tutor-documents', title: 'Your documents | Tutorlage', description: 'Add the documents Tutorlage needs to verify a tutor.', index: false },
+  // The founding tutors list (CEO, 10 Nov 2026): kept out of search results and the sitemap; the words never name where tutors come from.
+  { path: '/teach', title: 'Founding tutors list | Tutorlage', description: 'Paid, freelance tutoring on your own hours. Join the list and we will message you when your place opens.', index: false },
 ];
 
 export const NOT_FOUND_META = {

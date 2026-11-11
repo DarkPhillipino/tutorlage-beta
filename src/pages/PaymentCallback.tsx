@@ -132,7 +132,7 @@ export default function PaymentCallback() {
                 : state === 'wallet'
                 ? "Your request is sent. The price is on hold in your wallet. If nobody accepts in time, it goes straight back. We'll let you know when a tutor accepts."
                 : state === 'success'
-                ? "Your request is now visible to qualifying tutors. Your card is charged only when one accepts — we'll let you know. The R1 card check is being refunded."
+                ? "Your request is now visible to qualifying tutors. We'll let you know when one accepts."
                 : "Your payment is confirmed and your request is visible to qualifying tutors — we'll match you as soon as one accepts."}
             </p>
             {!firstLookPending && (

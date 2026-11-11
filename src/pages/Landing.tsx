@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Send, UserCheck, Video, ShieldCheck, GraduationCap, BookOpen } from 'lucide-react';
 import { SUPPORT_EMAIL } from '../lib/businessInfo';
+import { useFoundingGateOn } from '../lib/foundingGatePublic';
 
 // The front door of tutorlage.com for someone who is not signed in. Plain on purpose (CEO, 1 Nov 2026: marketing's copy never arrived and
 // we are told to disregard it): every sentence below states something the app already does, taken from the About page, the Terms and the
@@ -23,7 +24,7 @@ const STEPS = [
   {
     icon: UserCheck,
     title: 'A tutor who fits accepts',
-    body: 'Only a tutor who teaches that subject and grade, and is free at that time, can accept. You are charged only when a tutor accepts. If none does in time, you are not charged.',
+    body: 'Only a tutor who teaches that subject and grade, and is free at that time, can accept.',
   },
   {
     icon: Video,
@@ -49,6 +50,21 @@ const TUTOR_POINTS = [
 const linkButton =
   'inline-flex items-center justify-center px-5 py-3 rounded-xl font-bold text-sm transition-colors';
 
+// The tutor sign-up link. While the founding tutors list's gate is ON (the CEO's switch; off today) it leads to the list page, so nobody makes a tutor account that cannot be
+// used; with the gate off, or if the database cannot say, it is the tutor sign-up exactly as before.
+const BecomeTutor: React.FC<{ className: string }> = ({ className }) => {
+  const gateOn = useFoundingGateOn();
+  return gateOn ? (
+    <Link to="/teach" className={className}>
+      Join the founding tutors list
+    </Link>
+  ) : (
+    <Link to="/signup/tutor" className={className}>
+      Become a tutor
+    </Link>
+  );
+};
+
 export default function Landing() {
   // While the visitor reads, fetch the next pages they are likely to open (the sign-in and sign-up pages, a few kB each) so that a tap on
   // "Sign in or join" still works if the signal drops at that moment. Quiet on failure: it is only a head start.
@@ -71,9 +87,7 @@ export default function Landing() {
           Tutorlage
         </Link>
         <nav aria-label="Account" className="flex items-center gap-3 text-sm font-bold">
-          <Link to="/signup/tutor" className="hidden sm:inline text-[#15803D] hover:underline">
-            Become a tutor
-          </Link>
+          <BecomeTutor className="hidden sm:inline text-[#15803D] hover:underline" />
           <Link to="/login" className={`${linkButton} bg-[#0F172A] hover:bg-slate-800 text-white py-2.5`}>
             Sign in or join
           </Link>
@@ -94,9 +108,7 @@ export default function Landing() {
             <Link to="/login" className={`${linkButton} bg-[#15803D] hover:bg-[#166534] text-white`}>
               Sign in or join
             </Link>
-            <Link to="/signup/tutor" className={`${linkButton} border border-slate-300 bg-white hover:border-[#15803D] text-[#0F172A]`}>
-              Become a tutor
-            </Link>
+            <BecomeTutor className={`${linkButton} border border-slate-300 bg-white hover:border-[#15803D] text-[#0F172A]`} />
           </div>
         </section>
 
@@ -165,9 +177,7 @@ export default function Landing() {
                     <li key={p}>{p}</li>
                   ))}
                 </ul>
-                <Link to="/signup/tutor" className="inline-block mt-4 text-sm font-bold text-[#15803D] hover:underline">
-                  Become a tutor
-                </Link>
+                <BecomeTutor className="inline-block mt-4 text-sm font-bold text-[#15803D] hover:underline" />
               </article>
             </div>
           </div>

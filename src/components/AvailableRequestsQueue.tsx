@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Inbox, Check, X, Loader2, AlertCircle, CheckCircle2, Clock, Heart, FileWarning } from 'lucide-react';
 import { AvailableSessionRequest, PayoutAccount } from '../types';
 import { declineSessionRequest, fetchAvailableRequests, fetchMyPayoutAccount } from '../lib/queries';
+import { noteFirstRequestSeen } from '../lib/tutorFunnel';
 import { acceptRequest } from '../lib/payments';
 import { KEEP_OR_SWAP_COPY, describeKeepOrSwapError } from '../lib/keepOrSwap';
 import { clearanceBanner, describeAcceptError, type ClearanceStatus } from '../lib/clearance';
@@ -61,7 +62,10 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
     setLoadError(false);
     fetchAvailableRequests(tutorId)
       // Requests sent to this tutor first (they have a limited time), then by session time as before.
-      .then((rows) => setRequests([...rows].sort((a, b) => Number(b.sentToYou) - Number(a.sentToYou))))
+      .then((rows) => {
+        if (rows.length > 0) noteFirstRequestSeen();
+        setRequests([...rows].sort((a, b) => Number(b.sentToYou) - Number(a.sentToYou)));
+      })
       .catch((err) => {
         console.error('fetchAvailableRequests failed:', err);
         setRequests([]);

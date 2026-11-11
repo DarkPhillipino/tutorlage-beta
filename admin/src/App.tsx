@@ -22,6 +22,7 @@ import { AccountClosures } from './pages/AccountClosures';
 import { Notifications } from './pages/Notifications';
 import { Suggestions } from './pages/Suggestions';
 import { PromoCodes } from './pages/PromoCodes';
+import { FoundingTutors } from './pages/FoundingTutors';
 import { AlertRunner } from './components/AlertRunner';
 
 export default function App() {
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="notifications" element={<Notifications />} />
         <Route path="suggestions" element={<Suggestions />} />
         <Route path="codes" element={<PromoCodes />} />
+        <Route path="founding" element={<FoundingTutors />} />
       </Route>
     </Routes>
     </>

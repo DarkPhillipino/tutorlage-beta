@@ -8,6 +8,7 @@ import { SuggestionsGrid } from './components/SuggestionsGrid';
 import { PricesPage } from './components/PricesPage';
 import { LevelSelectionPage } from './components/LevelSelectionPage';
 import { TeachGoScreen } from './components/TeachGoScreen';
+import { FoundingTeachGate } from './components/FoundingGate';
 import { AboutPage } from './components/AboutPage';
 import { InstitutionModal } from './components/InstitutionModal';
 import { ScheduleModal } from './components/ScheduleModal';
@@ -456,12 +457,15 @@ export default function App() {
         ) : view === 'about' ? (
           <AboutPage />
         ) : view === 'teach' ? (
-          <TeachGoScreen
-            tutorId={user!.id}
-            onOpenMenu={() => openManageAccount('profile')}
-            onViewTeachingProfile={() => openManageAccount('teaching')}
-            onOpenSessions={openSessionsPage}
-          />
+          // Founding tutors list gate (CEO, 10 Nov 2026; off until he says on): the Teach screen only for a place that has opened or a verified tutor.
+          <FoundingTeachGate>
+            <TeachGoScreen
+              tutorId={user!.id}
+              onOpenMenu={() => openManageAccount('profile')}
+              onViewTeachingProfile={() => openManageAccount('teaching')}
+              onOpenSessions={openSessionsPage}
+            />
+          </FoundingTeachGate>
         ) : view === 'tiers' ? (
           <LevelSelectionPage
             formState={formState}

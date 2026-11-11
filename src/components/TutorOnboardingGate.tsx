@@ -8,6 +8,8 @@ import { getErrorMessage } from '../lib/errors';
 import { type TutorTrack } from '../lib/tutorOnboarding';
 import { chooseTrack } from '../lib/tutorOnboardingData';
 import { type TutorOnboardingState, onboardingStage, useTutorOnboarding } from '../lib/useTutorOnboarding';
+import { useFoundingGate } from '../lib/foundingGateHooks';
+import { gateBlocksTutorSide } from '../lib/foundingList';
 
 // The two pages are loaded only when a tutor actually reaches them, so everyone else (learners, parents, tutors who are
 // finished or were never asked) does not download them; that keeps the first load small for people on prepaid data.
@@ -107,16 +109,19 @@ export const TutorOnboardingFlow: React.FC<FlowProps> = ({ tutorId, state, reloa
 const GateForTutor: React.FC<{ tutorId: string; children: React.ReactNode }> = ({ tutorId, children }) => {
   const { signOut } = useAuth();
   const { state, error, reload } = useTutorOnboarding(tutorId, true);
+  // Founding tutors list (CEO, 10 Nov 2026; the gate is off until he says on): a tutor whose place has not opened is not shown the tutor sign-up pages or the
+  // document upload; the Teach screen tells them why instead (FoundingTeachGate). With the gate off this is "open" and changes nothing.
+  const { gate, loading: gateLoading } = useFoundingGate();
   // Decided once, from the first load, so finishing the last upload does not pull the page away before the tutor
   // has pressed "Submit".
   const [showFlow, setShowFlow] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (state && showFlow === null) {
+    if (state && !gateLoading && showFlow === null) {
       const stage = onboardingStage(state);
-      setShowFlow(stage !== 'not-needed' && stage !== 'complete' && !wasSkipped(tutorId));
+      setShowFlow(!gateBlocksTutorSide(gate.state) && stage !== 'not-needed' && stage !== 'complete' && !wasSkipped(tutorId));
     }
-  }, [state, showFlow, tutorId]);
+  }, [state, showFlow, tutorId, gate.state, gateLoading]);
 
   if (error && !state) {
     return (
