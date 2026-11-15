@@ -8,6 +8,9 @@ import { mayUseCamera } from './cameraRule';
 import { jobSecretMatches, mailerFromEnv, runClosureRounds } from './closeAccount';
 import type { CloseAccountDeps } from './closeAccount';
 import type { IceServer } from './iceServers';
+import { createWalletOnline, mountOnlineRoutes, mountOnlineWebhook } from './walletOnline';
+import { emailForPaystack, plainPaystackMessage } from './paystackEmail';
+import { OZOW_SECRET_NAMES, createOzowProvider, ozowConfigFromEnv } from './ozow';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PORT = Number(process.env.PORT) || 8787;
@@ -59,6 +62,31 @@ const app = express();
 if (process.env.TRUST_PROXY) {
   app.set('trust proxy', Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY);
 }
+
+// --- ONLINE TOP-UPS: BEGIN (pay by bank, phase 2 of 3; server/walletOnline.ts is the logic, server/ozow.ts the only file that knows Ozow) ---
+// The provider's webhook is mounted HERE, before the generic JSON reader below: Ozow signs the exact bytes, and that reader answers 400 or
+// 413 to a body it does not like and parses the rest. The other three routes are mounted near the end of this file.
+// Settings are all-or-nothing: with any Ozow secret missing the online routes answer "not set up" and nothing else changes.
+const ozow = ozowConfigFromEnv(process.env);
+if (!ozow.config && OZOW_SECRET_NAMES.some((k) => process.env[k])) {
+  console.error(`Online payments not configured: missing [${ozow.missing.join(', ')}] problems [${ozow.problems.join('; ')}]`);
+}
+const onlineTopUps = createWalletOnline({
+  db: {
+    rpc: async (name, args) => {
+      const { data, error } = await db.rpc(name, args);
+      return { data, error: error ? { message: error.message, code: error.code } : null };
+    },
+  },
+  userIdFromToken: async (token) => {
+    const { data, error } = await db.auth.getUser(token);
+    return error || !data.user ? null : data.user.id;
+  },
+  providers: ozow.config ? { ozow: createOzowProvider(ozow.config, (url, init) => fetch(url, init)) } : {},
+  jobSecret: process.env.WALLET_JOB_SECRET,
+});
+mountOnlineWebhook(app, onlineTopUps, { rateLimit, unavailable: () => CONFIG_ERROR });
+// --- ONLINE TOP-UPS: END ---
 // JSON request bodies, keeping the exact bytes of each: Paystack signs the raw webhook body, and
 // re-serialised JSON wouldn't match the signature. Written out rather than express.json(), because Express
 // 4's body parser loads iconv-lite, which fails to load on Cloudflare Workers ("require_streams(...) is not
@@ -266,7 +294,7 @@ app.post('/api/payments/initialize', rateLimit(10, 60_000), async (req, res) => 
     const init = await paystack('/transaction/initialize', {
       method: 'POST',
       body: {
-        email: user.email,
+        email: emailForPaystack(user.email),
         amount,
         currency: String(request.currency_code).trim(),
         reference,
@@ -277,7 +305,8 @@ app.post('/api/payments/initialize', rateLimit(10, 60_000), async (req, res) => 
       },
     });
     if (!init.ok) {
-      res.status(502).json({ error: init.body?.message ?? 'Paystack initialize failed' });
+      console.error('Paystack initialize refused:', init.body?.message);
+      res.status(502).json({ error: plainPaystackMessage(init.body?.message) });
       return;
     }
     res.json({ authorizationUrl: init.body.data.authorization_url, reference: init.body.data.reference });
@@ -578,8 +607,8 @@ app.post('/api/tutor/payout-account', rateLimit(5, 60_000), async (req, res) => 
 // --- Accepting a request (backlog 7a) ---
 //
 // The database reserves the request for this tutor and says what to charge (claim_session_request); the
-// saved card is charged with the tutor's subaccount so Paystack pays the tutor's share straight to them,
-// transaction_charge = Tutorlage's commission for the level, bearer = the paystack_fee_bearer setting.
+// saved card is charged to Tutorlage (no subaccount; the tutor is credited at completion),
+// the commission is kept on the request row for Accounting.
 // Success books the session; a decline cancels the request (the learner is told they weren't charged).
 // Anything unclear — a timeout, a bank still authenticating — is left 'charging' and settled by the
 // database's reconcile_stale_charges job, which asks Paystack what happened.
@@ -611,13 +640,12 @@ app.post('/api/requests/:id/accept', rateLimit(20, 60_000), async (req, res) => 
       method: 'POST',
       body: {
         authorization_code: claim.authorization_code,
-        email: claim.email,
+        email: emailForPaystack(claim.email),
         amount: claim.amount_cents,
         currency: claim.currency,
         reference: claim.charge_reference,
-        subaccount: claim.subaccount,
-        transaction_charge: claim.commission_cents,
-        bearer: claim.bearer,
+        // Card per booking (CEO, 15 Nov 2026): no subaccount, no split. The money settles to Tutorlage and the tutor's
+        // share is credited to the tutor at completion.
         metadata: { purpose: 'session_charge', request_id: requestId },
       },
     });
@@ -1396,6 +1424,12 @@ app.post('/api/internal/close-account/run', rateLimit(6, 60_000), async (req, re
     res.status(500).json({ error: 'The closing run failed.' });
   }
 });
+
+// --- ONLINE TOP-UPS: BEGIN (start, check, and the backstop job; the webhook is mounted near the top of this file) ---
+// start-online and check take the payer from their access token. online-check is woken every 5 minutes by the database (pg_cron + net.http_post)
+// with the shared secret WALLET_JOB_SECRET (the same value is the Vault secret wallet_job_secret). It asks Ozow about payments that never got a message.
+mountOnlineRoutes(app, onlineTopUps, { rateLimit });
+// --- ONLINE TOP-UPS: END ---
 
 app.listen(PORT, () => {
   console.log(`Payments API listening on http://localhost:${PORT}`);

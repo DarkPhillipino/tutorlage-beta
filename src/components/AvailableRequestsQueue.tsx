@@ -32,9 +32,8 @@ interface AvailableRequestsQueueProps {
 // session — it stays visible to every other tutor and reappears for this
 // one on next reload.
 //
-// Accepting charges the learner's saved card (backlog 7a), split so the
-// tutor's share goes straight to their payout account — so a tutor needs one
-// before they can accept a paid request.
+// Accepting charges the learner's saved card (backlog 7a). The money settles to Tutorlage and the tutor's
+// share is credited to their wallet at completion (CEO, 15 Nov 2026), so no bank account is needed to accept.
 export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ tutorId, onAccepted }) => {
   const [requests, setRequests] = useState<AvailableSessionRequest[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
@@ -90,7 +89,7 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
 
   const visibleRequests = requests.filter((r) => !dismissedIds.has(r.id));
   // The bank-details box is hidden while payments are not open (CEO, 1 Nov 2026); it returns with payments.
-  const needsPayoutAccount = !PAYMENTS_NOT_OPEN && (payoutAccount === null || (payoutAccount !== undefined && !payoutAccount.canReceivePayments));
+  const needsPayoutAccount = false; // card per booking: a bank account is only needed to withdraw, not to accept (CEO, 15 Nov 2026)
   const banner = clearanceBanner(clearance);
 
   const handleAccept = async (request: AvailableSessionRequest) => {

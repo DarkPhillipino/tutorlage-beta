@@ -28,7 +28,14 @@
     // VIDEO_RELAY_ONLY every room route answers 503 (fails closed). The relay's two secrets (CF_TURN_KEY_ID, CF_TURN_API_TOKEN)
     // are saved as Worker secrets. The database part is migration 20261009200000 (applied to dev 16 Oct).
     "VIDEO_ROOMS_ENABLED": "1",
-    "VIDEO_RELAY_ONLY": "1"
+    "VIDEO_RELAY_ONLY": "1",
+    // Online top-ups, pay by bank (Ozow One API, REDIRECT checkout; phase 2 of 3, 9 Nov 2026). These two are plain variables. The five SECRETS are set by the CEO,
+    // never written here: OZOW_CLIENT_ID, OZOW_CLIENT_SECRET, OZOW_SITE_CODE, OZOW_WEBHOOK_SECRET (all from Ozow) and WALLET_JOB_SECRET (any long random
+    // value; the same value goes in the database's Vault as wallet_job_secret). Until all five exist the online routes answer "not set up".
+    // OZOW_API_BASE: production below; Ozow's staging system (credentials on request) is https://stagingone.ozow.com/v1 and is the only place test payments are accepted.
+    "OZOW_API_BASE": "https://one.ozow.com/v1",
+    // Where the payer lands after Ozow: <this>/wallet/topup-return?topup=<id>. Ozow rejects localhost.
+    "OZOW_RETURN_ORIGIN": "https://tutorlage.com"
   },
   "observability": { "enabled": true }
 }

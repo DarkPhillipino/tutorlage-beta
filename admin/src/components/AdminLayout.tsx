@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { ShieldCheck, AlertTriangle, Users, Banknote, Settings, ScrollText, LogOut, BarChart3, GraduationCap, Layers, BookCheck, Library, Bug, ShieldAlert, UserX, Bell, Lightbulb, TicketPercent, ListChecks } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Users, Banknote, Settings, ScrollText, LogOut, BarChart3, GraduationCap, Layers, BookCheck, Library, Bug, ShieldAlert, UserX, Bell, Lightbulb, TicketPercent, ListChecks, TrendingUp } from 'lucide-react';
 import { useAdminAuth } from '../lib/AuthContext';
 import { AdminRole } from '../types';
 import { SuggestionsNavBadge } from './SuggestionsNavBadge';
@@ -25,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/levels', label: 'Levels', icon: Layers, roles: ['super_admin'] },
   { to: '/curricula', label: 'Curricula', icon: Library, roles: ['super_admin'] },
   { to: '/founding', label: 'Founding tutors', icon: ListChecks, roles: ['verification_officer', 'super_admin'] },
+  { to: '/founding-waves', label: 'Founding waves', icon: TrendingUp, roles: ['verification_officer', 'super_admin'] },
   { to: '/tier1', label: 'Tier 1 Route', icon: GraduationCap, roles: ['verification_officer', 'super_admin'] },
   { to: '/school-results', label: 'School Results', icon: GraduationCap, roles: ['verification_officer', 'super_admin'] },
   { to: '/disputes', label: 'Disputes', icon: AlertTriangle, roles: ['support_agent', 'super_admin'] },

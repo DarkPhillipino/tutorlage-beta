@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2, TicketPercent, Pause, Play, Link2, Pencil, CheckCircle2, AlertTriangle } from 'lucide-react';
 import {
-  EMPTY_CODE_FORM, PROMO_NOT_AVAILABLE, STATUS_WORDS, attachPromoCode, canUsePromoCodes, codeStatus, createPromoCode, exampleLine, fetchPromoCodes, findTutors,
-  formFromRow, parseCodeForm, promoLink, ruleLine, setPromoCodeActive, totalsOf, updatePromoCode, type CodeForm, type PromoAdminClient, type PromoCodeRow,
-  type PromoListResult, type TutorChoice,
+  EMPTY_CODE_FORM, PROMO_NOT_AVAILABLE, STATUS_WORDS, attachPromoCode, canUsePromoCodes, codeStatus, createPromoCode, createTutorCode, exampleLine, fetchPromoCodes, findTutors,
+  formFromRow, makeMissingTutorCodes, parseCodeForm, promoLink, ruleLine, setPromoCodeActive, totalsOf, tutorCodeNotice, updatePromoCode, type CodeForm, type PromoAdminClient,
+  type PromoCodeRow, type PromoListResult, type TutorChoice,
 } from '../lib/promoCodes';
 import { rand0 } from '../lib/walletAdmin';
+import { CodeNumbersBody } from './CodeNumbersBody';
+import { TutorActivationBody } from './TutorActivationBody';
 import type { AdminRole } from '../types';
 
 const inputClass = 'w-full bg-slate-100 text-[#0F172A] placeholder-slate-400 text-sm font-semibold px-3 py-2.5 rounded-xl border border-transparent focus:outline-none focus:border-[#15803D] focus:bg-white';
@@ -103,6 +105,10 @@ export const PromoCodesBody: React.FC<Props> = ({ client, role }) => {
           A code gives a parent a percent off their first lessons (10% off the first 3 by default). The discount comes out of Tutorlage's share: the tutor's pay never
           changes. It is the answer to "who told you about us" without asking anyone.
         </p>
+        <p className="text-sm text-slate-500 max-w-2xl mt-1" data-codes-tutor-note>
+          Every approved tutor also gets a personal code (made on approval, or below). The tutor bonus (a share of the lessons of the families that joined with a tutor's
+          code) is a setting, <span className="font-bold">tutor_bonus_enabled</span> in System Settings, and stays off until the CEO says on.
+        </p>
       </div>
 
       {notice && (
@@ -145,6 +151,8 @@ export const PromoCodesBody: React.FC<Props> = ({ client, role }) => {
         </div>
       )}
 
+      {result?.status === 'ready' && <CodeNumbersBody client={client} />}
+
       {result?.status !== 'forbidden' && result !== null && (
         <section className="bg-white rounded-2xl border border-slate-200 p-5">
           <h2 className="text-sm font-extrabold text-[#0F172A] mb-3">Make a code</h2>
@@ -158,6 +166,10 @@ export const PromoCodesBody: React.FC<Props> = ({ client, role }) => {
           </form>
         </section>
       )}
+
+      {result?.status === 'ready' && <TutorCodeBox client={client} busy={busy} run={run} />}
+
+      {result?.status === 'ready' && <TutorActivationBody client={client} />}
 
       {result?.status === 'ready' && (
         <section>
@@ -175,6 +187,7 @@ export const PromoCodesBody: React.FC<Props> = ({ client, role }) => {
                         <div className="text-base font-extrabold text-[#0F172A]">{c.code}{c.label && <span className="ml-2 text-xs font-bold text-slate-500">{c.label}</span>}</div>
                         <div className="text-xs text-slate-600">{ruleLine(c)} · {c.maxFamilies === null ? 'no cap on families' : `at most ${c.maxFamilies} families`} · {dayText(c.validFrom)} to {c.validUntil ? dayText(new Date(new Date(c.validUntil).getTime() - 1).toISOString()) : 'no end'}</div>
                         {c.referringTutorId && <div className="text-xs text-slate-600">Referring tutor: {c.referringTutorName ?? c.referringTutorId}</div>}
+                        {c.ownerTutorId && <div data-code-owner className="text-xs text-slate-600">Personal code of the tutor {c.ownerTutorName ?? c.ownerTutorId}</div>}
                         <div data-code-status={status} className={`text-xs font-bold mt-1 ${status === 'active' ? 'text-[#15803D]' : 'text-amber-700'}`}>{STATUS_WORDS[status]}</div>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -196,6 +209,13 @@ export const PromoCodesBody: React.FC<Props> = ({ client, role }) => {
                       <Stat label="Given back" value={String(c.lessonsReturned)} />
                       <Stat label="Rand given away" value={rand0(c.randGiven)} extra={c.randBooked > c.randGiven ? `+ ${rand0(c.randBooked - c.randGiven)} booked` : undefined} />
                     </div>
+                    {c.ownerTutorId && (
+                      <div data-code-bonus className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                        <Stat label="Bonus lessons paid" value={String(c.bonusLessons)} />
+                        <Stat label="Bonus paid to the tutor" value={rand0(c.bonusRandPaid)} />
+                        <Stat label="Bonus held back" value={rand0(c.bonusRandHeldBack)} extra="by the R15 floor or the self-referral guard" />
+                      </div>
+                    )}
                     {editing?.id === c.id && (
                       <form onSubmit={(e) => { e.preventDefault(); onSaveEdit(c); }} className="space-y-3 border-t border-slate-100 pt-3" data-codes-edit>
                         <CodeFields form={editing.form} onChange={(form) => setEditing({ ...editing, form })} client={client} tutorName={editing.tutorName} onTutorName={(tutorName) => setEditing({ ...editing, tutorName })} codeEditable={false} />
@@ -291,6 +311,78 @@ const CodeFields: React.FC<{
         </div>
       </div>
     </div>
+  );
+};
+
+// A tutor's personal code by hand (10 Nov 2026): find the tutor, type the name they chose (empty = their first name), press the button; or make one for every verified
+// tutor who has none. The code and its sign-up link appear in the notice at the top. The code cannot be renamed afterwards (it is printed in messages).
+const TutorCodeBox: React.FC<{ client: PromoAdminClient; busy: boolean; run: (a: () => Promise<string | void>) => Promise<void> }> = ({ client, busy, run }) => {
+  const [term, setTerm] = useState('');
+  const [found, setFound] = useState<TutorChoice[] | null>(null);
+  const [chosen, setChosen] = useState<TutorChoice | null>(null);
+  const [name, setName] = useState('');
+  return (
+    <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3" data-codes-tutor>
+      <div>
+        <h2 className="text-sm font-extrabold text-[#0F172A] mb-1">A personal code for a tutor</h2>
+        <p className="text-xs text-slate-500">
+          Made automatically when a tutor is approved, from their first name. Use this for a tutor who chose a name, or who was approved before codes existed. A code cannot be renamed
+          once it is made.
+        </p>
+      </div>
+      <form
+        className="grid grid-cols-1 lg:grid-cols-4 gap-3 items-end"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!chosen) return;
+          run(async () => {
+            const r = await createTutorCode(client, chosen.id, name);
+            setChosen(null);
+            setName('');
+            setTerm('');
+            return tutorCodeNotice(r);
+          });
+        }}
+      >
+        <div className="lg:col-span-2">
+          <label className={labelClass}>Tutor</label>
+          {chosen ? (
+            <div className="flex items-center gap-2 text-sm font-semibold text-[#0F172A]">
+              <span>{chosen.name || chosen.email}</span>
+              <button type="button" className={btnQuiet} onClick={() => { setChosen(null); setFound(null); }}>Change</button>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <div className="flex gap-1.5">
+                <input className={inputClass} value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Name or e-mail" />
+                <button type="button" className={btnQuiet} onClick={async () => setFound(await findTutors(client, term))}>Find</button>
+              </div>
+              {found !== null && found.length === 0 && <div className="text-[11px] text-slate-500">No tutor found.</div>}
+              {found?.map((t) => (
+                <button key={t.id} type="button" className="block w-full text-left text-xs font-semibold text-[#0F172A] bg-slate-50 hover:bg-slate-100 rounded-lg px-2 py-1.5 cursor-pointer"
+                  onClick={() => { setChosen(t); setFound(null); }}>
+                  {t.name} <span className="text-slate-500">{t.email}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className={labelClass}>The name they chose (empty = first name)</label>
+          <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="THABO" maxLength={32} />
+        </div>
+        <button type="submit" disabled={busy || !chosen} className={btnPrimary}>Make their code</button>
+      </form>
+      <div className="border-t border-slate-100 pt-3 flex flex-wrap items-center gap-3">
+        <button type="button" disabled={busy} className={btnQuiet}
+          onClick={() => run(async () => {
+            const r = await makeMissingTutorCodes(client);
+            return r.made === 0 && r.failed === 0 ? 'Every verified tutor already has a code.' : `Made ${r.made} code${r.made === 1 ? '' : 's'}${r.failed > 0 ? `; ${r.failed} could not be made (look at them one by one)` : ''}.`;
+          })}>
+          Make a code for every verified tutor who has none
+        </button>
+      </div>
+    </section>
   );
 };
 

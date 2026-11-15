@@ -361,10 +361,11 @@ async function call(db: FoundingAdminClient, fn: string, args: Record<string, un
   }
 }
 
-export async function releaseEntries(db: FoundingAdminClient, ids: string[]): Promise<{ error: string | null; released: number; skipped: number }> {
-  const r = await call(db, 'admin_release_founding', { p_ids: ids });
-  const d = (r.data ?? {}) as { released?: unknown; skipped?: unknown };
-  return { error: r.error, released: num(d.released), skipped: num(d.skipped) };
+// The wave number is optional: left out, the database puts the release in the latest wave if it began less than 3 days ago, otherwise it starts the next wave.
+export async function releaseEntries(db: FoundingAdminClient, ids: string[], wave?: number | null): Promise<{ error: string | null; released: number; skipped: number; wave: number | null }> {
+  const r = await call(db, 'admin_release_founding', wave ? { p_ids: ids, p_wave: wave } : { p_ids: ids });
+  const d = (r.data ?? {}) as { released?: unknown; skipped?: unknown; wave?: unknown };
+  return { error: r.error, released: num(d.released), skipped: num(d.skipped), wave: typeof d.wave === 'number' ? d.wave : null };
 }
 export async function markMessaged(db: FoundingAdminClient, id: string, kind: 'released' | 'verified' | 'waiting'): Promise<string | null> {
   return (await call(db, 'admin_mark_founding_messaged', { p_id: id, p_kind: kind })).error;

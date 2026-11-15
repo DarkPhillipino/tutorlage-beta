@@ -112,7 +112,7 @@ export interface Topup {
   // When the proof of payment was sent (null while it is still awaited): the time in "Sent 14:05 SAST, waiting for a person to check it".
   proofSentAt: string | null;
 }
-export type LedgerKind = 'topup' | 'hold' | 'release' | 'charge' | 'refund' | 'session_credit' | 'payout_hold' | 'payout_paid' | 'payout_release' | 'adjustment';
+export type LedgerKind = 'topup' | 'hold' | 'release' | 'charge' | 'refund' | 'session_credit' | 'payout_hold' | 'payout_paid' | 'payout_release' | 'adjustment' | 'refund_reversal';
 export interface LedgerLine {
   id: string;
   kind: LedgerKind;
@@ -400,7 +400,11 @@ export function ledgerLineText(line: Pick<LedgerLine, 'kind' | 'note'>, subject:
         : 'Returned: the request ended';
     case 'charge': return `Paid for ${forSession}`;
     case 'refund': return 'Refund: session cancelled';
-    case 'session_credit': return tutorView ? `Earned from ${subject ? `a ${subject}` : 'a'} session` : 'Credit from a session';
+    case 'session_credit':
+      // The tutor bonus (10 Nov 2026): a line the database writes with a note that starts "Referral bonus"; no session or family is named on it.
+      if (/^referral bonus/i.test(line.note ?? '')) return 'Bonus: a family who joined with your code had a lesson';
+      return tutorView ? `Earned from ${subject ? `a ${subject}` : 'a'} session` : 'Credit from a session';
+    case 'refund_reversal': return /referral bonus/i.test(line.note ?? '') ? 'Bonus taken back: a family was refunded for a lesson' : 'Taken back: the learner was refunded for a session';
     case 'payout_hold': return 'Payout requested';
     case 'payout_paid': return 'Payout paid';
     case 'payout_release': return 'Payout could not be paid: the money is back in your wallet';

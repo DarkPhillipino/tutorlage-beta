@@ -44,6 +44,13 @@ export interface PromoCodeRow {
   lessonsReturned: number;    // given back: cancelled, expired or declined before the lesson
   randBooked: number;         // the discount on lessons booked (committed)
   randGiven: number;          // the discount on lessons delivered: what the codes have really cost
+  // A tutor's PERSONAL code (10 Nov 2026): the owner, and what the tutor bonus has paid on the families that joined with it. All zero / null on a database
+  // that does not have the tutor codes migration yet (the page is tolerant: it shows the same list as before).
+  ownerTutorId: string | null;
+  ownerTutorName: string | null;
+  bonusLessons: number;       // lessons that paid the owner a bonus
+  bonusRandPaid: number;      // what the owner was paid, net of anything taken back after a refund
+  bonusRandHeldBack: number;  // what the bonus would have been but was not paid (the R15 platform floor, or the self-referral guard)
 }
 
 const int = (v: unknown): number => (Number.isFinite(Number(v)) ? Math.round(Number(v)) : 0);
@@ -75,6 +82,11 @@ export function parsePromoCodes(data: unknown): PromoCodeRow[] {
       lessonsReturned: int(r.lessons_returned),
       randBooked: int(r.rand_booked),
       randGiven: int(r.rand_given),
+      ownerTutorId: strOrNull(r.owner_tutor_id),
+      ownerTutorName: strOrNull(r.owner_tutor_name),
+      bonusLessons: int(r.bonus_lessons),
+      bonusRandPaid: int(r.bonus_rand_paid),
+      bonusRandHeldBack: int(r.bonus_rand_held_back),
     });
   }
   return out;
@@ -123,7 +135,7 @@ export const STATUS_WORDS: Record<CodeStatus, string> = {
   full: 'Full: the cap of families is reached; families already signed up keep their lessons',
 };
 
-export function totalsOf(codes: PromoCodeRow[]): { codes: number; signups: number; lessonsBooked: number; lessonsCompleted: number; randBooked: number; randGiven: number } {
+export function totalsOf(codes: PromoCodeRow[]): { codes: number; signups: number; lessonsBooked: number; lessonsCompleted: number; randBooked: number; randGiven: number; bonusRandPaid: number } {
   return codes.reduce((t, c) => ({
     codes: t.codes + 1,
     signups: t.signups + c.signups,
@@ -131,7 +143,8 @@ export function totalsOf(codes: PromoCodeRow[]): { codes: number; signups: numbe
     lessonsCompleted: t.lessonsCompleted + c.lessonsCompleted,
     randBooked: t.randBooked + c.randBooked,
     randGiven: t.randGiven + c.randGiven,
-  }), { codes: 0, signups: 0, lessonsBooked: 0, lessonsCompleted: 0, randBooked: 0, randGiven: 0 });
+    bonusRandPaid: t.bonusRandPaid + c.bonusRandPaid,
+  }), { codes: 0, signups: 0, lessonsBooked: 0, lessonsCompleted: 0, randBooked: 0, randGiven: 0, bonusRandPaid: 0 });
 }
 
 // One line a person can read: "10% off the first 3 lessons".
@@ -241,6 +254,25 @@ export async function attachPromoCode(db: PromoAdminClient, email: string, code:
   if (error) throw new Error(promoErrorMessage(error));
   return { already: (data as { already?: boolean } | null)?.already === true };
 }
+
+// A tutor's PERSONAL code (10 Nov 2026): made automatically when the tutor is approved; this is the admin's button for one tutor (with the name the tutor chose, if
+// they gave one) and the catch-up for every verified tutor who has none. Both go through audited database functions (finance admins only).
+export interface TutorCodeResult { created: boolean; code: string }
+export async function createTutorCode(db: PromoAdminClient, tutorId: string, chosenName: string): Promise<TutorCodeResult> {
+  const { data, error } = await db.rpc('admin_create_tutor_code', { p_tutor: tutorId, p_chosen_name: chosenName.trim() === '' ? null : chosenName.trim() });
+  if (error) throw new Error(promoErrorMessage(error));
+  const d = (data ?? {}) as { created?: unknown; code?: unknown };
+  return { created: d.created === true, code: typeof d.code === 'string' ? d.code : '' };
+}
+export async function makeMissingTutorCodes(db: PromoAdminClient): Promise<{ made: number; failed: number }> {
+  const { data, error } = await db.rpc('admin_make_missing_tutor_codes');
+  if (error) throw new Error(promoErrorMessage(error));
+  const d = (data ?? {}) as { made?: unknown; failed?: unknown };
+  return { made: int(d.made), failed: int(d.failed) };
+}
+// What the page tells a person after the button: the code, its link, and whether it already existed.
+export const tutorCodeNotice = (r: TutorCodeResult): string =>
+  r.created ? `The code ${r.code} is ready. Its link: ${promoLink(r.code)}` : `That tutor already has the code ${r.code}. Its link: ${promoLink(r.code)}`;
 
 export function promoErrorMessage(e: DbError | unknown): string {
   if (e && typeof e === 'object' && isMissingFunction(e as DbError)) return PROMO_NOT_AVAILABLE;

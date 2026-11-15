@@ -26,6 +26,7 @@ import { walletDb } from '../lib/walletHooks';
 import { getErrorMessage } from '../lib/errors';
 import { formatSaDate, formatSaDateTime } from '../lib/saTime';
 import { WalletHistory } from './WalletHistory';
+import { TutorCodeCard } from './TutorCodeCard';
 
 interface TutorData {
   balance: Balance;
@@ -163,6 +164,8 @@ export const TutorWalletPanel: React.FC<{ tutorId: string }> = ({ tutorId }) => 
           <span>{WALLET_COPY.payoutSent(sent)}</span>
         </div>
       )}
+
+      <TutorCodeCard />
 
       <div className="space-y-2">
         <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Your bank account</h4>

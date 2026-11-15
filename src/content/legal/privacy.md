@@ -18,7 +18,7 @@ This policy explains what personal information Tutorlage collects, why, who it i
 | **Video room records** | Which room, who joined it and when. **Never any audio, video or recording** | Everyone who uses a Tutorlage video room |
 | **Requests to be told when a tutor is available** (only if you ask) | The subject, grade and school you searched for; whether you or a parent asked and for which learner; when you were told. **No phone number or email address is stored for this** | Learners and their parents |
 | **Your choices about tutors you have had** | Whether you chose to keep a tutor or to try someone else, and a tutor's private decision not to carry on with a learner | Learners, parents and tutors |
-| **Payments** | Your wallet's history (top-ups, holds, refunds and payments) with the reference, amount and outcome of each; for a top-up by bank transfer, the proof of payment you upload. **We do not take card payments and never hold a card number** | People who pay |
+| **Payments** | Your wallet's history (top-ups, holds, refunds and payments) with the reference, amount and outcome of each; for a top-up by bank transfer, the proof of payment you upload. **Where card payments are available they are taken by Paystack on its own page, and we never see or hold a card number** | People who pay |
 | **Tutors' payout details** | Bank, branch code, account number and account holder's name, which you give us so that we can pay you. Only the people who pay you can open them, and each time is logged. We do not ask for your ID or passport number here | Tutors |
 | **Consent and acceptance records** | Which version of our Terms, Privacy Policy and notices you accepted, how and when; a guardian's consent for a learner and any withdrawal | Everyone |
 | **Communications** | Emails to support@ and safety@, in-app problem reports, notifications we send you | Anyone who contacts us |
@@ -59,7 +59,7 @@ We will ask your consent before using your information for a purpose not listed 
 ## 5. Do you have to give it?
 
 - **Everyone**: giving us information is voluntary. Without your name, email, date of birth and role we cannot create an account.
-- **Payments**: without a card we cannot book a session.
+- **Payments**: without a way to pay (your wallet or, where available, a card) we cannot book a session.
 - **Tutors**: without identity, eligibility, bank and screening details, we cannot approve you to tutor.
 - **Law**: no law requires you to give us information to use Tutorlage. The law does require us to keep some records once you have (§14).
 
@@ -102,7 +102,7 @@ We will ask your consent before using your information for a purpose not listed 
 | Provider | What they do for us | Where |
 |---|---|---|
 | **Supabase** | Database, file storage and sign-in | Ireland (EU) |
-| **Paystack** | Not used for live payments today. If we add card top-ups, Paystack would process the card payment | Where Paystack processes information is set out in its own privacy notice |
+| **Paystack** | Processes card payments for bookings, where card payments are available. It receives the card details and the payment amount on its own page; we receive only the outcome and a reference | Where Paystack processes information is set out in its own privacy notice |
 | **Cloudflare** | Runs our server, and relays video calls: it passes the call's encrypted data between the people in a room, and does not record or keep it, so that people in a call cannot see each other's network addresses | Global network, US company |
 | **Resend** | Sends account emails | United States |
 | **GitHub** (Microsoft) | Hosts our website, which means it receives visitors' IP addresses | United States |
@@ -161,7 +161,7 @@ We will ask your consent before using your information for a purpose not listed 
 - an audit log of admin actions.
 
 **Payments**:
-- we do not take card payments, so no card details reach us;
+- card payments are made on Paystack's own page, so card details never reach us;
 - we never store card numbers. A tutor's bank account number is stored only so that we can pay them.
 
 **If there is a security compromise**: if your information may have been accessed by someone unauthorised, we will notify the Information Regulator and you **as soon as reasonably possible after we discover it**. We will tell you what happened, what it could mean for you, what we have done about it, what you can do to protect yourself, and who accessed it if we know.

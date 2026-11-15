@@ -25,7 +25,7 @@ declare
   n int; n2 int; n3 int; nq int; t text; t2 text; t3 text; ss record; j jsonb; bad text; ex_c int; px int; pct0 numeric; pct numeric; rate numeric;
   prices int[] := array[63, 33, 75, 188, 1, 2];
   prices2 int[] := array[188, 33, 75];
-  nfail int; nlines int; rep text;
+  nfail int; nlines int; rep text; okids text; failrep text;
 begin
   begin   -- everything below; an unexpected error is reported with the lines before it instead of hiding them
 
@@ -141,6 +141,10 @@ begin
   update system_settings set setting_value = 'false'::jsonb where setting_key in ('free_sessions_enabled', 'wallet_payments_enabled');
   r := r || 'S0 setup: 5 learners and parents (one child under 18), a verified tutor, 2 admins, a made-up school and subject' || E'\n';
   nq := pg_temp.netq();
+  -- 11 Nov 2026: wallet_totals counts EVERY booked wallet session in the database, so a real one (production has one) must not change what B36 and B54 expect: take the baseline first
+  t := pg_temp.run_as(a_fin, 'select public.wallet_totals()::text');
+  n2 := coalesce((t::jsonb ->> 'booked_sessions')::int, 0);
+  n3 := coalesce((t::jsonb ->> 'booked_tutor_share_rand')::int, 0);
 
   -- ---- sending a request: the switch, the wallet, the shortfall -------------------------------------------------------------------------------
   q1 := pg_temp.mkreq(v_l, v_l, e_l, 0, 180);
@@ -246,7 +250,7 @@ begin
   t := pg_temp.run_as(a_fin, 'select public.wallet_totals()::text');
   j := t::jsonb;
   r := r || pg_temp.chk('B36', 'wallet_totals: one booked session, its tutor share counted, and the figure to find in the bank',
-    (j ->> 'booked_sessions') || ' ' || (j ->> 'booked_tutor_share_rand') || ' ' || ((j ->> 'held_for_others_rand')::int - (j ->> 'total_rand')::int), format('1 %s %s', 180 - ex_c, 180 - ex_c));
+    (j ->> 'booked_sessions') || ' ' || (j ->> 'booked_tutor_share_rand') || ' ' || ((j ->> 'held_for_others_rand')::int - (j ->> 'total_rand')::int), format('%s %s %s', 1 + n2, (180 - ex_c) + n3, (180 - ex_c) + n3));   -- plus the baseline taken at the start
 
   -- ---- cancelling: refunded as wallet credit ------------------------------------------------------------------------------------------------------
   update session_requests set charged_at = now() - interval '8 days' where id = q1;
@@ -315,7 +319,7 @@ begin
   r := r || pg_temp.chk('B53', 'report closed: completed automatically (job run twice) and the tutor credited once', t || ' / ' || pg_temp.nl('credit:' || s_6) || ' / ' || pg_temp.wb(v_t),
     format('completed / 1 / %s/0', (200 - ex_c) + (100 - floor(100 * pct / 100 + 0.5)::int)));
   r := r || pg_temp.chk('B54', 'completed sessions leave the booked-tutor-share total',
-    (pg_temp.run_as(a_fin, 'select public.wallet_totals()::text')::jsonb ->> 'booked_sessions'), '0');
+    (pg_temp.run_as(a_fin, 'select public.wallet_totals()::text')::jsonb ->> 'booked_sessions'), n2::text);   -- back to the baseline (any real booked session is still there)
   qf1 := pg_temp.mkreq(v_l, v_l, e_l, 13, 50);
   update session_requests set payment_status = 'card_verified', free_session = true where id = qf1;
   r := r || pg_temp.chk('B55', 'a free request is accepted the free way', pg_temp.try_claim(qf1, v_t), 'accepted (already_paid)');
@@ -329,11 +333,12 @@ begin
   qx := pg_temp.mkreq(v_l, v_l, e_l, 14, 25);
   r := r || pg_temp.chk('B57', 'a learner cannot update their own request through the API (no row is reachable)',
     pg_temp.run_as(v_l, format('with u as (update public.session_requests set paid_from_wallet = true, wallet_hold_rand = 25, payment_status = ''wallet_paid'' where id = %L returning 1) select count(*)::text from u', qx)), '0');
-  r := r || pg_temp.chk('B58', 'an admin''s update of the same row goes through but cannot change the wallet flags or the wallet states',
+  -- 11 Nov 2026: since the 4 Nov security fix (20261104210100) admins can only READ requests and sessions, so the update reaches no row (0) and the flags stay as they were
+  r := r || pg_temp.chk('B58', 'an admin''s update of the same row reaches no row (admins are read-only) and so cannot change the wallet flags or the wallet states',
     pg_temp.run_as(a_fin, format('with u as (update public.session_requests set paid_from_wallet = true, wallet_hold_rand = 25, payment_status = ''wallet_paid'' where id = %L returning 1) select count(*)::text from u', qx))
-    || ' ' || (select paid_from_wallet || ' ' || coalesce(wallet_hold_rand::text, 'null') || ' ' || payment_status from session_requests where id = qx), '1 false null initiated');
-  r := r || pg_temp.chk('B59', 'an admin cannot flag a session as wallet-paid either', pg_temp.run_as(a_fin, format('with u as (update public.sessions set wallet_paid = true where id = %L returning 1) select count(*)::text from u', s_f))
-    || ' ' || (select wallet_paid::text from sessions where id = s_f), '1 false');
+    || ' ' || (select paid_from_wallet || ' ' || coalesce(wallet_hold_rand::text, 'null') || ' ' || payment_status from session_requests where id = qx), '0 false null initiated');
+  r := r || pg_temp.chk('B59', 'an admin cannot flag a session as wallet-paid either (no row is reachable for an admin now)', pg_temp.run_as(a_fin, format('with u as (update public.sessions set wallet_paid = true where id = %L returning 1) select count(*)::text from u', s_f))
+    || ' ' || (select wallet_paid::text from sessions where id = s_f), '0 false');
   select max_allowed_rate into rate from sub_tier_definitions where id = '1A';
   update sub_tier_definitions set max_allowed_rate = 75 where id = '1A';   -- real rates are multiples of 10, so a half rand cannot arise today: make one
   t := pg_temp.run_as(v_l, format($q$with i as (insert into public.session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, paystack_reference,
@@ -436,8 +441,9 @@ begin
   insert into session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, status, payment_status, paystack_reference, min_sub_tier_id, tier_id,
          charged_amount, institution_id, paid_from_wallet, wallet_hold_rand, created_at, responded_at)
     values (v_l, e_l, v_l, now() - interval '10 years', 1, 'expired', 'wallet_paid', 'wb_old2', '1A', 1, 50, s1, true, 50, now() - interval '10 years', now() - interval '10 years') returning id into qold2;
-  r := r || pg_temp.chk('B71', 'retention: an old free request is now due for deletion; an old wallet-paid request is kept until phase 6 decides',
-    (select count(*) from public.retention_due_requests() where rec_id = qold1) || ' ' || (select count(*) from public.retention_due_requests() where rec_id = qold2), '1 0');
+  -- 11 Nov 2026: phase 6 (wallet edges) put wallet-paid and wallet-refunded requests on the settled list, so an old wallet-paid request is now due too (edges suite E60 says the same)
+  r := r || pg_temp.chk('B71', 'retention: an old free request is due for deletion, and (since phase 6) so is an old wallet-paid request',
+    (select count(*) from public.retention_due_requests() where rec_id = qold1) || ' ' || (select count(*) from public.retention_due_requests() where rec_id = qold2), '1 1');
 
   -- ---- the old paid path is untouched ----------------------------------------------------------------------------------------------------------------------------
   insert into session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, status, payment_status, paystack_reference, min_sub_tier_id, tier_id,
@@ -497,6 +503,10 @@ begin
   if coalesce(current_setting('test.runner', true), '') = 'on' then
     perform set_config('test.report', format(E'WALLET-BOOKING TEST (rolled back): %s FAIL line(s) in %s lines\n%s', nfail, nlines, rep), true);
   else
-    raise exception E'WALLET-BOOKING TEST (rolled back): % FAIL line(s) in % lines\n%', nfail, nlines, rep;
+    -- 11 Nov 2026: the tool shows the START and the END of a long error, so the failing lines come first in full, the passing ids are one short line, and the verdict is LAST.
+    select string_agg(l, E'\n') filter (where l like '%FAIL%' or l like 'STOPPED%'),
+           string_agg(split_part(l, ' ', 1), ' ') filter (where l <> '' and l not like '%FAIL%' and l not like 'STOPPED%')
+      into failrep, okids from regexp_split_to_table(r, E'\n') as l;
+    raise exception E'WALLET-BOOKING TEST (rolled back, nothing kept)\nFAILING LINES:\n%\nPASSED: %\nRESULT wallet booking: % FAIL line(s) in % lines', coalesce(failrep, '(none)'), coalesce(okids, 'none'), nfail, nlines;
   end if;
 end $$;

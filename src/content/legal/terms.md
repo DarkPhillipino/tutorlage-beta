@@ -1,7 +1,7 @@
 > **The short version.**
 > - Tutorlage is a platform. The tutor gives the lesson; we arrange the match and collect the payment for the tutor.
-> - You see one fixed price before you send a request. You pay from your Tutorlage wallet, and the price is only on hold until a tutor accepts. If none does, it goes straight back.
-> - Refunds go back to your wallet and are decided case by case. Section 8 lists the situations in which we always refund, and how we decide the rest.
+> - You see one fixed price before you send a request. You pay from your Tutorlage wallet or, where available, by card, and the price is only on hold until a tutor accepts. If none does, it goes straight back.
+> - Refunds go back to where the money came from (your wallet, or the card for a card payment) and are decided case by case. Section 8 lists the situations in which we always refund, and how we decide the rest.
 > - Parents and guardians hold the account for learners under 18.
 > - **Section 15 limits what we are responsible for. Please read it.**
 
@@ -68,7 +68,7 @@ Nothing in these Terms makes Tutorlage, a tutor and a learner each other's emplo
 - **Our commission** depends on the tutor's level (B3); a tutor can ask us for the percentage for their level at any time.
 - **We collect for the tutor.** The tutor appoints Tutorlage as their **limited agent to collect payment** for sessions booked through Tutorlage. When the price of a session is put on hold in your wallet and the session is booked, your obligation to pay the tutor for it is settled. The tutor's claim for payment is against Tutorlage, not against you.
 - **Payment security.**
-  - We do not take card payments, and we never see or store a card number. If we add card payments through our payment provider, Paystack, later, they will add money to your wallet in the same way, and we will update these Terms first.
+  - Where card payments are available, you pay for a booking by card through our payment provider, Paystack, on Paystack's own page. We never see or store a card number. The money settles to our bank account and is held against that booking until the session is complete, in the same way as money held from your wallet (§9). If the request is not accepted, or the booking is cancelled in a case where we refund (§8), a card payment is refunded to the same card through Paystack.
   - The proof of transfer you upload is kept only to check the transfer. It is deleted 90 days after a successful top-up and 30 days after an unsuccessful one. We keep the record of each top-up and payment for 7 years, as accounting records (Privacy Policy).
 
 ## 7. If no tutor accepts your request

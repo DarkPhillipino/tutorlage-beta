@@ -322,6 +322,21 @@ export async function logFoundingEvent(db: FoundingClient, visitor: string | nul
   }
 }
 
+// R4 (abandons by last field): the NAME of the field a visitor last typed in or picked, never what they entered. One value per visitor on the database side (the last one wins).
+export const FOUNDING_FIELD_FOR_KEY: Record<string, string> = {
+  fullName: 'full_name', codeName: 'code_name', whatsapp: 'whatsapp', email: 'email', isAdult: 'is_adult', subjects: 'subjects', availability: 'availability',
+  unavailableWeeks: 'unavailable_weeks', practicum: 'practicum', policeClearance: 'police_clearance', parentReach: 'parent_reach', parentReachWilling: 'parent_reach_willing',
+  priorTutoring: 'prior_tutoring', heardFrom: 'heard_from', hasDevice: 'have', hasConnection: 'have', hasBank: 'have', consentContact: 'consent_contact', consentMarketing: 'consent_marketing',
+};
+export async function logFoundingField(db: FoundingClient, visitor: string | null, field: string | undefined, first: string | null = null): Promise<void> {
+  if (!visitor || !field) return;
+  try {
+    await db.rpc('log_founding_field', { p_visitor: visitor, p_field: field, p_first: first });
+  } catch {
+    // Counting must never disturb the page.
+  }
+}
+
 // The family page's counter for a ?code= link (the Codes page counts it): one event, the code (lower case) in src.
 export async function logCodeOpen(db: FoundingClient, visitor: string | null, code: string | null): Promise<void> {
   const c = cleanSrc(code);

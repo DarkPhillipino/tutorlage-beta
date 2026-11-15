@@ -5,8 +5,8 @@ import { BASE_PATH } from '../lib/siteUrl';
 import { SUPPORT_EMAIL } from '../lib/businessInfo';
 import { capsGradeBand } from '../lib/subjectGradeDefaults';
 import {
-  EMPTY_FOUNDING_FORM, FOUNDING_COPY, FOUNDING_MAX_SUBJECTS, SHOW_PERSONAL_LINK_LINE,
-  buildJoinPayload, countingSwitchedOff, getFirstTag, getVisitorId, joinFoundingList, logFoundingEvent, looksLikeBot, noticeBody, srcFromSearch, validateFoundingForm,
+  EMPTY_FOUNDING_FORM, FOUNDING_COPY, FOUNDING_FIELD_FOR_KEY, FOUNDING_MAX_SUBJECTS, SHOW_PERSONAL_LINK_LINE,
+  buildJoinPayload, countingSwitchedOff, getFirstTag, getVisitorId, joinFoundingList, logFoundingEvent, logFoundingField, looksLikeBot, noticeBody, srcFromSearch, validateFoundingForm,
   type FormErrors, type FoundingClient, type FoundingEvent, type FoundingForm, type FoundingLists, type SubjectPick, type VisitorStore,
 } from '../lib/foundingList';
 
@@ -108,6 +108,14 @@ export default function FoundingTutors() {
     count('open');
   }, [count]);
 
+  // The last field touched (R4): only its name goes to the database, only when it changes, and never in a browser that is not counted.
+  const lastField = useRef<string | null>(null);
+  const touch = useCallback((field: string | undefined) => {
+    if (skipCount || !field || lastField.current === field) return;
+    lastField.current = field;
+    void logFoundingField(db, visitor, field, firstTag);
+  }, [visitor, firstTag, skipCount]);
+
   // The subject and grade lists are the app's own (the same ones the tutor's Subjects screen uses). Read once, after the page has drawn.
   const loadLists = useCallback(async () => {
     setListsState('loading');
@@ -130,6 +138,7 @@ export default function FoundingTutors() {
 
   const set = <K extends keyof FoundingForm>(key: K, value: FoundingForm[K]) => {
     count('form_start');
+    touch(FOUNDING_FIELD_FOR_KEY[key as string]);
     setForm((f) => ({ ...f, [key]: value }));
     if (errors[key as keyof FormErrors]) setErrors((e) => ({ ...e, [key]: undefined }));
   };
@@ -138,6 +147,7 @@ export default function FoundingTutors() {
 
   const setSubject = (index: number, patch: Partial<SubjectPick>) => {
     count('form_start');
+    touch('subjects');
     setForm((f) => {
       const rows = f.subjects.map((row, i) => {
         if (i !== index) return row;

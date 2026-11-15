@@ -23,6 +23,7 @@ import { Notifications } from './pages/Notifications';
 import { Suggestions } from './pages/Suggestions';
 import { PromoCodes } from './pages/PromoCodes';
 import { FoundingTutors } from './pages/FoundingTutors';
+import { FoundingWaves } from './pages/FoundingWaves';
 import { AlertRunner } from './components/AlertRunner';
 
 export default function App() {
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="suggestions" element={<Suggestions />} />
         <Route path="codes" element={<PromoCodes />} />
         <Route path="founding" element={<FoundingTutors />} />
+        <Route path="founding-waves" element={<FoundingWaves />} />
       </Route>
     </Routes>
     </>
