@@ -9,8 +9,8 @@
 import { readFileSync } from 'node:fs';
 import { WALLET_COPY, fetchTopups, topupStatusLine, type Topup, type WalletClient } from '../../src/lib/wallet';
 import {
-  ONLINE_COPY, POLL_INTERVAL_MS, POLL_MAX_MS, checkOnlineTopup, createOnlineTopup, decideReturn, fetchOnlineAvailable, fetchTopupById, isTopupId, paidBody,
-  paidTitle, pollReturn, safeRedirectUrl, startOnlinePayment, type OnlineRequest, type ReturnView,
+  CARD_IS_MAIN, ONLINE_COPY, POLL_INTERVAL_MS, POLL_MAX_MS, checkOnlineTopup, createOnlineTopup, decideMainWay, decideReturn, fetchMainWay, fetchOnlineAvailable,
+  fetchOnlineEnvironment, fetchTopupById, isTopupId, onlineTestNote, paidBody, paidTitle, pollReturn, safeRedirectUrl, startOnlinePayment, type OnlineGet, type OnlineRequest, type ReturnView,
 } from '../../src/lib/walletOnline';
 
 let failed = 0;
@@ -238,7 +238,7 @@ async function main() {
   check('without the choice the amount goes straight to the bank transfer, exactly as before (createTopup, same words)', /if \(onlineAvailable\) \{[\s\S]{0,200}setStep\('method'\);[\s\S]{0,40}return;[\s\S]{0,20}\}\s*void run\(async \(\) => \{\s*const created = await createTopup\(walletDb, parsed\.rand\);/.test(modal)
     && modal.includes('You add money by bank transfer. Choose how much, from {rand0(details.minRand)} to {rand0(details.maxRand)}. We then show you where to pay and the reference to use.'));
   check('"Bank transfer, checked by a person" makes the usual top-up (createTopup) and goes to the bank details and the proof; "Pay by bank, instant" makes the online top-up, asks the Worker and goes to the bank',
-    /createTopup\(walletDb, chosenRand\)/.test(modal) && /createOnlineTopup\(walletDb, chosenRand\)/.test(modal) && /startOnlinePayment\(onlineRequest, created\.topupId\)/.test(modal) && /goToBankPage\(started\.redirectUrl\)/.test(modal)
+    /createTopup\(walletDb, chosenRand\)/.test(modal) && /createOnlineTopup\(walletDb, rand\)/.test(modal) && /payByBankFor\(chosenRand\)/.test(modal) && /startOnlinePayment\(onlineRequest, created\.topupId\)/.test(modal) && /goToBankPage\(started\.redirectUrl\)/.test(modal)
     && /ONLINE_COPY\.onlineTitle/.test(modal) && /ONLINE_COPY\.manualTitle/.test(modal));
   check('a payment that failed to start is tried again on the same top-up, unless the Worker closed it; "Pay by bank transfer instead" is always there', /onlineTopup \?\? \(await createOnlineTopup/.test(modal) && /if \(started\.rowClosed\) setOnlineTopup\(null\)/.test(modal) && /handleChooseTransfer/.test(modal));
   check('the buttons stay off on the way to the bank, and come back if the person returns with the browser\'s Back button', /disabled=\{busy \|\| redirecting\}/.test(modal) && /'pageshow'/.test(modal) && /e\.persisted/.test(modal));
@@ -255,6 +255,55 @@ async function main() {
   const meta = code('src/lib/pageMeta.ts');
   check('the return page has its route and its row in the page table (not indexed)', /path="\/wallet\/topup-return" element=\{<TopupReturn \/>\}/.test(main) && /path: '\/wallet\/topup-return'[^}]*index: false/.test(meta));
   check('the wallet does not reach into the Paystack code (payments.ts is untouched)', !/wallet/i.test(code('src/lib/payments.ts')));
+
+  // ---- THE BANK AS THE MAIN WAY TO PAY on the booking page (Option A, CEO 12 Nov 2026) ----
+  const env = (status: number, body: unknown) => async (path: string) => { envPaths.push(path); return { status, body }; };
+  const envPaths: string[] = [];
+  const okBody = (over: Record<string, unknown> = {}) => ({ configured: true, provider: 'ozow', test: true, ...over });
+  const stagingEnv = await fetchOnlineEnvironment(env(200, okBody()));
+  check('the Worker is asked the one public question, a GET path with nothing in it', envPaths.join() === '/api/wallet/online-environment' && stagingEnv?.test === true && stagingEnv.provider === 'ozow');
+  check('the Worker says production: test is false', (await fetchOnlineEnvironment(env(200, okBody({ test: false }))))?.test === false);
+  const envNo: [string, OnlineGet][] = [
+    ['a 503 not_configured', env(503, { error: 'x', code: 'not_configured' })], ['a 404 (an old Worker without the route)', env(404, { error: 'x' })], ['a 500', env(500, null)],
+    ['an answer that is not JSON', env(200, null)], ['configured false', env(200, okBody({ configured: false }))], ['configured missing', env(200, { test: true })],
+    ['test as the text "true"', env(200, okBody({ test: 'true' }))], ['test missing', env(200, { configured: true, provider: 'ozow' })], ['a list', env(200, [okBody()])],
+    ['a call that throws', async () => { throw new Error('network'); }],
+  ];
+  for (const [name, ask] of envNo) check(`the bank is not asked about further when the Worker answers ${name}: no environment`, (await fetchOnlineEnvironment(ask)) === null);
+  const bankOpen = fakeDb({ rpc: () => ({ data: true, error: null }) }).db;
+  const bankClosed = fakeDb({ rpc: () => ({ data: false, error: null }) }).db;
+  const mainTest = await fetchMainWay(bankOpen, env(200, okBody()));
+  check('the bank leads only when the database says yes AND the Worker says it is set up', mainTest.bankIsMain === true && mainTest.test === true && mainTest.provider === 'ozow');
+  check('live: the bank leads and test is false (so no test note)', JSON.stringify(await fetchMainWay(bankOpen, env(200, okBody({ test: false })))) === '{"bankIsMain":true,"test":false,"provider":"ozow"}');
+  const workerAsked: string[] = [];
+  const closedAnswer = await fetchMainWay(bankClosed, async (p) => { workerAsked.push(p); return { status: 200, body: okBody() }; });
+  check('the database says no: the card leads and the Worker is not even asked (an ordinary payer costs no extra call)', closedAnswer.bankIsMain === false && closedAnswer.test === false && workerAsked.length === 0);
+  check('the Worker cannot be asked or says no: the card leads, and test is false', JSON.stringify(await fetchMainWay(bankOpen, env(503, { code: 'not_configured' }))) === JSON.stringify(CARD_IS_MAIN) && JSON.stringify(await fetchMainWay(bankOpen, async () => { throw new Error('x'); })) === JSON.stringify(CARD_IS_MAIN));
+  check('the database failing or throwing: the card leads', (await fetchMainWay(fakeDb({ rpc: () => { throw new Error('db'); } }).db, env(200, okBody()))).bankIsMain === false && (await fetchMainWay(fakeDb({ rpc: () => ({ data: true, error: { code: 'x', message: 'y' } }) }).db, env(200, okBody()))).bankIsMain === false);
+  check('decideMainWay: only an exact true and a real environment lead with the bank', decideMainWay(true, { provider: 'ozow', test: false }).bankIsMain === true && decideMainWay(false, { provider: 'ozow', test: true }).bankIsMain === false && decideMainWay(true, null).bankIsMain === false && decideMainWay('yes' as unknown as boolean, { provider: 'ozow', test: true }).bankIsMain === false);
+  // the Test mode note
+  const note = onlineTestNote('ozow');
+  check('the test note says it is test mode, the demo login, that no real money is taken and that the wallet money is pretend; the provider name comes from the Worker', /^Test mode: you will pay on Ozow's practice bank page with the demo login\. No real money is taken, and the money added to your wallet is pretend money\.$/.test(note));
+  check('a provider word that is not a plain lower-case name never reaches the screen (the note says "the bank\'s")', onlineTestNote('<b>x</b>').includes("the bank's practice bank page") && !onlineTestNote('<b>x</b>').includes('<') && onlineTestNote('').includes("the bank's"));
+  check('the new words name no processor and offer nothing "free"', !/ozow|paystack|webhook|token|http/i.test(`${ONLINE_COPY.addByBank} ${ONLINE_COPY.cardInstead}`) && !/\bfree\b/i.test(`${note} ${ONLINE_COPY.addByBank} ${ONLINE_COPY.cardInstead}`));
+  // the files
+  const hooksSrc = code('src/lib/walletOnlineHooks.ts');
+  check('the one GET is the public environment question: no token, no body, no header; every other Worker call is still a POST with the token and no body', /fetch\(apiUrl\(path\), \{ method: 'GET' \}\)/.test(hooksSrc) && (hooksSrc.match(/method: '/g) ?? []).length === 2 && !/JSON\.stringify/.test(hooksSrc));
+  const libCode = code('src/lib/walletOnline.ts');
+  check('the environment question reads nothing about a person and writes nothing (no rpc other than the two, no insert or update)', !/online-environment[\s\S]{0,400}\.(insert|update|upsert|delete)\(/.test(libCode) && /'\/api\/wallet\/online-environment'/.test(libCode));
+  const pricesSrc = code('src/components/PricesPage.tsx');
+  check('the booking page leads with the bank only through useBankMainWay (walletAvailable, then the database, then the Worker); the wallet opens by itself then, and Add money goes straight to the bank',
+    /const bank = useBankMainWay\(walletAvailable\);/.test(pricesSrc) && /const bankMain = walletAvailable && bank\.bankIsMain;/.test(pricesSrc) && /const walletMode = walletAvailable && \(showWallet \|\| bankMain\);/.test(pricesSrc) && /preferOnline=\{bankMain\}/.test(pricesSrc));
+  check('the card is kept: with the bank leading it sits under "Pay with a card instead" with its own Paystack test note, the not-open notice and its button; with the bank not leading the page is as before',
+    /cardSection=\{<>\{cardNote\}\{notOpenNotice\}\{cardButton\}<\/>\}/.test(pricesSrc) && /\) : \(<>\{cardNote\}<\/>\)\}\s*\{staleNote\}\s*\{notOpenNotice\}\s*\{cardButton\}/.test(pricesSrc));
+  check('the bank test note comes from the Worker alone: it is rendered only under {test && ...} with onlineTestNote(provider), and no screen file types the sentence', /\{test && \(\s*<p data-test-mode-bank[\s\S]{0,200}\{onlineTestNote\(provider\)\}/.test(code('src/components/BankMainCheckout.tsx')) && !/practice bank page/.test(code('src/components/BankMainCheckout.tsx') + pricesSrc + code('src/components/AddMoneyModal.tsx')) && /test=\{bank\.test\}/.test(pricesSrc));
+  check('the Paystack test note is still only the card\'s, and is not shown beside the bank\'s note', /const cardNote = \(\s*<p data-test-mode[\s\S]{0,200}Test mode: use a Paystack test card\. No real money is taken\./.test(pricesSrc) && !/data-test-mode[\s\S]{0,40}onlineTestNote/.test(pricesSrc));
+  const bankMainSrc = code('src/components/BankMainCheckout.tsx');
+  check('with the bank leading: enough in the wallet gives "Pay R... from your wallet", too little gives the shortfall and "Add money by bank", and the card is folded (aria-expanded, closed to start with)', /Pay \$\{rand0\(price\)\} from your wallet/.test(bankMainSrc) && /addLabel=\{ONLINE_COPY\.addByBank\}/.test(bankMainSrc) && /useState\(false\)/.test(bankMainSrc) && /aria-expanded=\{showCard\}/.test(bankMainSrc) && /ONLINE_COPY\.cardInstead/.test(bankMainSrc));
+  const modalSrc = code('src/components/AddMoneyModal.tsx');
+  check('Add money with preferOnline opens the bank at once for the chosen amount, with the "How would you like to pay?" step on screen so a failure shows the message and the transfer; it does nothing different unless the choice is open for this person',
+    /preferOnline = false/.test(modalSrc) && /if \(onlineAvailable\) \{[\s\S]{0,260}if \(preferOnline\) payByBankFor\(parsed\.rand\);[\s\S]{0,60}setStep\('method'\);/.test(modalSrc));
+  check('the new files use no processor name and nothing "free" in anything a person sees', !/ozow|paystack(?! test card)|payfast|yoco/i.test(bankMainSrc.replace(/console\.[a-z]+\([^)]*\)/g, '')) && !/\bfree\b/i.test(bankMainSrc));
 
   // ---- the names this file relies on exist in phase 1 (database) and phase 2 (Worker) ----
   const migration = read('supabase/migrations/20261109110000_wallet_online_topups.sql');

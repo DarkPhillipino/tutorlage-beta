@@ -138,6 +138,8 @@ export interface TutorManagedSession {
   durationHours: number;
   status: string | null;
   meetingUrl: string | null;
+  // Early end (15 Nov 2026): when the tutor left the video room before the scheduled end, and whether the learner/parent has answered.
+  endedEarlyAt?: string | null;
   // Set when a parent or guardian booked the session for their learner
   // (legal spec §5: a parent must be reachable during a minor's session).
   guardianName?: string;
@@ -158,6 +160,8 @@ export interface StudentSessionDetail {
   status: string | null;
   meetingUrl: string | null;
   hasReview: boolean;
+  endedEarlyAt?: string | null;
+  earlyEndAckAt?: string | null;
   // Set on a parent's or guardian's view: which of their learners it's for.
   learnerName?: string;
 }

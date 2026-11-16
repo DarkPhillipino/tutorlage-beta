@@ -22,6 +22,8 @@ import { promoQuoteLine } from '../lib/promoCode';
 import { usePromoQuote } from '../lib/promoHooks';
 import { AddMoneyModal } from './AddMoneyModal';
 import { WalletPayBox } from './WalletPayBox';
+import { BankMainCheckout } from './BankMainCheckout';
+import { useBankMainWay } from '../lib/walletOnlineHooks';
 import { siteUrl } from '../lib/siteUrl';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate } from '../lib/format';
@@ -284,7 +286,13 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // 10 Nov 2026 (CEO, Paystack demos): the CARD is the main payment again; the wallet sits behind a collapsed "See more" under it and opens only when pressed.
   const walletAvailable = walletOpen && !freeOpen && selectedLevel?.currencyCode.trim() === 'ZAR';
   const [showWallet, setShowWallet] = useState(false);
-  const walletMode = walletAvailable && showWallet;
+  // THE BANK AS THE MAIN WAY (CEO, 12 Nov 2026, Option A; rule: decideMainWay in src/lib/walletOnline.ts): when the wallet is available here, the database lets THIS
+  // person use the bank choice (wallet_online_available(): mode `on`, or mode `staff` and they are listed) and the Worker says online payments are set up, the page
+  // leads with the wallet and the bank (BankMainCheckout) and folds the card under "Pay with a card instead". Any doubt leaves the card as the main way, exactly as
+  // before (the 10 Nov rule). The "Test mode" note for the bank follows the Worker's own `test` answer; the card's Paystack note stays with the card.
+  const bank = useBankMainWay(walletAvailable);
+  const bankMain = walletAvailable && bank.bankIsMain;
+  const walletMode = walletAvailable && (showWallet || bankMain);
   const wallet = useWalletBalance(user?.id, walletMode);
   const [addMoneyOpen, setAddMoneyOpen] = useState(false);
   const price = chargedAmount === null ? 0 : walletPrice(chargedAmount);
@@ -371,6 +379,35 @@ export const PricesPage: React.FC<PricesPageProps> = ({
       setIsSending(false);
     }
   };
+
+  // The pieces of the payment part that are used in BOTH layouts: the card as the main way (as before) and the card folded under the bank (BankMainCheckout).
+  const cardNote = (
+    <p data-test-mode className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4 max-w-sm">
+      Test mode: use a Paystack test card. No real money is taken.
+    </p>
+  );
+  const staleNote = searchIsStale ? (
+    <p className="text-[11px] font-semibold text-amber-700 mb-3 max-w-sm">
+      You changed the subject to "{formState.subject.trim() || 'any subject'}", but this request is for "{appliedSubject.trim() || 'any subject'}".
+      Press "Update results" on the left, then choose a price again.
+    </p>
+  ) : null;
+  const notOpenNotice = PAYMENTS_NOT_OPEN && !freeOpen && (
+    <p role="status" data-payments-not-open className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3 max-w-sm">
+      {PAYMENTS_NOT_OPEN_NOTICE}
+    </p>
+  );
+  const cardButton = (
+    <button
+      onClick={() => handleSendRequest(false)}
+      disabled={isSending || (PAYMENTS_NOT_OPEN && !freeOpen)}
+      className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+    >
+      {isSending
+        ? (freeOpen ? 'Sending your request…' : 'Redirecting to secure checkout…')
+        : `${freeOpen ? 'Send request' : 'Save card & send request'}${bookAgain ? ` to ${bookAgain.firstName}` : ''}${learner ? ` for ${learner.firstName}` : ''}`}
+    </button>
+  );
 
   // What to tell the student when the search came back empty — distinguishes
   // "the platform genuinely has no approved tutors yet" from "your subject/grade
@@ -703,36 +740,32 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   </>
                 ) : (
                   <>
+                    {bankMain ? (
+                      <BankMainCheckout
+                        price={payPrice}
+                        promoLine={promo ? promoQuoteLine(promo) : null}
+                        state={wallet.state}
+                        walletEnough={walletEnough}
+                        isSending={isSending}
+                        test={bank.test}
+                        provider={bank.provider}
+                        onAddMoney={() => setAddMoneyOpen(true)}
+                        onRetry={wallet.reload}
+                        onPayFromWallet={() => handleSendRequest(true)}
+                        cardSection={<>{cardNote}{notOpenNotice}{cardButton}</>}
+                      >
+                        {staleNote}
+                      </BankMainCheckout>
+                    ) : (<>
                     {freeOpen ? (
                       <div role="status" data-free-sessions className="mb-5 max-w-sm">
                         <p className="text-sm font-extrabold text-[#15803D] mb-1">{FREE_FOR_NOW_NOTICE}</p>
                         <p className="text-xs text-slate-500">{FREE_FOR_NOW_DETAIL}</p>
                       </div>
-                    ) : (<>
-                    <p data-test-mode className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4 max-w-sm">
-                      Test mode: use a Paystack test card. No real money is taken.
-                    </p>
-                    </>)}
-                    {searchIsStale && (
-                      <p className="text-[11px] font-semibold text-amber-700 mb-3 max-w-sm">
-                        You changed the subject to "{formState.subject.trim() || 'any subject'}", but this request is for "{appliedSubject.trim() || 'any subject'}".
-                        Press "Update results" on the left, then choose a price again.
-                      </p>
-                    )}
-                    {PAYMENTS_NOT_OPEN && !freeOpen && (
-                      <p role="status" data-payments-not-open className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3 max-w-sm">
-                        {PAYMENTS_NOT_OPEN_NOTICE}
-                      </p>
-                    )}
-                    <button
-                      onClick={() => handleSendRequest(false)}
-                      disabled={isSending || (PAYMENTS_NOT_OPEN && !freeOpen)}
-                      className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
-                    >
-                      {isSending
-                        ? (freeOpen ? 'Sending your request…' : 'Redirecting to secure checkout…')
-                        : `${freeOpen ? 'Send request' : 'Save card & send request'}${bookAgain ? ` to ${bookAgain.firstName}` : ''}${learner ? ` for ${learner.firstName}` : ''}`}
-                    </button>
+                    ) : (<>{cardNote}</>)}
+                    {staleNote}
+                    {notOpenNotice}
+                    {cardButton}
                     {walletAvailable && (
                       <div className="mt-4 max-w-sm">
                         <button
@@ -769,6 +802,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                         )}
                       </div>
                     )}
+                    </>)}
                   </>
                 )}
               </div>
@@ -789,6 +823,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
           payerId={user.id}
           suggestedRand={wallet.state.status === 'ready' ? shortfall(payPrice, wallet.state.available) : null}
           onChanged={wallet.reload}
+          preferOnline={bankMain}
         />
       )}
 

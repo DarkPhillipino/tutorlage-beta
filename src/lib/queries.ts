@@ -1218,6 +1218,7 @@ export async function fetchTutorManagedSessions(tutorId: string): Promise<TutorM
       duration_hours,
       status,
       meeting_url,
+      ended_early_at,
       profiles!sessions_student_id_fkey ( full_name ),
       student_subject_enrollments ( subject_name )
     `)
@@ -1235,7 +1236,7 @@ export async function fetchTutorManagedSessions(tutorId: string): Promise<TutorM
       .map((c) => [c.session_id, c]),
   );
 
-  return ((data ?? []) as unknown as (TutorSessionRow & { meeting_url: string | null })[]).map((row) => {
+  return ((data ?? []) as unknown as (TutorSessionRow & { meeting_url: string | null; ended_early_at?: string | null })[]).map((row) => {
     const contact = contactBySession.get(row.id);
     return {
       id: row.id,
@@ -1245,6 +1246,7 @@ export async function fetchTutorManagedSessions(tutorId: string): Promise<TutorM
       durationHours: Number(row.duration_hours),
       status: row.status,
       meetingUrl: row.meeting_url,
+      endedEarlyAt: row.ended_early_at ?? null,
       guardianName: contact?.guardian_name,
       guardianPhone: contact?.guardian_phone ?? undefined,
     };
@@ -1261,6 +1263,12 @@ export async function setSessionMeetingLink(sessionId: string, url: string): Pro
 // Marks a session complete once its scheduled time has ended. This is what
 // makes tier progression run: the database recalculates the tutor's stats and
 // level straight after (trigger_session_completed → fn_recalculate_tutor_tier).
+// The learner (or whoever booked) answers "Yes, all fine" to the early-end check-in (acknowledge_early_end).
+export async function acknowledgeEarlyEnd(sessionId: string): Promise<void> {
+  const { error } = await supabase.rpc('acknowledge_early_end', { p_session_id: sessionId });
+  if (error) throw error;
+}
+
 export async function completeSession(sessionId: string): Promise<void> {
   const { error } = await supabase.rpc('complete_session', { p_session_id: sessionId });
   if (error) throw error;
@@ -1274,6 +1282,8 @@ interface StudentSessionDetailRow {
   duration_hours: number;
   status: string | null;
   meeting_url: string | null;
+  ended_early_at?: string | null;
+  early_end_ack_at?: string | null;
   tutor_profiles: { profiles: { full_name: string } | null } | null;
   student_subject_enrollments: { subject_name: string } | null;
 }
@@ -1294,6 +1304,8 @@ async function fetchSessionDetailRows(studentIds: string[], history = false): Pr
       duration_hours,
       status,
       meeting_url,
+      ended_early_at,
+      early_end_ack_at,
       tutor_profiles!sessions_tutor_id_fkey ( profiles!tutor_profiles_id_fkey ( full_name ) ),
       student_subject_enrollments ( subject_name )
     `)
@@ -1318,6 +1330,8 @@ function toSessionDetail(row: StudentSessionDetailRow, hasReview: boolean): Stud
     durationHours: Number(row.duration_hours),
     status: row.status,
     meetingUrl: row.meeting_url,
+    endedEarlyAt: row.ended_early_at ?? null,
+    earlyEndAckAt: row.early_end_ack_at ?? null,
     hasReview,
   };
 }

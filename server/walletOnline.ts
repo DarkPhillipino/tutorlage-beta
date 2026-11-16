@@ -441,7 +441,18 @@ export function createWalletOnline(deps: WalletOnlineDeps) {
     return { status: 200, body: summary };
   }
 
-  return { startOnline, check, webhook, backstop };
+  // ---------------------------------------------------------------- GET /api/wallet/online-environment (public) ----------------------------------------
+  // Tells a screen whether online payments are set up on this server and whether they are the provider's TEST system, so the "Test mode" note on the booking
+  // page is true: it follows this answer and is never a fixed sentence. `test` is the provider's own allowTestPayments, which is true only when the Worker's
+  // OZOW_API_BASE is the staging host. It carries no secret, no key, no address and nothing about any person; it asks nobody and reads no database.
+  // Not set up (or no provider set up) is a 503 "not_configured", which the screen reads as "do not offer the bank as the main way to pay".
+  function environment(): Reply {
+    const set = Object.values(deps.providers).find((p): p is PaymentProvider => Boolean(p));
+    if (!set) return { status: 503, headers: { 'Cache-Control': 'no-store' }, body: { error: MSG.notSetUp, code: 'not_configured' } };
+    return { status: 200, headers: { 'Cache-Control': 'no-store' }, body: { configured: true, provider: set.name, test: set.allowTestPayments === true } };
+  }
+
+  return { startOnline, check, webhook, backstop, environment };
 }
 
 export type WalletOnline = ReturnType<typeof createWalletOnline>;
@@ -507,5 +518,9 @@ export function mountOnlineRoutes(app: Application, wo: WalletOnline, opts: Moun
   });
   app.post('/api/internal/wallet/online-check', opts.rateLimit(6, 60_000), async (req: Request, res: Response) => {
     sendReply(res, await wo.backstop(req.headers['x-job-secret']));
+  });
+  // Public on purpose (no sign-in): the booking page asks it before it decides which way to pay leads. See environment() above.
+  app.get('/api/wallet/online-environment', opts.rateLimit(60, 60_000), (_req: Request, res: Response) => {
+    sendReply(res, wo.environment());
   });
 }

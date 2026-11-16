@@ -59,7 +59,18 @@ export const ONLINE_COPY = {
   signInTitle: 'Sign in to see your payment',
   signInBody: 'If you have paid, your money is added to your wallet as soon as your bank confirms it. Sign in to see it.',
   signIn: 'Sign in',
+  // The booking page when the bank is the MAIN way to pay (see decideMainWay below).
+  addByBank: 'Add money by bank',
+  cardInstead: 'Pay with a card instead',
 } as const;
+
+// The "Test mode" note for the bank way of paying. It is shown only when the Worker itself says the payment system is the provider's TEST system, and it is
+// built here, not typed into a screen, so the screens never name a provider: the Worker's own `provider` word fills the gap (a plain lower-case name, else
+// "the bank's"). It must never be shown on a live payment, and nothing here can make it show without the Worker's `test: true`.
+export function onlineTestNote(provider: string): string {
+  const name = /^[a-z][a-z0-9]{1,19}$/.test(provider) ? `${provider[0].toUpperCase()}${provider.slice(1)}'s` : 'the bank\'s';
+  return `Test mode: you will pay on ${name} practice bank page with the demo login. No real money is taken, and the money added to your wallet is pretend money.`;
+}
 
 export const paidTitle = 'Payment received';
 export const paidBody = (amountRand: number): string => `${rand0(amountRand)} has been added to your wallet.`;
@@ -75,6 +86,41 @@ export async function fetchOnlineAvailable(db: WalletClient): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// ---- is the bank the MAIN way to pay on the booking page? every doubt answers "no" ---------------------------------------------------------------
+// Option A (CEO, 12 Nov 2026): for a person the database lets use the bank choice, AND only while the Worker says online payments are set up, the booking
+// page leads with paying by bank (the wallet box is open, "Add money by bank" or "Pay R... from your wallet") and folds the card under "Pay with a card
+// instead". Anything else, an error, a timeout, a Worker or database without the feature, an odd answer, leaves the card as the main way, exactly as before.
+// The Worker's answer also says whether this is the provider's TEST system, which is the only thing that lets the "Test mode" note show (onlineTestNote).
+export type OnlineGet = (path: string) => Promise<{ status: number; body: unknown }>;
+export interface OnlineEnvironment { provider: string; test: boolean }
+export interface MainWay { bankIsMain: boolean; test: boolean; provider: string }
+export const CARD_IS_MAIN: MainWay = { bankIsMain: false, test: false, provider: '' };
+
+// GET /api/wallet/online-environment: public, no sign-in, no body. Only an exact 200 with configured true and a real true or false for `test` counts.
+export async function fetchOnlineEnvironment(get: OnlineGet): Promise<OnlineEnvironment | null> {
+  try {
+    const answer = await get('/api/wallet/online-environment');
+    if (answer.status !== 200) return null;
+    const body = asObject(answer.body);
+    if (body.configured !== true || typeof body.test !== 'boolean') return null;
+    return { provider: typeof body.provider === 'string' ? body.provider.trim().toLowerCase() : '', test: body.test };
+  } catch {
+    return null;
+  }
+}
+
+export function decideMainWay(open: boolean, environment: OnlineEnvironment | null): MainWay {
+  if (open !== true || environment === null) return CARD_IS_MAIN;
+  return { bankIsMain: true, test: environment.test, provider: environment.provider };
+}
+
+// Asks the database first; the Worker is asked only when the database says yes (so an ordinary payer costs no extra call).
+export async function fetchMainWay(db: WalletClient, get: OnlineGet): Promise<MainWay> {
+  const open = await fetchOnlineAvailable(db);
+  if (!open) return CARD_IS_MAIN;
+  return decideMainWay(open, await fetchOnlineEnvironment(get));
 }
 
 // ---- making the row, then starting the payment -------------------------------------------------------------------------------------------------

@@ -36,6 +36,7 @@ interface Rig {
   db: FakeWalletDb;
   logs: string[];
   post(path: string, init?: { token?: string | null; headers?: Record<string, string>; body?: string | Buffer; json?: unknown }): Promise<{ status: number; text: string; json: any; headers: Headers }>;
+  get(path: string, init?: { token?: string | null; headers?: Record<string, string> }): ReturnType<Rig['post']>;
   deliver(payload: unknown, o?: DeliverOptions): ReturnType<Rig['post']>;
   start(topup: Record<string, any>, token?: string | null): ReturnType<Rig['post']>;
   paidTopup(amount?: number): Promise<{ topup: any; paymentId: string }>;
@@ -107,12 +108,27 @@ async function makeRig(o: { noProvider?: boolean; noJobSecret?: boolean; staging
     seen.push(text, JSON.stringify([...res.headers.entries()]));
     return { status: res.status, text, json, headers: res.headers };
   };
+  const get: Rig['get'] = async (path, init = {}) => {
+    const headers: Record<string, string> = { ...init.headers };
+    if (init.token !== null && init.token !== undefined) headers.Authorization = `Bearer ${init.token}`;
+    const res = await fetch(base + path, { method: 'GET', headers });
+    const text = await res.text();
+    let json: any = null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = null;
+    }
+    seen.push(text, JSON.stringify([...res.headers.entries()]));
+    return { status: res.status, text, json, headers: res.headers };
+  };
   const rig: Rig = {
     clock,
     ozow,
     db,
     logs,
     post,
+    get,
     start: (topup, token = FAKE.userToken) => post(`/api/wallet/topups/${topup.id}/start-online`, { token, json: { amount: 999 } }),
     async paidTopup(amount = 50) {
       const topup = db.addTopup(PAYER, amount);
@@ -513,6 +529,30 @@ const eventsOf = (r: Rig, outcome: string) => r.db.events.filter((e) => e.outcom
     r.db.attempts.set(t.id, { topup_id: t.id, provider: 'ozow', provider_payment_id: 'p1', claimed_at: r.db.iso(), expires_at: r.db.iso(r.clock.now() + 3600_000) });
     const res = await r.post(`/api/wallet/topups/${t.id}/check`, { token: FAKE.userToken });
     check('check: with Ozow not set up the answer is a plain 503', res.status === 503 && res.json.code === 'not_configured');
+  }
+
+  // =============================================================== online-environment (public; 12 Nov 2026, Option A) ==============================
+  // The booking page asks this before it makes the bank the main way to pay, and its "Test mode" note follows the answer.
+  {
+    const ENV = '/api/wallet/online-environment';
+    const live = await makeRig();
+    const calls = live.ozow.calls.length;
+    const dbCalls = live.db.calls.length;
+    const a = await live.get(ENV);
+    check('environment: production Ozow answers 200 with test false, and no sign-in is needed', a.status === 200 && a.json.configured === true && a.json.test === false && a.json.provider === 'ozow');
+    check('environment: it asks Ozow nobody and reads no database', live.ozow.calls.length === calls && live.db.calls.length === dbCalls);
+    check('environment: the answer is never kept by a browser or a proxy (no-store)', /no-store/i.test(a.headers.get('cache-control') ?? ''));
+    check('environment: the answer holds only configured, provider and test (nothing about a secret, an address or a person)', Object.keys(a.json).sort().join() === 'configured,provider,test');
+    const stg = await makeRig({ staging: true });
+    const b = await stg.get(ENV);
+    check('environment: Ozow staging answers 200 with test true (the only case the "Test mode" note may be shown for Ozow)', b.status === 200 && b.json.test === true && b.json.configured === true);
+    const none = await makeRig({ noProvider: true });
+    const c = await none.get(ENV);
+    check('environment: Ozow not set up answers 503 not_configured, with no test field at all', c.status === 503 && c.json.code === 'not_configured' && !('test' in c.json) && !('configured' in c.json));
+    const signedIn = await live.get(ENV, { token: FAKE.userToken });
+    check('environment: a signed-in call gets the same answer (the token is ignored)', signedIn.status === 200 && signedIn.json.test === false);
+    const wrongMethod = await live.post(ENV, { token: FAKE.userToken });
+    check('environment: it is a GET only (a POST finds nothing here)', wrongMethod.status === 404 || wrongMethod.status === 400);
   }
 
   // =============================================================== the backstop ==============================================================

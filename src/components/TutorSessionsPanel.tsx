@@ -10,6 +10,7 @@ import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
 import { sessionHasEnded } from '../lib/sessionTiming';
 import { formatSaDateTime, formatSaTime } from '../lib/saTime';
+import { showTutorEarlyEnd, tutorEarlyEndMessage } from '../lib/earlyEnd';
 import { CancelSessionControl, ReportProblemControl, SessionRoomControl } from './UpcomingSessionsPanel';
 import { LearnersITaughtPanel } from './LearnersITaughtPanel';
 
@@ -50,6 +51,16 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
       })
       .finally(() => setIsLoading(false));
   }, [tutorId, reloadCount]);
+
+  // Early end (15 Nov 2026): look again every 30 seconds while the page is open, quietly (no spinner), so "You ended the session early" shows up
+  // and goes away by itself; the new read only replaces the list, never the link boxes being typed in.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      fetchTutorManagedSessions(tutorId).then(setSessions).catch(() => undefined);
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, [tutorId]);
 
   const run = async (sessionId: string, action: () => Promise<void>) => {
     setBusyId(sessionId);
@@ -134,7 +145,12 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
 
         {/* CEO, 4 Nov 2026: a tutor left the video call early and could not see why the session was not complete. The database lets a
             session be marked complete only once its scheduled time has ended, and leaving the call does not complete it. */}
-        {!hasEnded && (
+        {!hasEnded && showTutorEarlyEnd(s, now) && (
+          <p data-early-end role="status" className="text-xs font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {tutorEarlyEndMessage(s, now)}
+          </p>
+        )}
+        {!hasEnded && !showTutorEarlyEnd(s, now) && (
           <p data-complete-from className="text-[11px] text-slate-500">
             You can mark this session complete from {formatSaTime(start.getTime() + s.durationHours * 3_600_000)}, when its scheduled time ends.
             Leaving the video call does not complete it.

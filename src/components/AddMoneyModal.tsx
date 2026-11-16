@@ -30,6 +30,10 @@ interface AddMoneyModalProps {
   resume?: { topupId: string; reference: string; amountRand: number } | null;
   // Called whenever the person's top-ups changed (created, proof sent, cancelled), so the screen behind can read again.
   onChanged?: () => void;
+  // Arriving from the booking page when the bank is the MAIN way to pay (walletOnline.ts, decideMainWay): after the amount the person goes straight to the
+  // bank, without being asked how to pay. The "How would you like to pay?" step is still the one on screen while the bank opens, so if opening fails the
+  // person sees the plain message and "Bank transfer, checked by a person" right there. Ignored unless the bank choice is open for this person.
+  preferOnline?: boolean;
 }
 
 // 'method' = "How would you like to pay?" (shown only when pay by bank, instant is open for this person; otherwise the amount goes straight to 'pay').
@@ -69,7 +73,7 @@ const DetailRow: React.FC<{ label: string; value: string; strong?: boolean }> = 
 // PAY BY BANK, INSTANT (9 Nov 2026, src/lib/walletOnline.ts): when the database says it is open for this person (wallet_online_available(): the platform
 // setting wallet_online_mode is `on`, or `staff` and this person is listed), the amount is followed by a choice of two ways to pay. The bank transfer
 // above is one of them, exactly as before, and it is the only way shown when the choice is not open, the database or Worker lacks the feature, or anything fails.
-export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, payerId, suggestedRand = null, resume = null, onChanged }) => {
+export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, payerId, suggestedRand = null, resume = null, onChanged, preferOnline = false }) => {
   const [details, setDetails] = useState<PaymentDetails | null>(null);
   const [detailsLoaded, setDetailsLoaded] = useState(false);
   const [step, setStep] = useState<Step>('amount');
@@ -156,6 +160,25 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
     }
   };
 
+  // Make the online top-up for this amount (the database checks the amount and the limits), ask the Worker to start the payment, go to the bank's page.
+  // If starting fails, the same top-up is tried again; the person can also choose the bank transfer instead.
+  const payByBankFor = (rand: number) => {
+    void run(async () => {
+      const created = onlineTopup ?? (await createOnlineTopup(walletDb, rand));
+      setOnlineTopup(created);
+      onChanged?.();
+      const started = await startOnlinePayment(onlineRequest, created.topupId);
+      if (!('redirectUrl' in started)) {
+        setError(started.message);
+        // a top-up the Worker has closed cannot be tried again: the next try makes a fresh one
+        if (started.rowClosed) setOnlineTopup(null);
+        return;
+      }
+      setRedirecting(true);
+      goToBankPage(started.redirectUrl);
+    }, 'Could not start the payment.');
+  };
+
   const handleContinue = () => {
     if (!details) return;
     const parsed = parseTopupAmount(amountText, details.minRand, details.maxRand);
@@ -163,10 +186,12 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
       setError(parsed.message);
       return;
     }
-    // Pay by bank, instant is open for this person: ask how they want to pay before anything is created.
+    // Pay by bank, instant is open for this person: ask how they want to pay before anything is created
+    // (unless the booking page already made the bank the main way: then the bank opens at once, with the same step on screen for a failure).
     if (onlineAvailable) {
       setError(null);
       setChosenRand(parsed.rand);
+      if (preferOnline) payByBankFor(parsed.rand);
       setStep('method');
       return;
     }
@@ -188,24 +213,8 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
     }, 'Could not start the top-up.');
   };
 
-  // The first choice: make the online top-up (the database checks the amount and the limits), ask the Worker to start the payment, go to the bank's page.
-  // If starting fails, the same top-up is tried again; the person can also choose the bank transfer instead.
-  const handlePayByBank = () => {
-    void run(async () => {
-      const created = onlineTopup ?? (await createOnlineTopup(walletDb, chosenRand));
-      setOnlineTopup(created);
-      onChanged?.();
-      const started = await startOnlinePayment(onlineRequest, created.topupId);
-      if (!('redirectUrl' in started)) {
-        setError(started.message);
-        // a top-up the Worker has closed cannot be tried again: the next try makes a fresh one
-        if (started.rowClosed) setOnlineTopup(null);
-        return;
-      }
-      setRedirecting(true);
-      goToBankPage(started.redirectUrl);
-    }, 'Could not start the payment.');
-  };
+  // The first choice: the bank, for the amount chosen (payByBankFor above).
+  const handlePayByBank = () => payByBankFor(chosenRand);
 
   const handlePickFile = async (picked: File | null) => {
     setFile(null);

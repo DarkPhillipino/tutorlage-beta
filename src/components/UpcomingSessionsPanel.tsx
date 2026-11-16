@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Loader2, AlertTriangle, Video, Star, Check, AlertCircle } from 'lucide-react';
 import { StudentSessionDetail, ProblemReason, WaitingRequest } from '../types';
-import { fetchStudentSessionDetails, fetchLearnerSessionDetails, fetchMyWaitingRequests, submitReview, cancelSession, cancelWaitingRequest, reportSessionProblem } from '../lib/queries';
+import { fetchStudentSessionDetails, fetchLearnerSessionDetails, fetchMyWaitingRequests, submitReview, cancelSession, cancelWaitingRequest, reportSessionProblem, acknowledgeEarlyEnd } from '../lib/queries';
 import { getCurrencySymbol } from '../lib/currencies';
 import { formatRate } from '../lib/format';
 import { fetchMyLearners, type LinkedLearner } from '../lib/guardian';
@@ -10,6 +10,7 @@ import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
 import { openSessionRoom, sessionRoomWindow } from '../lib/videoRooms';
 import { roomOpensAt } from '../lib/sessionTiming';
+import { showEarlyEndCheckIn, EARLY_END_QUESTION, EARLY_END_BODY } from '../lib/earlyEnd';
 import { formatSaDate, formatSaDateTime } from '../lib/saTime';
 import { FREE_CANCEL_NOTE, FREE_SESSION_LEARNER_BADGE, FREE_WAITING_NOTE } from '../lib/freeSessions';
 import { useFreeIds } from '../lib/freeSessionsHooks';
@@ -50,6 +51,21 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
   // WALLETS (2 Nov 2026): which of them were paid from a wallet, so the screen says the price is on hold / that a cancel is refunded as credit.
   const walletRequestIds = useWalletIds('request', waiting.map((r) => r.id));
   const walletSessionIds = useWalletIds('session', sessions.map((s) => s.id));
+  // Early end (15 Nov 2026): every 30 seconds the clock moves on and the sessions are read again quietly, so the check-in appears (and goes away
+  // if the tutor comes back) without a reload.
+  const [clock, setClock] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      setClock(Date.now());
+      const reload = isGuardian
+        ? fetchMyLearners(studentId).then((found) => fetchLearnerSessionDetails(found.map((l) => ({ id: l.id, name: l.firstName })), page))
+        : fetchStudentSessionDetails(studentId, page);
+      reload.then(setSessions).catch(() => undefined);
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, [studentId, isGuardian, page]);
 
   useEffect(() => {
     setIsLoading(true);
@@ -108,7 +124,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
     );
   }
 
-  const now = Date.now();
+  const now = Math.max(Date.now(), clock);
   const upcoming = sessions
     .filter((s) => s.status === 'scheduled' && new Date(s.scheduledStart).getTime() + s.durationHours * 3600_000 > now)
     .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart));
@@ -243,6 +259,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                 {FEATURES.videoRooms && (
                   <SessionRoomControl sessionId={s.id} scheduledStart={s.scheduledStart} durationHours={s.durationHours} />
                 )}
+                {showEarlyEndCheckIn(s, now) && <EarlyEndCheckIn sessionId={s.id} onAnswered={() => setRetryCount((c) => c + 1)} />}
                 <div className="flex flex-wrap items-start gap-x-4 gap-y-1">
                   <CancelSessionControl sessionId={s.id} walletNote={walletSessionIds.has(s.id) ? WALLET_COPY.cancelNote : undefined} freeNote={freeSessionIds.has(s.id) ? FREE_CANCEL_NOTE : undefined} onCancelled={() => setRetryCount((c) => c + 1)} />
                   <ReportProblemControl sessionId={s.id} />
@@ -453,12 +470,49 @@ const PROBLEM_REASONS: { value: ProblemReason; label: string }[] = [
   { value: 'other', label: 'Something else' },
 ];
 
+// "Is everything alright?" (CEO, 15 Nov 2026): shown to the learner / parent when the tutor left the call before the session's scheduled end.
+// "No, report a problem" opens the existing Report a problem form (an open report stops auto-complete and the tutor's credit).
+export const EarlyEndCheckIn: React.FC<{ sessionId: string; onAnswered: () => void }> = ({ sessionId, onAnswered }) => {
+  const [answer, setAnswer] = useState<'idle' | 'saving' | 'problem'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const allFine = async () => {
+    setAnswer('saving');
+    setError(null);
+    try {
+      await acknowledgeEarlyEnd(sessionId);
+      onAnswered();
+    } catch (e) {
+      setError(getErrorMessage(e, 'Could not save your answer. Try again.'));
+      setAnswer('idle');
+    }
+  };
+  return (
+    <div data-early-end-check-in role="region" aria-label="Is everything alright?" className="space-y-2 bg-amber-50 rounded-xl p-3 border border-amber-200">
+      <p className="text-sm font-bold text-[#0F172A]">{EARLY_END_QUESTION}</p>
+      <p className="text-xs text-slate-700">{EARLY_END_BODY}</p>
+      {answer === 'problem' ? (
+        <ReportProblemControl sessionId={sessionId} startOpen />
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <button onClick={allFine} disabled={answer === 'saving'} className="bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer">
+            Yes, all fine
+          </button>
+          <button onClick={() => setAnswer('problem')} className="bg-white border border-slate-300 text-[#0F172A] text-xs font-bold px-3 py-2 rounded-lg cursor-pointer">
+            No, report a problem
+          </button>
+        </div>
+      )}
+      {error && <p role="alert" className="text-[11px] text-rose-700 font-semibold">{error}</p>}
+    </div>
+  );
+};
+
 // "Report a problem" for the session's learner, the person who booked it, or
 // its tutor (backlog 7u). An open report stops the session from completing
 // automatically until an admin has looked at it. For anything about a child's
 // safety, the safeguarding procedure applies instead of this form.
-export const ReportProblemControl: React.FC<{ sessionId: string }> = ({ sessionId }) => {
-  const [isOpen, setIsOpen] = useState(false);
+export const ReportProblemControl: React.FC<{ sessionId: string; startOpen?: boolean }> = ({ sessionId, startOpen = false }) => {
+  const [isOpen, setIsOpen] = useState(startOpen);
   const [reason, setReason] = useState<ProblemReason>('no_show');
   const [description, setDescription] = useState('');
   const [isSending, setIsSending] = useState(false);
