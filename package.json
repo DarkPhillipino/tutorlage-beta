@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "tutorlage",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,14 +9,13 @@
     "deploy:api": "wrangler deploy",
     "build": "vite build && tsx scripts/postbuild.ts",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "lint": "tsc --noEmit",
     "regress": "node scripts/dev/run-all.mjs",
     "pulse": "tsx scripts/ops/site-pulse.ts",
     "test:browsers": "playwright test"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
     "@supabase/supabase-js": "^2.112.4",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",

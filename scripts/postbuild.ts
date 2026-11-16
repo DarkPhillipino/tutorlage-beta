@@ -12,7 +12,7 @@
 //  3. writes sitemap.xml and robots.txt from the same table, so they cannot drift from the pages.
 // What it cannot fix: any address with a code in it still gets the host's 404 status; only Cloudflare in front of the site (proxied,
 // with a rule) or a different host could change that.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { NOT_FOUND_META, PAGE_META, SITE_ORIGIN, type PageMeta } from '../src/lib/pageMeta';
@@ -54,6 +54,46 @@ export function fillPage(html: string, page: PageFill): string {
   return out;
 }
 
+// ---- Sign-up speed (17 Nov 2026) ----------------------------------------------------------------------------------------------------------
+// Measured on the slow-phone profile: /signup/tutor first paints its form at about 2.5 s, because the sign-up screen is a separate file that the
+// browser only asks for AFTER the start-up script has run, and that file then names about twelve small files one after another. Telling the
+// browser about them in the page itself (a modulepreload line each, the same kind of line the page already has for React and the database
+// library) lets all of them download alongside the start-up script instead of after it. Same files, same bytes, only earlier.
+// Only the three sign-up pages get this; every other page is unchanged.
+export const PRELOAD_ROUTES: Record<string, string> = { '/signup/student': 'CreateAccount', '/signup/tutor': 'CreateAccount', '/signup/parent': 'CreateAccount' };
+
+// The files a built script loads at once ("import{..}from"./x.js"" and "import"./x.js""), not the ones it loads later ("import("./x.js")").
+export function staticImportsOf(js: string): string[] {
+  return [...js.matchAll(/(?:\bfrom|\bimport)\s*"\.\/([A-Za-z0-9_.-]+\.js)"/g)].map((m) => m[1]);
+}
+
+// Every file the route's script needs, the script first, then what it imports, depth first, each once; `skip` holds what the page already loads.
+export function preloadFiles(readAsset: (file: string) => string, start: string, skip: Set<string>): string[] {
+  const seen = new Set<string>(skip);
+  const order: string[] = [];
+  const visit = (file: string) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    order.push(file);
+    for (const next of staticImportsOf(readAsset(file))) visit(next);
+  };
+  visit(start);
+  return order;
+}
+
+export function addModulePreloads(html: string, files: string[]): string {
+  const missing = files.filter((f) => !html.includes(`href="/assets/${f}"`));
+  if (missing.length === 0) return html;
+  const lines = missing.map((f) => `<link rel="modulepreload" crossorigin href="/assets/${f}">`).join('\n    ');
+  const lastPreload = [...html.matchAll(/<link rel="modulepreload"[^>]*>/g)].pop();
+  if (lastPreload && lastPreload.index !== undefined) {
+    const end = lastPreload.index + lastPreload[0].length;
+    return `${html.slice(0, end)}\n    ${lines}${html.slice(end)}`;
+  }
+  if (!/<\/head>/.test(html)) throw new Error('postbuild: the page has no </head> to add the preload lines to');
+  return html.replace('</head>', () => `    ${lines}\n  </head>`);
+}
+
 export const addressFor = (path: string): string => (path === '/' ? `${SITE_ORIGIN}/` : `${SITE_ORIGIN}${path}`);
 
 // "/signup/tutor" is written as dist/signup/tutor.html; GitHub Pages answers /signup/tutor from it.
@@ -84,10 +124,22 @@ function main() {
   if (!home) throw new Error('postbuild: no entry for "/"');
   write('index.html', fillPage(template, { title: home.title, description: home.description, url: addressFor('/'), index: home.index }));
 
+  // What every page already loads at start-up (the entry script and the lines the template already preloads): not repeated.
+  const alreadyLoaded = new Set([...template.matchAll(/\/assets\/([A-Za-z0-9_.-]+\.js)/g)].map((m) => m[1]));
+  const assetFiles = readdirSync(join(dist, 'assets'));
+  const readAsset = (file: string) => readFileSync(join(dist, 'assets', file), 'utf8');
+
   let count = 0;
   for (const page of PAGE_META) {
     if (page.path === '/') continue;
-    write(fileFor(page.path), fillPage(template, { title: page.title, description: page.description, url: addressFor(page.path), index: page.index }));
+    let html = fillPage(template, { title: page.title, description: page.description, url: addressFor(page.path), index: page.index });
+    const routeName = PRELOAD_ROUTES[page.path];
+    if (routeName) {
+      const start = assetFiles.find((f) => f.startsWith(`${routeName}-`) && f.endsWith('.js'));
+      if (!start) throw new Error(`postbuild: no built file for the ${routeName} screen (needed to preload ${page.path})`);
+      html = addModulePreloads(html, preloadFiles(readAsset, start, alreadyLoaded));
+    }
+    write(fileFor(page.path), html);
     count += 1;
   }
   write('404.html', fillPage(template, { ...NOT_FOUND_META, url: null, index: false }));

@@ -372,7 +372,7 @@ test('the first look fails: today\'s page with no error, then the waiting screen
 test('a card return finds the request by its card reference and becomes the waiting screen, with the card wording', async ({ page }) => {
   const seen = await open(page, { verify: { status: 'card_verified' }, byReference: { id: REQ }, request: () => requestRow({ paid_from_wallet: false, wallet_hold_rand: 0 }) }, `/payment/callback?reference=${CARD_REF}`);
   await expect(page.getByRole('heading', { name: WAITING_TITLE })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('Your card is charged only when a tutor accepts. If nobody accepts in time, the request ends and you are not charged.')).toBeVisible();
+  await expect(page.getByText('Your request is waiting for a tutor to accept it.')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel request' }).click();
   await expect(page.getByText('Cancel this request? You have not been charged.')).toBeVisible();
   expect(seen.supabase.some((s) => s.includes(`paystack_reference=eq.${CARD_REF}`) && s.includes(`requested_by_profile_id=eq.${ME}`))).toBe(true);
@@ -381,7 +381,7 @@ test('a card return finds the request by its card reference and becomes the wait
 test('a card return whose request cannot be found is exactly today\'s card page', async ({ page }) => {
   await open(page, { verify: { status: 'card_verified' }, byReference: null }, `/payment/callback?reference=${CARD_REF}`);
   await expect(page.getByRole('heading', { name: 'Request sent' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText("Your request is now visible to qualifying tutors. Your card is charged only when one accepts — we'll let you know. The R1 card check is being refunded.")).toBeVisible();
+  await expect(page.getByText("Your request is now visible to qualifying tutors. We'll let you know when one accepts.")).toBeVisible();
   await expect(page.getByRole('button', { name: 'Back to Tutorlage' })).toBeVisible();
 });
 

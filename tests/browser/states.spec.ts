@@ -8,13 +8,13 @@ test.describe('the database fails', () => {
     await page.route(/\/auth\/v1\/token/, (route) => route.fulfill({ status: 500, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"msg":"boom"}' }));
     await page.goto('/signin/student');
     await page.getByLabel('Email').fill('someone@example.invalid');
-    await page.getByLabel('Password').fill('not-a-real-password');
+    await page.getByLabel('Password', { exact: true }).fill('not-a-real-password');
     await page.getByRole('button', { name: /sign in/i }).last().click();
     // The message is announced to screen readers too (role="alert"); the exact words come from describeSignInError.
     await expect(page.getByRole('alert')).toBeVisible();
     await expect(page.getByRole('alert')).not.toBeEmpty();
     await expect(page.getByLabel('Email')).toBeEnabled();
-    await expect(page.getByLabel('Password')).toBeEnabled();
+    await expect(page.getByLabel('Password', { exact: true })).toBeEnabled();
     expect(problems.pageErrors).toEqual([]);
   });
 
@@ -22,7 +22,7 @@ test.describe('the database fails', () => {
     await page.route(/\/auth\/v1\/token/, (route) => route.abort('connectionreset'));
     await page.goto('/signin/student');
     await page.getByLabel('Email').fill('someone@example.invalid');
-    await page.getByLabel('Password').fill('not-a-real-password');
+    await page.getByLabel('Password', { exact: true }).fill('not-a-real-password');
     await page.getByRole('button', { name: /sign in/i }).last().click();
     await expect(page.getByLabel('Email')).toBeEnabled({ timeout: 15_000 });
     await expect(page.locator('body')).not.toBeEmpty();
@@ -90,7 +90,7 @@ test.describe('the phone loses signal (load-shedding, a lift)', () => {
     });
     await page.goto('/signin/student');
     await page.getByLabel('Email').fill('someone@example.invalid');
-    await page.getByLabel('Password').fill('not-a-real-password');
+    await page.getByLabel('Password', { exact: true }).fill('not-a-real-password');
     const button = page.getByRole('button', { name: /sign in/i }).last();
     await button.dblclick();
     await page.waitForTimeout(1500);

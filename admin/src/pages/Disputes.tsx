@@ -57,7 +57,7 @@ const ResolveModal: React.FC<{ dispute: Dispute; onClose: () => void; onResolved
           className="w-full bg-slate-100 text-sm font-semibold text-[#0F172A] rounded-xl px-3 py-2.5 mb-3 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
         >
           <option value="resolved_payout">Resolved — tutor keeps payout</option>
-          <option value="resolved_refunded">Resolved — refund student</option>
+          <option value="resolved_refunded">Resolved — refund decided (money is sent separately)</option>
           <option value="dismissed">Dismissed</option>
           <option value="under_investigation">Still investigating</option>
         </select>
@@ -71,6 +71,9 @@ const ResolveModal: React.FC<{ dispute: Dispute; onClose: () => void; onResolved
               onChange={(e) => setRefundAmount(e.target.value)}
               className="w-full bg-slate-100 text-sm font-semibold text-[#0F172A] rounded-xl px-3 py-2.5 mb-3 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
             />
+            <p className="text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3">
+              This saves your decision and the amount. It does not send any money. To pay the learner back, use Payments, Wallets, Adjust wallet (or the bank, for a card payment), then note it here.
+            </p>
           </>
         )}
 

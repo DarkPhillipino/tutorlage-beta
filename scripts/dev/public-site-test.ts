@@ -3,7 +3,7 @@
 // wording and the Content-Security-Policy plugin. Run:  npx tsx scripts/dev/public-site-test.ts
 import fs from 'node:fs';
 import { PAGE_META, NOT_FOUND_META, SITE_ORIGIN, metaForPath, titleForPath } from '../../src/lib/pageMeta';
-import { addressFor, fileFor, fillPage, robotsTxt, sitemapXml } from '../postbuild';
+import { PRELOAD_ROUTES, addModulePreloads, addressFor, fileFor, fillPage, preloadFiles, robotsTxt, sitemapXml, staticImportsOf } from '../postbuild';
 
 let failures = 0;
 const check = (name: string, ok: boolean, detail = '') => {
@@ -83,6 +83,22 @@ check('the start page has no sign-up-for-news form or mailing list', !/<form|<in
 check('the start page links Terms, Privacy, Refund Policy and the sign-in page, and the tutor sign-up', ['to="/terms"', 'to="/privacy"', 'to="/refunds"', 'to="/login"', 'to="/signup/tutor"', 'to="/signup/parent"', 'to="/signup/student"'].every((s) => landing.includes(s)));
 check('the start page no longer carries the "payments are not open" notice (CEO, 4 Nov 2026: wallet top-ups by bank transfer are live; only card payments are closed)', !/PAYMENTS_NOT_OPEN|data-landing-payments-notice/.test(landingText));
 check('the start page has one h1 and the page is a header, a main and a footer', (landing.match(/<h1\b/g) ?? []).length === 1 && /<header\b/.test(landing) && /<main>/.test(landing) && /<footer\b/.test(landing));
+
+// ---- sign-up speed: the preload lines (17 Nov 2026) ----
+const fakeAssets: Record<string, string> = {
+  'CreateAccount-A.js': 'import{r as a}from"./vendor-react-V.js";import{u as b}from"./index-E.js";import{P as c}from"./PasswordInput-B.js";import"./side-C.js";const lazy=()=>import("./Later-L.js");',
+  'PasswordInput-B.js': 'import{j as d}from"./vendor-react-V.js";import{I as e}from"./icon-D.js";',
+  'side-C.js': 'import{j as d}from"./icon-D.js";',
+  'icon-D.js': 'export const I=1;',
+};
+check('staticImportsOf lists the files a script loads at once, in order, and not the one it loads later', staticImportsOf(fakeAssets['CreateAccount-A.js']).join(',') === 'vendor-react-V.js,index-E.js,PasswordInput-B.js,side-C.js');
+const wanted = preloadFiles((f) => fakeAssets[f] ?? '', 'CreateAccount-A.js', new Set(['vendor-react-V.js', 'index-E.js']));
+check('preloadFiles gives the route script first, then what it needs, each once, and leaves out what the page already loads', wanted.join(',') === 'CreateAccount-A.js,PasswordInput-B.js,icon-D.js,side-C.js', wanted.join(','));
+check('preloadFiles never lists a file the route only loads later', !wanted.includes('Later-L.js'));
+const withLinks = addModulePreloads(indexHtml, wanted);
+check('addModulePreloads adds one modulepreload line per file, after the ones the page already has', wanted.every((f) => withLinks.includes(`<link rel="modulepreload" crossorigin href="/assets/${f}">`)) && withLinks.lastIndexOf('rel="modulepreload"') > withLinks.indexOf('vendor-'));
+check('addModulePreloads is safe to run twice (no line is added twice)', addModulePreloads(withLinks, wanted) === withLinks);
+check('only the three sign-up pages are preloaded; every other page is untouched', Object.keys(PRELOAD_ROUTES).sort().join(',') === '/signup/parent,/signup/student,/signup/tutor');
 
 // ---- the Content-Security-Policy ----
 check('the policy is added to built pages only, and the pages may load scripts only from our own origin', /apply: 'build'/.test(viteConfig) && /"script-src 'self'"/.test(viteConfig));

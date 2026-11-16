@@ -4,7 +4,7 @@ import { test, expect, cspViolations } from './fixtures';
 // FUNC-XBROWSER-01 (runs in chromium, firefox, webkit, an Android phone and an iPhone), FE-CONSOLE-01, FE-SPA-ROUTING-01.
 
 // Addresses a visitor can open directly without being signed in and without a link carrying a secret.
-const OPEN = ['/', '/login', '/signin/student', '/signin/tutor', '/signin/parent', '/signup/student', '/signup/tutor', '/signup/parent', '/forgot-password', '/forgot-password/tutor', '/about', '/terms', '/privacy', '/refunds', '/delivery'];
+const OPEN = ['/', '/login', '/signin/student', '/signin/tutor', '/signin/parent', '/signup/student', '/signup/tutor', '/signup/parent', '/forgot-password', '/forgot-password/tutor', '/teach', '/about', '/terms', '/privacy', '/refunds', '/delivery'];
 
 test.describe('public pages open directly', () => {
   for (const path of OPEN) {
@@ -21,7 +21,8 @@ test.describe('public pages open directly', () => {
 
     test(`${path}: no console errors, no uncaught errors, no failed requests, no Content-Security-Policy violations`, async ({ page, problems }) => {
       await page.goto(path);
-      await expect(page.locator('#root h1, #root h2').first()).toBeVisible();
+      // 15 s, not 5: with five browsers running at once on one processor the first screen of a page can take longer than 5 s (17 Nov 2026).
+      await expect(page.locator('#root h1, #root h2').first()).toBeVisible({ timeout: 15_000 });
       await page.waitForLoadState('networkidle');
       expect(await cspViolations(page)).toEqual([]);
       expect(problems.consoleErrors).toEqual([]);
@@ -41,7 +42,7 @@ test.describe('public pages open directly', () => {
 
 test.describe('addresses nobody built', () => {
   // (An unknown role such as /signup/teacher is not in this list on purpose: sign-up falls back to the student form for it.)
-  for (const path of ['/no/such/page', '/teach', '/index.htm', '/signup/tutor/extra']) {
+  for (const path of ['/no/such/page', '/index.htm', '/signup/tutor/extra']) {
     test(`${path}: the host answers 404 and the app says so plainly, with a way on`, async ({ page, problems }) => {
       const response = await page.goto(path);
       expect(response?.status()).toBe(404);

@@ -10,7 +10,7 @@ const ACTION_LABELS: Record<string, string> = {
   tutor_suspended: 'Tutor suspended',
   user_banned: 'User banned',
   dispute_resolved: 'Dispute resolved',
-  refund_issued: 'Refund issued',
+  refund_issued: 'Refund decided (money is sent separately)',
   payout_batch_executed: 'Payout batch executed',
   manual_tier_override: 'Manual tier override',
   system_setting_updated: 'System setting updated',
