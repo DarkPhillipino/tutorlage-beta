@@ -22,7 +22,7 @@
 - You join from your **sessions list** with the **Join session** button. The session takes place in Tutorlage's own video room, or through a meeting link (for example Google Meet, Teams or Zoom) that the tutor adds to the session. A meeting link of another service follows that service's own terms.
 - You need an internet connection and a device with a browser, a camera and a microphone.
 - A learner under 18 uses the session through a parent's or guardian's account. Parents and guardians can be in the session.
-- The tutor marks the session complete when it ends. If nobody does, it completes by itself 48 hours after its scheduled end, unless a problem has been reported.
+- The tutor marks the session complete when it ends. If nobody does, it completes by itself 2 hours after its scheduled end when the video room was used by the tutor and someone else, and 48 hours after its scheduled end in every other case, unless a problem has been reported. A report stops the clock.
 
 ## 4. If a session is not delivered
 

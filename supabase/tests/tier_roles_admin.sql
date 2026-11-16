@@ -18,7 +18,8 @@ begin
     (t1, z,'authenticated','authenticated','tr.1.'||t1||'@example.invalid', jsonb_build_object('role','tutor','first_name','One','date_of_birth',adult), '{}'),
     (t2, z,'authenticated','authenticated','tr.2.'||t2||'@example.invalid', jsonb_build_object('role','tutor','first_name','Two','date_of_birth',adult), '{}'),
     (ad, z,'authenticated','authenticated','tr.ad.'||ad||'@example.invalid', jsonb_build_object('first_name','Admin','date_of_birth',adult), '{}');
-  insert into admin_profiles (id, first_name, surname, email) values (ad, 'Test', 'Admin', 'tr.ad.'||ad||'@example.invalid');
+  -- 16 Nov 2026 (P2 round 2): the Levels functions now need a super admin (or a verification officer for the four per-tutor ones), so the fixture admin is a super admin.
+  insert into admin_profiles (id, first_name, surname, email, admin_role) values (ad, 'Test', 'Admin', 'tr.ad.'||ad||'@example.invalid', 'super_admin');
   select count(*) into n0 from admin_audit_logs;
 
   -- T0 the definitions the migration seeds

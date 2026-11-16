@@ -66,6 +66,7 @@ Nothing in these Terms makes Tutorlage, a tutor and a learner each other's emplo
 - **On hold, then paid.** When you send a request, its price is put on hold in your wallet. If no tutor accepts, it goes straight back (§7). When a tutor accepts, the held price becomes the money for that session. It is not credited to the tutor until the session is complete (§9).
 - **Where the money goes.** When a session is complete, the tutor's share is credited to the tutor's own Tutorlage wallet and Tutorlage keeps its commission. The tutor asks us for a payout, and we pay it by bank transfer from our bank account.
 - **Our commission** depends on the tutor's level (B3); a tutor can ask us for the percentage for their level at any time.
+- **Promo codes.** If you joined with a promo code, you pay 10% less on the price of your first 3 lessons paid from your wallet (the percentage and the number of lessons are shown with your code). The discount comes out of Tutorlage's share: a tutor's pay does not change. A lesson that does not take place, or is cancelled, does not use up one of the three. We may stop new families joining with a code: families that already joined keep their lessons. We may also pause a code, and a paused code gives no discount until it is switched on again. Card payments carry no promo discount.
 - **We collect for the tutor.** The tutor appoints Tutorlage as their **limited agent to collect payment** for sessions booked through Tutorlage. When the price of a session is put on hold in your wallet and the session is booked, your obligation to pay the tutor for it is settled. The tutor's claim for payment is against Tutorlage, not against you.
 - **Payment security.**
   - Where card payments are available, you pay for a booking by card through our payment provider, Paystack, on Paystack's own page. We never see or store a card number. The money settles to our bank account and is held against that booking until the session is complete, in the same way as money held from your wallet (§9). If the request is not accepted, or the booking is cancelled in a case where we refund (§8), a card payment is refunded to the same card through Paystack.
@@ -93,7 +94,7 @@ Until a session starts, you can cancel it yourself from your sessions list and t
 
 1. **Completion.**
    - The tutor marks a session complete after it ends.
-   - If nobody marks it, it **completes automatically 48 hours after its scheduled end**, unless a problem has been reported.
+   - If nobody marks it, it **completes automatically 2 hours after its scheduled end** when the video room was used by the tutor and at least one other person, and **48 hours after its scheduled end** in every other case, unless a problem has been reported. Report a problem as soon as you can: a report stops the clock.
 2. **Something went wrong?** Use **Report a problem** on the session, or email support@tutorlage.com, as soon as you can. A session with an open report is not completed until we have looked into it. See the Refund Policy for what happens next.
 3. **Reviews.**
    - After a completed session the learner, or the parent or guardian, may rate it.

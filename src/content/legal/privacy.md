@@ -22,6 +22,7 @@ This policy explains what personal information Tutorlage collects, why, who it i
 | **Tutors' payout details** | Bank, branch code, account number and account holder's name, which you give us so that we can pay you. Only the people who pay you can open them, and each time is logged. We do not ask for your ID or passport number here | Tutors |
 | **Consent and acceptance records** | Which version of our Terms, Privacy Policy and notices you accepted, how and when; a guardian's consent for a learner and any withdrawal | Everyone |
 | **Communications** | Emails to support@ and safety@, in-app problem reports, notifications we send you | Anyone who contacts us |
+| **What you type in the Suggestions box** | The text (up to 1,000 characters), your role and the date. Our team reads it and may keep an internal note on it that you cannot see. Please do not put other people's personal details in a suggestion | Anyone who sends one |
 | **Technical data** | IP address, browser and device details, and times of access, recorded in our service providers' logs when you use the site and sign in | Everyone, including visitors |
 | **Feedback** (closed test only) | Your answers to our feedback forms | Testers |
 
@@ -162,7 +163,7 @@ We will ask your consent before using your information for a purpose not listed 
 
 **Payments**:
 - card payments are made on Paystack's own page, so card details never reach us;
-- we never store card numbers. A tutor's bank account number is stored only so that we can pay them.
+- we never store card numbers. A tutor's bank account number is stored only so that we can pay them. Each payout record keeps a copy of the account it was paid to (bank, branch code, account holder and account number) for 7 years after the end of the financial year, because it is part of the company's accounting records. If you close your account and nothing is owed to you, the bank details you saved are deleted, and on your payout records the account holder's name is replaced and the account number is cut down to its last four digits.
 
 **If there is a security compromise**: if your information may have been accessed by someone unauthorised, we will notify the Information Regulator and you **as soon as reasonably possible after we discover it**. We will tell you what happened, what it could mean for you, what we have done about it, what you can do to protect yourself, and who accessed it if we know.
 
@@ -179,6 +180,7 @@ We will ask your consent before using your information for a purpose not listed 
 | Video room records (who joined which room and when) | Deleted 30 days after the room closes. No audio or video is ever kept |
 | Problem reports and safety reports | 5 years, or longer where a report concerns a learner under 18 and the law or an investigation requires it |
 | Support emails | 2 years |
+| Suggestions you send in the Suggestions box | Until your account is closed, then deleted with the rest of your data |
 | "Tell me when a tutor is available" requests | Not acted on after 60 days; deleted 90 days after you were told or after you asked, whichever applies; you can remove one at any time |
 | Choices about tutors (kept, tried someone else) and a tutor's decision not to carry on | While the learner's or tutor's account is open, then deleted with it. Removed by the learner at any time ("Undo") |
 | Technical logs | For as long as each provider keeps them under its own policy |
