@@ -667,7 +667,9 @@ begin
     exception when others then
       t := 'ERR: ' || sqlerrm;
     end;
-    r := r || pg_temp.chk('RM2', 'with the switch OFF the same tutor opens a room exactly as before', t, 'created');
+    -- Changed 16 Nov 2026 (CEO, option B; migration 20261116190500_video_rooms_verified_only): a room needs a VERIFIED tutor whatever the switch says, so with the switch OFF
+    -- the released-but-unverified tutor is refused as well (before: "created").
+    r := r || pg_temp.chk('RM2', 'with the switch OFF a released (not yet verified) tutor is STILL refused: a room needs a verified tutor whatever the switch says', pg_temp.pfx(t, 'ERR: You can open video rooms once you are verified.'), 'ERR: You can open video rooms once you are verified.');
 
     -- READINESS for the "Verified: message ready" button (v_v is verified; its competency was set back to pending in C4)
     select f.id into v_listid from founding_tutors_list f where f.user_id = v_v;

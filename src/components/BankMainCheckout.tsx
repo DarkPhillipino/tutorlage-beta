@@ -18,7 +18,8 @@ interface BankMainCheckoutProps {
   onRetry: () => void;
   onPayFromWallet: () => void;
   // The card way (its test note, the "not open" notice and its button), folded under "Pay with a card instead". Built by the booking page.
-  cardSection: React.ReactNode;
+  // null = this person may not pay by card (the card allowlist): no card link, no card words, nothing about a provider.
+  cardSection: React.ReactNode | null;
   // The booking page's "you changed the subject" line, which belongs above whichever way is shown.
   children?: React.ReactNode;
 }
@@ -49,6 +50,7 @@ export const BankMainCheckout: React.FC<BankMainCheckoutProps> = ({
           {isSending ? 'Sending your request…' : `Pay ${rand0(price)} from your wallet`}
         </button>
       )}
+      {cardSection !== null && (
       <div className="mt-4 max-w-sm w-full flex flex-col items-center">
         <button
           type="button"
@@ -64,6 +66,7 @@ export const BankMainCheckout: React.FC<BankMainCheckoutProps> = ({
         </button>
         {showCard && <div className="mt-3 flex flex-col items-center">{cardSection}</div>}
       </div>
+      )}
     </div>
   );
 };

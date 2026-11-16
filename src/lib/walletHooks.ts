@@ -10,6 +10,7 @@ import {
   type Balance,
   type WalletClient,
 } from './wallet';
+import { fetchCardAllowed, type CardAnswer } from './cardCheckout';
 
 // The wallet questions (wallet.ts) bound to the app's own database client, as hooks for the screens.
 // The real client's query builder is far richer than WalletClient describes, so it is passed through one cast here.
@@ -18,9 +19,9 @@ export const walletDb = supabase as unknown as WalletClient;
 // Sends the signed-in person's OWN new request from their wallet (the price goes on hold).
 export const sendMyRequestWallet = (requestId: string) => sendRequestWallet(requestId, walletDb);
 
-// Is the wallet open? false until the answer arrives, and whenever it cannot be asked (a database without the wallet migrations).
-export function useWalletOpen(): boolean {
-  const [open, setOpen] = useState(false);
+// Is the wallet open? null until the answer arrives; false whenever it cannot be asked (a database without the wallet migrations).
+export function useWalletOpenAnswer(): boolean | null {
+  const [open, setOpen] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
     fetchWalletOpen(walletDb).then((answer) => {
@@ -31,6 +32,11 @@ export function useWalletOpen(): boolean {
     };
   }, []);
   return open;
+}
+
+// Is the wallet open? false until the answer arrives, and whenever it cannot be asked (a database without the wallet migrations).
+export function useWalletOpen(): boolean {
+  return useWalletOpenAnswer() === true;
 }
 
 export type BalanceState = { status: 'closed' } | { status: 'loading' } | { status: 'error' } | ({ status: 'ready' } & Balance);
@@ -99,4 +105,21 @@ export function useWalletVisible(userId: string | undefined, hidden: boolean): {
     };
   }, [open, userId, hidden]);
   return { visible: !hidden && (open || inFlight), open };
+}
+
+// May THIS person pay by card? 'loading' until the database answers; 'no' for any doubt (see src/lib/cardCheckout.ts). Asked once, when `enabled`.
+export function useCardAllowed(enabled: boolean): CardAnswer {
+  const [answer, setAnswer] = useState<CardAnswer>('loading');
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    setAnswer('loading');
+    fetchCardAllowed(walletDb).then((yes) => {
+      if (!cancelled) setAnswer(yes ? 'yes' : 'no');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
+  return answer;
 }

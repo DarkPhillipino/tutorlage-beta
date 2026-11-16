@@ -206,7 +206,7 @@ async function main() {
 
   // ---- the screens, read as source ----
   const prices = code('src/components/PricesPage.tsx');
-  check('the booking page asks whether the wallet is open and works only in rand', /useWalletOpen\(\)/.test(prices) && /walletAvailable = walletOpen && !freeOpen && selectedLevel\?\.currencyCode\.trim\(\) === 'ZAR'/.test(prices));
+  check('the booking page asks whether the wallet is open and works only in rand', /useWalletOpenAnswer\(\)/.test(prices) && /const walletOpen = walletOpenAnswer === true/.test(prices) && /walletAvailable = walletOpen && !freeOpen && selectedLevel\?\.currencyCode\.trim\(\) === 'ZAR'/.test(prices));
   check('enough in the wallet: the button reads "Pay R180 from your wallet"', /`Pay \$\{rand0\(payPrice\)\} from your wallet`/.test(prices) && /\{walletEnough && \(\s*<button\s*onClick=\{\(\) => handleSendRequest\(true\)\}/.test(prices) && /data-wallet-toggle/.test(prices) && /See more/.test(prices) && /useState\(false\)/.test(prices));
   check('a wallet request is sent through send_request_wallet and returns BEFORE the card check; the free branch is still first', (() => {
     const free = prices.indexOf('await sendMyRequestFree(created.id)');

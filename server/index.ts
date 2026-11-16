@@ -10,6 +10,7 @@ import type { CloseAccountDeps } from './closeAccount';
 import type { IceServer } from './iceServers';
 import { createWalletOnline, mountOnlineRoutes, mountOnlineWebhook } from './walletOnline';
 import { emailForPaystack, plainPaystackMessage } from './paystackEmail';
+import { cardCheckoutDecision } from './cardCheckout';
 import { OZOW_SECRET_NAMES, createOzowProvider, ozowConfigFromEnv } from './ozow';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
@@ -260,6 +261,13 @@ app.post('/api/payments/initialize', rateLimit(10, 60_000), async (req, res) => 
   }
   if (!ALLOWED_ORIGINS.some((origin) => callbackUrl.startsWith(origin))) {
     res.status(400).json({ error: 'callbackUrl is not on the allowed origin list' });
+    return;
+  }
+  // THE CARD ALLOWLIST (16 Nov 2026): the Paystack test card is for the review accounts and the CEO's own sign-in only. Checked before anything else
+  // is looked up or sent to Paystack, from the database (server/cardCheckout.ts); a doubt is a refusal.
+  const cardDecision = await cardCheckoutDecision(db, user.id);
+  if (cardDecision.allowed === false) {
+    res.status(cardDecision.status).json({ error: cardDecision.error, code: cardDecision.code });
     return;
   }
   if (!user.email || !EMAIL_SHAPE.test(user.email)) {
@@ -619,6 +627,25 @@ app.post('/api/requests/:id/accept', rateLimit(20, 60_000), async (req, res) => 
   if (!UUID_SHAPE.test(requestId)) {
     res.status(400).json({ error: 'That request id is not valid.' });
     return;
+  }
+
+  // THE CARD ALLOWLIST (16 Nov 2026), second lock: a saved card is charged only for a payer who may still pay by card. A request paid in any other
+  // way is not touched by this. Looked up BEFORE the request is claimed, so a refusal leaves the request exactly as it was.
+  const { data: payerRow, error: payerError } = await db
+    .from('session_requests')
+    .select('requested_by_profile_id, payment_status')
+    .eq('id', requestId)
+    .maybeSingle();
+  if (payerError) {
+    res.status(503).json({ error: 'We could not check this request just now. Please try again in a minute.' });
+    return;
+  }
+  if (payerRow?.payment_status === 'card_verified') {
+    const cardDecision = await cardCheckoutDecision(db, payerRow.requested_by_profile_id);
+    if (cardDecision.allowed === false) {
+      res.status(409).json({ error: "This request can't be accepted right now. Please choose another request.", code: cardDecision.code });
+      return;
+    }
   }
 
   const { data: claim, error: claimError } = await db.rpc('claim_session_request', {

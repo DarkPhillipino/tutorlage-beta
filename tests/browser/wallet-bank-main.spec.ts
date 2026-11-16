@@ -27,9 +27,14 @@ const rowsOrOne = (route: Route, list: unknown[]) => {
 };
 
 type Online = 'yes' | 'no' | 'missing';
+// THE CARD ALLOWLIST (16 Nov 2026): does the database say this person may pay by card? Every test below that shows the card has this person on the list (the default);
+// the 'no', 'missing' and 'error' ones are the ordinary person.
+type Card = 'yes' | 'no' | 'missing' | 'error';
 type Env = 'staging' | 'production' | 'not_set_up' | 'error' | 'old_worker' | 'odd' | 'down';
 interface Setup {
   online: Online;
+  card?: Card;
+  currency?: string;
   env?: Env;
   balance?: number;
   start?: { status: number; body: unknown };
@@ -49,6 +54,11 @@ async function mock(page: Page, setup: Setup): Promise<Seen> {
     if (/\/rpc\/my_date_of_birth/.test(url)) return route.fulfill(json('2000-01-01'));
     if (/\/rpc\/my_pending_acceptances/.test(url) || /\/rest\/v1\/(policy_acceptances|parent_student_links)/.test(url)) return route.fulfill(json([]));
     if (/\/rpc\/wallet_open/.test(url)) return route.fulfill(json(true));
+    if (/\/rpc\/card_checkout_available/.test(url)) {
+      if (setup.card === 'missing') return route.fulfill(json({ code: 'PGRST202', message: 'Could not find the function in the schema cache' }, 404));
+      if (setup.card === 'error') return route.fulfill(json({ message: 'boom' }, 500));
+      return route.fulfill(json(setup.card !== 'no'));
+    }
     if (/\/rpc\/wallet_online_available/.test(url)) {
       if (setup.online === 'missing') return route.fulfill(json({ code: 'PGRST202', message: 'Could not find the function in the schema cache' }, 404));
       return route.fulfill(json(setup.online === 'yes'));
@@ -56,11 +66,11 @@ async function mock(page: Page, setup: Setup): Promise<Seen> {
     if (/\/rpc\/create_online_topup/.test(url)) return route.fulfill(json({ topup_id: ONLINE_ID, reference: 'TL-ONLN22', amount_rand: 200, status: 'awaiting_payment', method: 'online' }));
     if (/\/rpc\/wallet_payment_details/.test(url)) return route.fulfill(json({ open: true, bank_name: 'Test Bank', account_holder: 'Tutorlage (Pty) Ltd', account_number: '1234567890', branch_code: '250655', account_type: 'Cheque', min_rand: 50, max_rand: 5000, cap_rand: 10000 }));
     if (/\/rpc\/topup_pilot_notice/.test(url)) return route.fulfill(json(null));
-    if (/\/rpc\/available_price_levels/.test(url)) return route.fulfill(json([{ level_id: '1A', tier_id: 1, tier_name: 'Foundation', price: 180, currency_code: 'ZAR', tutors: 3 }]));
+    if (/\/rpc\/available_price_levels/.test(url)) return route.fulfill(json([{ level_id: '1A', tier_id: 1, tier_name: 'Foundation', price: 180, currency_code: setup.currency ?? 'ZAR', tutors: 3 }]));
     if (/\/rest\/v1\/sub_tier_definitions/.test(url)) {
       return route.fulfill(json([{
         id: '1A', tier_id: 1, max_allowed_rate: 180, min_hours: 0, min_rating: 0, min_repeat_rate_pct: 0, min_written_reviews: 0, min_distinct_students_uplift: 0, required_grade_uplift_pct: 0,
-        tier_definitions: { public_name: 'Foundation', positioning_quote: 'Where every tutor starts.', currency_code: 'ZAR' },
+        tier_definitions: { public_name: 'Foundation', positioning_quote: 'Where every tutor starts.', currency_code: setup.currency ?? 'ZAR' },
       }]));
     }
     if (/\/rest\/v1\/wallets/.test(url)) return rowsOrOne(route, [{ available_rand: setup.balance ?? 320, held_rand: 0 }]);
@@ -101,7 +111,7 @@ async function openPricePanel(page: Page, setup: Setup): Promise<Seen> {
   await page.getByRole('button', { name: /1-on-1 Tutoring/ }).click({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Find a tutor' }).click({ timeout: 20_000 });
   await page.locator('[data-level="1A"]').click({ timeout: 20_000 });
-  await expect(page.getByText('R180', { exact: false }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(setup.currency && setup.currency !== 'ZAR' ? '180' : 'R180', { exact: false }).first()).toBeVisible({ timeout: 15_000 });
   return seen;
 }
 
@@ -218,3 +228,73 @@ for (const env of ['not_set_up', 'error', 'old_worker', 'odd', 'down'] as const)
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
   });
 }
+
+// ---- THE CARD ALLOWLIST (16 Nov 2026, CEO rule): an ordinary person never sees the Paystack TEST card ----------------------------------------------------------
+// Every word on the page below is read as the person sees it; "Paystack", "test card", "Test mode" and the card button must not be anywhere.
+const NO_CARD_WORDS = /paystack|test card|test mode|save card|card check/i;
+async function expectNoCardAnywhere(page: Page) {
+  await expect(page.getByRole('button', { name: SAVE_CARD })).toHaveCount(0);
+  await expect(page.locator('[data-test-mode]')).toHaveCount(0);
+  await expect(page.locator('[data-card-toggle]')).toHaveCount(0);
+  await expect(page.locator('[data-wallet-toggle]')).toHaveCount(0);
+  expect(await page.locator('body').innerText()).not.toMatch(NO_CARD_WORDS);
+}
+
+test('an ordinary person (not on the card list): the wallet is the main way, "Pay R180 from your wallet", and no card, no Paystack word and no test note anywhere (axe clean)', async ({ page, browserName, problems }) => {
+  const seen = await openPricePanel(page, { online: 'no', card: 'no', env: 'staging', balance: 320 });
+  const main = page.locator('[data-card-closed][data-wallet-main]');
+  await expect(main).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Pay R180 from your wallet' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-wallet-pay]')).toContainText('Your wallet: R320');
+  await expect(main).toContainText('Add money to your wallet by bank transfer');
+  await expectNoCardAnywhere(page);
+  if (browserName === 'chromium') {
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).include('[data-card-closed]').analyze();
+    expect(results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes[0]?.target.join(' ')})`), 'axe on the wallet-first payment part').toEqual([]);
+  }
+  await page.waitForTimeout(500);
+  expect(seen.worker.length, 'the Worker is asked nothing').toBe(0);
+  expect(problems.pageErrors).toEqual([]);
+});
+
+test('an ordinary person with too little in the wallet: the shortfall and "Add money" (bank transfer), still no card words', async ({ page, problems }) => {
+  await openPricePanel(page, { online: 'no', card: 'no', balance: 50 });
+  await expect(page.locator('[data-card-closed][data-wallet-main]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Add money' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: /Pay R180 from your wallet/ })).toHaveCount(0);
+  await expectNoCardAnywhere(page);
+  expect(problems.pageErrors).toEqual([]);
+});
+
+for (const card of ['missing', 'error'] as const) {
+  test(`the card list cannot be asked (${card}): the same closed card, never an open one`, async ({ page, problems }) => {
+    await openPricePanel(page, { online: 'no', card, balance: 320 });
+    await expect(page.locator('[data-card-closed][data-wallet-main]')).toBeVisible({ timeout: 15_000 });
+    await expectNoCardAnywhere(page);
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    expect(problems.pageErrors).toEqual([]);
+  });
+}
+
+test('an ordinary person where the bank leads: the bank-first page has NO "Pay with a card instead" and no card words', async ({ page, problems }) => {
+  await openPricePanel(page, { online: 'yes', card: 'no', env: 'production', balance: 320 });
+  await expect(page.locator('[data-bank-main]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Pay R180 from your wallet' })).toBeVisible({ timeout: 15_000 });
+  await expectNoCardAnywhere(page);
+  expect(problems.pageErrors).toEqual([]);
+});
+
+test('an ordinary person asked for a price in another currency (no wallet for it): "Payments are not open yet", and no card', async ({ page, problems }) => {
+  await openPricePanel(page, { online: 'no', card: 'no', currency: 'USD', balance: 320 });
+  await expect(page.locator('[data-card-closed][data-payments-not-open]')).toHaveText('Payments are not open yet. Booking opens soon.', { timeout: 15_000 });
+  await expect(page.locator('[data-wallet-pay]')).toHaveCount(0);
+  await expectNoCardAnywhere(page);
+  expect(problems.pageErrors).toEqual([]);
+});
+
+test('a person on the card list still gets the card as before (the default of every test above), so the list is what decides', async ({ page, problems }) => {
+  await openPricePanel(page, { online: 'no', card: 'yes' });
+  await expect(page.getByRole('button', { name: SAVE_CARD })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-card-closed]')).toHaveCount(0);
+  expect(problems.pageErrors).toEqual([]);
+});

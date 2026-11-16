@@ -54,6 +54,7 @@ async function openAsStudent(
       return route.fulfill(json(null));
     }
 
+    if (/\/rpc\/card_checkout_available/.test(url)) return route.fulfill(json(true)); // card allowlist (16 Nov 2026): this page is tested in its card-and-wallet layout, so this person may pay by card
     const walletCall = /\/rpc\/(wallet_|create_wallet_topup|attach_topup_proof|cancel_my_topup|send_request_wallet)|\/rest\/v1\/(wallets|wallet_topups|wallet_ledger|payout_requests)|\/storage\/v1\/object\/payment-proofs\//.test(url);
     if (walletCall) {
       if (!wallet) return /\/rpc\/wallet_open/.test(url) ? route.fulfill(json(false)) : rowsOrOne(route, []);

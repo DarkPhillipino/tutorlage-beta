@@ -57,6 +57,7 @@ async function mock(page: Page, setup: Setup = {}): Promise<Seen> {
     if (/\/rpc\/my_date_of_birth/.test(url)) return route.fulfill(json('2000-01-01'));
     if (/\/rpc\/my_pending_acceptances/.test(url) || /\/rest\/v1\/(policy_acceptances|parent_student_links)/.test(url)) return route.fulfill(json([]));
     if (/\/rpc\/wallet_open/.test(url)) return route.fulfill(json(true));
+    if (/\/rpc\/card_checkout_available/.test(url)) return route.fulfill(json(true)); // card allowlist (16 Nov 2026): this page is tested in its card-and-wallet layout, so this person may pay by card
     if (/\/rpc\/wallet_online_available/.test(url)) {
       if (setup.online === 'missing') return route.fulfill(json({ code: 'PGRST202', message: 'Could not find the function in the schema cache' }, 404));
       return route.fulfill(json(setup.online === 'yes'));

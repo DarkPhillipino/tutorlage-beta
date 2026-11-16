@@ -35,6 +35,7 @@ async function openAsStudent(page: Page, wallet: Wallet, seen: string[] = []) {
     if (/\/rpc\/my_date_of_birth/.test(url)) return route.fulfill(json('2000-01-01'));
     if (/\/rpc\/my_pending_acceptances/.test(url) || /\/rest\/v1\/(policy_acceptances|parent_student_links)/.test(url)) return route.fulfill(json([]));
     // The wallet's own questions.
+    if (/\/rpc\/card_checkout_available/.test(url)) return route.fulfill(json(true)); // card allowlist (16 Nov 2026): this page is tested in its card-and-wallet layout, so this person may pay by card
     const walletCall = /\/rpc\/(wallet_|create_wallet_topup|attach_topup_proof|cancel_my_topup|send_request_wallet)|\/rest\/v1\/(wallets|wallet_topups|wallet_ledger|payout_requests)|\/storage\/v1\/object\/payment-proofs\//.test(url);
     if (walletCall) {
       if (wallet === 'missing') return route.fulfill(json({ code: 'PGRST202', message: 'Could not find the function in the schema cache' }, 404));

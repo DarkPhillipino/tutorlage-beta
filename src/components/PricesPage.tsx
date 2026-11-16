@@ -16,7 +16,8 @@ import type { LadderRow } from '../lib/ladderCopy';
 import { initializePayment } from '../lib/payments';
 import { FREE_FOR_NOW_DETAIL, FREE_FOR_NOW_NOTICE } from '../lib/freeSessions';
 import { sendMyRequestFree, useFreeSessionsOpen } from '../lib/freeSessionsHooks';
-import { sendMyRequestWallet, useWalletBalance, useWalletOpen } from '../lib/walletHooks';
+import { sendMyRequestWallet, useCardAllowed, useWalletBalance, useWalletOpenAnswer } from '../lib/walletHooks';
+import { CARD_CLOSED_COPY } from '../lib/cardCheckout';
 import { WalletRefusal, rand0, shortfall, walletPrice } from '../lib/wallet';
 import { promoQuoteLine } from '../lib/promoCode';
 import { usePromoQuote } from '../lib/promoHooks';
@@ -282,7 +283,8 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // WALLET (CEO, 2 Nov 2026): when the database switch is on (free sessions win while they are on) and the request is in rand, the request is paid
   // from the learner's or parent's wallet instead of a card: enough money -> "Pay R180 from your wallet" (the price goes on hold); not enough ->
   // the balance, what is missing and "Add money". Every doubt (switch off, an error, an old database) means the wallet is closed and nothing here shows.
-  const walletOpen = useWalletOpen();
+  const walletOpenAnswer = useWalletOpenAnswer();
+  const walletOpen = walletOpenAnswer === true;
   // 10 Nov 2026 (CEO, Paystack demos): the CARD is the main payment again; the wallet sits behind a collapsed "See more" under it and opens only when pressed.
   const walletAvailable = walletOpen && !freeOpen && selectedLevel?.currencyCode.trim() === 'ZAR';
   const [showWallet, setShowWallet] = useState(false);
@@ -292,7 +294,13 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // before (the 10 Nov rule). The "Test mode" note for the bank follows the Worker's own `test` answer; the card's Paystack note stays with the card.
   const bank = useBankMainWay(walletAvailable);
   const bankMain = walletAvailable && bank.bankIsMain;
-  const walletMode = walletAvailable && (showWallet || bankMain);
+  // THE CARD ALLOWLIST (CEO, 16 Nov 2026): the Paystack TEST card is for the review accounts and the CEO's own sign-in only (database: card_checkout_available; the
+  // Worker refuses everyone else too, so this only decides what is SHOWN). For everyone else the wallet and the bank transfer are the main way and no card, no
+  // Paystack wording and no test-card note appears anywhere on this page. Until the database answers nothing of the card is shown; any doubt is "no".
+  // A free request (switch on) involves no card at all, so it is never held back by this.
+  const cardAnswer = useCardAllowed(!freeOpen);
+  const cardClosed = !freeOpen && cardAnswer !== 'yes';
+  const walletMode = walletAvailable && (showWallet || bankMain || cardClosed);
   const wallet = useWalletBalance(user?.id, walletMode);
   const [addMoneyOpen, setAddMoneyOpen] = useState(false);
   const price = chargedAmount === null ? 0 : walletPrice(chargedAmount);
@@ -312,6 +320,8 @@ export const PricesPage: React.FC<PricesPageProps> = ({
     if (PAYMENTS_NOT_OPEN && !freeOpen && !useWallet) return;
     if (useWallet && !(walletMode && walletEnough)) return;
     if (sendingRef.current) return;
+    // The card allowlist: the screen shows no card to this person, and the handler refuses it too (the Worker is the real lock).
+    if (!useWallet && cardClosed) return;
     if (!user?.email || !selectedLevel || chargedAmount === null) return;
     if (isGuardian && !learner) return;
     // Found 16 Oct 2026: the request used the subject last SEARCHED (appliedSubject), while the box on this page shows the
@@ -740,7 +750,56 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                   </>
                 ) : (
                   <>
-                    {bankMain ? (
+                    {cardClosed ? (
+                      cardAnswer === 'loading' || walletOpenAnswer === null ? (
+                        <div role="status" data-card-closed-loading className="flex items-center justify-center mb-5 text-slate-400">
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          <span className="text-xs font-semibold">{CARD_CLOSED_COPY.loading}</span>
+                        </div>
+                      ) : !walletAvailable ? (
+                        <p role="status" data-payments-not-open data-card-closed className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3 max-w-sm">
+                          {CARD_CLOSED_COPY.nothingOpen}
+                        </p>
+                      ) : bankMain ? (
+                        <BankMainCheckout
+                          price={payPrice}
+                          promoLine={promo ? promoQuoteLine(promo) : null}
+                          state={wallet.state}
+                          walletEnough={walletEnough}
+                          isSending={isSending}
+                          test={bank.test}
+                          provider={bank.provider}
+                          onAddMoney={() => setAddMoneyOpen(true)}
+                          onRetry={wallet.reload}
+                          onPayFromWallet={() => handleSendRequest(true)}
+                          cardSection={null}
+                        >
+                          {staleNote}
+                        </BankMainCheckout>
+                      ) : (
+                        <div data-card-closed data-wallet-main className="w-full flex flex-col items-center">
+                          {staleNote}
+                          <p className="text-sm font-extrabold text-[#0F172A] mb-1">{CARD_CLOSED_COPY.walletHeading}</p>
+                          <p className="text-xs text-slate-500 mb-4 max-w-sm">{CARD_CLOSED_COPY.walletHow}</p>
+                          <WalletPayBox
+                            price={payPrice}
+                            promoLine={promo ? promoQuoteLine(promo) : null}
+                            state={wallet.state}
+                            onAddMoney={() => setAddMoneyOpen(true)}
+                            onRetry={wallet.reload}
+                          />
+                          {walletEnough && (
+                            <button
+                              onClick={() => handleSendRequest(true)}
+                              disabled={isSending}
+                              className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+                            >
+                              {isSending ? 'Sending your request…' : `Pay ${rand0(payPrice)} from your wallet`}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    ) : bankMain ? (
                       <BankMainCheckout
                         price={payPrice}
                         promoLine={promo ? promoQuoteLine(promo) : null}
