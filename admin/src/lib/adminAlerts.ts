@@ -18,13 +18,15 @@ import type { AdminRole } from '../types';
 
 export type WatcherId =
   | 'wallet_mismatch' | 'wallet_bank_changed' | 'wallet_topup' | 'wallet_payout'
-  | 'tutor_verification' | 'dispute' | 'closure_stuck' | 'payment_attention' | 'subject_approval' | 'school_result' | 'tier1_record' | 'new_error' | 'error_spike';
+  | 'tutor_verification' | 'dispute' | 'closure_stuck' | 'payment_attention' | 'stale_request' | 'subject_approval' | 'school_result' | 'tier1_record' | 'new_error' | 'error_spike';
 
 // The admin client reduced to what the watchers use, so a test can hand in a fake. `from` is the PostgREST query builder.
 export interface AlertClient {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   from(table: string): any;
   auth: { getSession(): PromiseLike<{ data: { session: unknown | null } }> };
+  // Database functions (only the stale-request watch uses one). Optional so a client without it fails that one question, not the round.
+  rpc?(fn: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
 }
 
 export interface Toast { title: string; body: string; route: string; tag: string }
@@ -37,6 +39,7 @@ export const SEEN_CAP = 1000;                   // as many ids as a read may ret
 export const RECENT_DAYS = 7;                   // errors and wallet notices older than this are not "new" on a first look
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
+export const STALE_REQUEST_HOURS = 24;          // a paid request still waiting for a tutor after this long is shown (admin_stale_requests)
 export const SPIKE_FROM = 16;                   // a known error's count must reach this before it can count as a spike
 export const SPIKE_WINDOW_MS = 2 * HOUR_MS;     // and it must have been reported again within this long
 
@@ -128,6 +131,21 @@ export const WATCHERS: WatcherDef[] = [
     // The same filter as the "Needs a person" list on the Payments page (fetchPaymentsNeedingAttention).
     read: (c) => idsOf(c.from('session_requests').select('id')
       .or('payment_status.in.(refund_needs_attention,refund_failed),charge_check_request_id.eq.-1,card_check_refund_status.like."not refunded*"').limit(200)),
+  },
+  {
+    id: 'stale_request', label: 'A request has waited 24 hours', help: 'A paid request is still waiting for a tutor to accept it after 24 hours or more.',
+    // Same roles as the Phase 1 numbers page it opens (the page lists them). The database function admin_stale_requests is read-only and admin-only; it names nobody.
+    roles: ['support_agent', 'verification_officer', 'finance_manager', 'super_admin'], route: '/phase-1', title: 'Request waiting',
+    waiting: (n) => (n === 1 ? '1 request has waited 24 hours or more for a tutor' : `${n} requests have waited 24 hours or more for a tutor`),
+    short: (n) => plural(n, 'request waiting 24 h', 'requests waiting 24 h'),
+    read: async (c) => {
+      if (!c.rpc) throw new Error('This client cannot call database functions');
+      const { data, error } = await c.rpc('admin_stale_requests', { p_hours: STALE_REQUEST_HOURS });
+      if (error) throw error;
+      const out = new Set<string>();
+      if (Array.isArray(data)) for (const row of data as Record<string, unknown>[]) if (row && row.request_id != null) out.add(String(row.request_id));
+      return [...out];
+    },
   },
   {
     id: 'subject_approval', label: 'A subject needs approval', help: 'A tutor declared a subject that waits for an approval.',

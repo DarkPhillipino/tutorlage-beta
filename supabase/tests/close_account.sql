@@ -162,6 +162,8 @@ begin
 
     insert into sessions (student_id, tutor_id, booked_by_profile_id, scheduled_start, hourly_rate_charged, platform_commission_pct, gross_amount, tutor_payout_amount)
       values (lb, t2, lb, now() + interval '10 minutes', 100, 20, 100, 80) returning id into sb;
+    -- 17 Nov 2026: a video room can only be opened by a verified tutor (video_rooms_verified_only), so the made-up tutor t3 is verified first (inside this rolled-back run).
+    update tutor_profiles set is_verified = true where id = t3;
     insert into video_rooms (id, code, host_id, created_at, expires_at) values (gen_random_uuid(), 'CLSAAAA3', t3, now(), now() + interval '2 hours');
     m := pg_temp.expect_err(lb, $q$select public.request_account_closure('CLOSE')::text$q$, 'Try again after your session');
     m := m || pg_temp.expect_err(a1, format($q$select public.admin_close_account(%L, 'terms_17_2', null, null, null, null, 'Fraud found')::text$q$, t3), 'Try again after your session');
@@ -609,6 +611,9 @@ begin
   -- ============ H. waking the Worker =======================================================================================
   begin
     select coalesce(max(id), 0) into base from net.http_request_queue;
+    -- 17 Nov 2026: on production the address and the secret are really set; this block tests the not-set state first, so blank both here (rolled back with the rest).
+    update system_settings set setting_value = '""'::jsonb where setting_key = 'account_closure_worker_url';
+    delete from vault.secrets where name = 'account_closure_job_secret';
     perform public.closure_wake_worker();
     select count(*) into n from net.http_request_queue where id > base;
     update system_settings set setting_value = to_jsonb('https://example.invalid/hooks/'::text) where setting_key = 'account_closure_worker_url';
@@ -637,8 +642,8 @@ begin
       into n5 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = any(arr2);
     select count(*) filter (where has_function_privilege('service_role', p.oid, 'execute') and not has_function_privilege('authenticated', p.oid, 'execute') and not has_function_privilege('anon', p.oid, 'execute'))
       into n6 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname in ('close_account_claim_tasks', 'close_account_task_result');
-    r := r || format('I1 %s built: row security on %s of 4 tables; 2 triggers on the record; 7 callable functions open only to signed-in users=%s; 19 internal functions open to no API role=%s; the 2 Worker functions open only to the server key=%s',
-      case when n = 4 and n2 = 4 and n3 = 2 and n4 = 7 and n5 = 19 and n6 = 2 then 'ok' else 'FAIL' end, n, n4, n5, n6) || E'\n';
+    r := r || format('I1 %s built: row security on %s of 4 tables; 3 triggers on the record (the two append-only guards and, since 6 Nov, platform_suggestions_on_closure); 7 callable functions open only to signed-in users=%s; 19 internal functions open to no API role=%s; the 2 Worker functions open only to the server key=%s',
+      case when n = 4 and n2 = 4 and n3 = 3 and n4 = 7 and n5 = 19 and n6 = 2 then 'ok' else 'FAIL' end, n, n4, n5, n6) || E'\n';
     select count(*) filter (where p.prosecdef), count(*) filter (where p.proconfig::text like '%search_path=public%'), count(*) into n, n2, n3 from pg_proc p
     where p.pronamespace = 'public'::regnamespace and p.proname = any(arr || arr2 || array['close_account_claim_tasks', 'close_account_task_result', 'account_deletion_records_are_append_only', 'keep_closed_profile_after_auth_delete']);
     r := r || format('I2 %s every new function has a pinned search path (%s of %s) and all but the record trigger and closure_text() are definers (%s)', case when n3 = 30 and n2 = 30 and n = 28 then 'ok' else 'FAIL' end, n2, n3, n) || E'\n';

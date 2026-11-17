@@ -7,6 +7,7 @@ import { REBOOK_WINDOW_DAYS, SessionOutcomes } from '../lib/sessionOutcomes';
 import { WaitlistDemand } from '../lib/waitlistDemand';
 import { KeepOrSwapCounts } from '../lib/keepOrSwapCounts';
 import { paymentStatusLabel } from '../lib/paymentStatus';
+import { StaleRequest, fetchStaleRequests, waitedText } from '../lib/staleRequests';
 
 // Test phase 1's evidence (backlog 7ad): how fast requests get accepted, how
 // many never are, and how sessions end. Classmates answer faster than
@@ -37,6 +38,8 @@ export const Phase1Numbers: React.FC = () => {
   const [outcomesError, setOutcomesError] = useState<string | null>(null);
   const [demand, setDemand] = useState<WaitlistDemand | null>(null);
   const [keepOrSwap, setKeepOrSwap] = useState<KeepOrSwapCounts | null>(null);
+  const [stale, setStale] = useState<StaleRequest[] | null>(null);
+  const [staleError, setStaleError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -56,6 +59,11 @@ export const Phase1Numbers: React.FC = () => {
     fetchWaitlistDemand()
       .then(setDemand)
       .catch(() => setDemand(null));
+    // Null (hidden) until the stale-request migration is on the database; its own error line never blanks the numbers.
+    setStaleError(null);
+    fetchStaleRequests()
+      .then(setStale)
+      .catch((e) => { setStale(null); setStaleError(getErrorMessage(e, 'Could not load the requests that are waiting.')); });
     // Null (hidden) until the keep-or-swap migration is on the database.
     fetchKeepOrSwapCounts()
       .then(setKeepOrSwap)
@@ -107,6 +115,37 @@ export const Phase1Numbers: React.FC = () => {
               <Stat label="Charge failures" value={metrics.chargeFailures} note="see Payments" />
             </div>
           </section>
+
+          {(stale !== null || staleError) && (
+            <section>
+              <h2 className="text-sm font-extrabold text-[#0F172A] mb-2">Waiting 24 hours or more</h2>
+              {staleError ? (
+                <p className="text-sm font-semibold text-rose-600">{staleError}</p>
+              ) : stale && stale.length === 0 ? (
+                <p className="text-sm text-slate-500">No paid request has waited this long for a tutor.</p>
+              ) : stale ? (
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-slate-500">
+                      <tr><th className="p-3 font-bold">Request</th><th className="p-3 font-bold">Waited</th><th className="p-3 font-bold">Sent to</th><th className="p-3 font-bold">Paid by</th><th className="p-3 font-bold">Lesson time asked for</th></tr>
+                    </thead>
+                    <tbody>
+                      {stale.map((q) => (
+                        <tr key={q.id} className="border-t border-slate-100">
+                          <td className="p-3 font-mono">{q.id.slice(0, 8)}</td>
+                          <td className="p-3 font-semibold">{waitedText(q.hoursWaiting)}</td>
+                          <td className="p-3">{q.sentToOneTutor ? 'one tutor' : 'any tutor'}</td>
+                          <td className="p-3">{q.funding === 'wallet' ? 'wallet' : q.funding === 'free' ? 'no payment' : 'card'}</td>
+                          <td className="p-3">{q.requestedStart ? new Date(q.requestedStart).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' }) : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+              <p className="text-[11px] text-slate-400 mt-1">Open the request on the Payments page with its first eight letters. A paid request that nobody accepts ends by itself at its lesson time.</p>
+            </section>
+          )}
 
           <section>
             <h2 className="text-sm font-extrabold text-[#0F172A] mb-2">How requests were paid</h2>

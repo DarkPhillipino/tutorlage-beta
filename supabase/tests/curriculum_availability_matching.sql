@@ -53,6 +53,9 @@ begin
   update profiles set date_of_birth = adult::date where id in (v_a, v_b, v_d, v_n, v_e, v_t);
   update tutor_profiles set current_tier_id = 1, current_sub_tier_id = '1A', institution_id = null where id in (v_a, v_b, v_d, v_n, v_e, v_t);
   update tutor_profiles set is_verified = true where id in (v_a, v_b, v_d, v_n, v_e, v_t);
+  -- Module 7 and the code of conduct are needed before an admin can approve a subject (migration 20261118110000, 18 Nov 2026): every tutor here has them.
+  insert into tier1_training (tutor_id, module, result, method, conduct_accepted_at)
+    select x, 7, 'complete', 'scenario_check', now() from unnest(array[v_a, v_b, v_d, v_n, v_e, v_t]) x;
   -- A current police clearance certificate is needed to accept (migration 20261020180000): every tutor here has one.
   insert into tutor_verification_documents (tutor_id, document_type, document_url, status, issued_on)
     select x, 'police_clearance'::public.doc_type, 'fixture/police-' || x, 'verified'::public.verification_status, (now() at time zone 'Africa/Johannesburg')::date

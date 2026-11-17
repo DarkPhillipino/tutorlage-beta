@@ -56,7 +56,7 @@ export const TRACK_COPY: Record<TutorTrack, { title: string; blurb: string; need
     title: 'Beginner tutor',
     blurb: "I'm a student or recent graduate, or I haven't tutored or taught before. I'll show my results.",
     needs:
-      'ID or passport, proof of your results, and a police clearance certificate. A teaching qualification or practicum letter is optional, ' +
+      'ID or passport, proof of your results, and a police clearance certificate. A teaching qualification, proof that you are studying to teach, or a practicum letter is optional, ' +
       'but it can start you at a higher level.',
   },
   experienced: {
@@ -127,10 +127,10 @@ const SACE: Requirement = {
 const QUALIFICATION: Requirement = {
   key: 'qualification',
   documentType: 'teaching_qualification',
-  title: 'Teaching qualification (optional)',
+  title: 'Teaching qualification, or proof you are studying to teach (optional)',
   help:
     'A teaching degree (for example a B.Ed), a PGCE or a Higher Certificate in Education: a photo or scan of the certificate or of your ' +
-    'official academic record. Qualified teachers start at a higher level.',
+    'official academic record. Qualified teachers start at a higher level. Studying to be a teacher? Upload your proof of enrolment or your current academic record here.',
   required: false,
   accepts: 'file',
   needsIssueDate: false,

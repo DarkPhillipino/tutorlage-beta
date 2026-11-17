@@ -487,8 +487,8 @@ begin
   insert into session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, status, payment_status, paystack_reference, min_sub_tier_id, tier_id,
          charged_amount, institution_id)
     values (v_l, e_l, v_l, pg_temp.slot(34), 1, 'pending', 'card_verified', 'wb_card3', '1A', 1, 50, s1) returning id into qh3;
-  r := r || pg_temp.chk('B81', 'free on, wallet off: an ordinary card-checked request still goes down the card path (the wallet block does not touch it)',
-    (position('Add your bank details in your tutor account' in pg_temp.try_claim(qh3, v_t)) > 0)::text, 'true');
+  r := r || pg_temp.chk('B81', 'free on, wallet off: an ordinary card-checked request still goes down the card path (the wallet block does not touch it); since 15 Nov (card per booking, no tutor bank details needed) the path now ends at the card check, so a request with no usable card is refused as withdrawn',
+    (position('has been withdrawn' in pg_temp.try_claim(qh3, v_t)) > 0)::text, 'true');
 
   exception when others then
     r := r || format('STOPPED EARLY by an unexpected error: %s', sqlerrm) || E'\n';

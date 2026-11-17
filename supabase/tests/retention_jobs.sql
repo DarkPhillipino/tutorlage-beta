@@ -233,6 +233,8 @@ begin
     select count(*), count(distinct category), count(*) filter (where error is null) into n, n2, n3 from retention_deletion_records where run_id = run1;
     -- six categories since wallet phase 6 (wallet_records joined: 20261103100000_wallet_edges.sql; run this suite with that migration applied, or change the 6 back to 5)
     r := r || format('B1 %s the journal: one row per category for the run (%s rows, %s categories, %s without an error; want 6, 6, 6)', case when n = 6 and n2 = 6 and n3 = 6 then 'ok' else 'FAIL' end, n, n2, n3) || E'\n';
+    r := r || 'B1x journal errors in run 1: ' || coalesce((select string_agg(category || ': ' || left(error, 220), ' | ') from retention_deletion_records where run_id = run1 and error is not null), 'none') || E'
+';
     select (deleted ->> 'tutor_verification_documents')::int, (deleted ->> 'tutor_verification_audits')::int, (deleted ->> 'tier1_academic_records')::int, files_queued, protected_skipped
       into n, n2, n3, n4, nlines from retention_deletion_records where run_id = run1 and category = 'tutor_documents';
     r := r || format('B2 %s tutor documents: deleted %s documents, %s audit line, %s Tier 1 record (want 2, 1, 1), files queued=%s (4), held tutor skipped=%s (>=1)',
@@ -368,8 +370,8 @@ begin
     select count(*) into n2 from platform_disputes where id = d7;
     select count(*) into n3 from policy_acceptances where profile_id = lw;
     select count(*) into n4 from notifications where profile_id = a1 and type = 'retention_error';
-    r := r || format('J1 %s a failing category: reported errors=%s (want 1), its journal row says "%s", the other 4 rows have no error (%s), its report d7 is still there (%s), another category still ran (lw''s acceptance records left=%s), the admins were told (%s)',
-      case when (j ->> 'errors') = '1' and t = 'rt boom' and n = 4 and n2 = 1 and n3 = 0 and n4 >= 1 then 'ok' else 'FAIL' end, j ->> 'errors', t, n, n2, n3, n4) || E'\n';
+    r := r || format('J1 %s a failing category: reported errors=%s (want 1), its journal row says "%s", the other 5 rows have no error (%s), its report d7 is still there (%s), another category still ran (lw''s acceptance records left=%s), the admins were told (%s)',
+      case when (j ->> 'errors') = '1' and t = 'rt boom' and n = 5 and n2 = 1 and n3 = 0 and n4 >= 1 then 'ok' else 'FAIL' end, j ->> 'errors', t, n, n2, n3, n4) || E'\n';
     drop trigger rt_boom on public.platform_disputes;
     j := public.run_retention_jobs();
     run5 := (j ->> 'run_id')::uuid;
@@ -383,7 +385,7 @@ begin
   -- ============ G. how it is built ==========================================================================================
   begin
     select count(*), count(distinct run_id) into n, n2 from retention_deletion_records;
-    r := r || format('K1 %s the journal holds 5 rows for each of the 6 runs (%s rows, %s runs)', case when n = 30 and n2 = 6 then 'ok' else 'FAIL' end, n, n2) || E'\n';
+    r := r || format('K1 %s the journal holds 6 rows for each of the 6 runs (%s rows, %s runs)', case when n = 36 and n2 = 6 then 'ok' else 'FAIL' end, n, n2) || E'\n';
     m := '';
     begin update retention_deletion_records set error = 'x'; m := m || ' update-allowed'; exception when others then if sqlerrm <> 'Retention records can only be added to' then m := m || ' [' || left(sqlerrm, 50) || ']'; end if; end;
     begin delete from retention_deletion_records; m := m || ' delete-allowed'; exception when others then if sqlerrm <> 'Retention records can only be added to' then m := m || ' [' || left(sqlerrm, 50) || ']'; end if; end;
@@ -541,7 +543,7 @@ begin
     select count(*) into n from retention_deletion_records where run_id = run8 and error is null;
     drop table public.rt_fk_child;
     r := r || format('R18b %s foreign keys: the real ones on dev match; a missing key, a changed action and a NEW cascading key on sessions are refused, and with the new key the money category fails alone (errors=%s, its journal row says "%s", the other %s rows have no error)',
-      case when m = '' and (j ->> 'errors') = '1' and t like 'The foreign keys on sessions are not what the retention job expects: unexpected rt_fk_child.session_id:c%' and n = 4 then 'ok' else 'FAIL' end,
+      case when m = '' and (j ->> 'errors') = '1' and t like 'The foreign keys on sessions are not what the retention job expects: unexpected rt_fk_child.session_id:c%' and n = 5 then 'ok' else 'FAIL' end,
       j ->> 'errors', left(t, 60), n) || m || E'\n';
     insert into hand_over_events (event, subject_id, admin_id, authority, reference, requester_name, requester_role, requester_organisation, requester_phone, requester_email,
                                   verified_how, reason, approved_by, tutor_told, scope, contents)
@@ -562,6 +564,7 @@ begin
   begin
     update system_settings set setting_value = 'null'::jsonb where setting_key = 'retention_financial_year_end_month';
     ms := pg_temp.mk('student'); mtt := pg_temp.mk('tutor');
+    update tutor_profiles set is_verified = true where id = mtt;   -- 17 Nov 2026: a video room needs a verified host (video_rooms_verified_only); rolled back with the run
     sb[1] := pg_temp.mks(ms, mtt, ms, d9, 'completed'); rb[1] := pg_temp.mkr(ms, ms, mtt, sb[1], d9, 'paid');                      -- settled and clean: goes
     sb[2] := pg_temp.mks(ms, mtt, ms, d9, 'completed'); rb[2] := pg_temp.mkr(ms, ms, mtt, sb[2], d9, 'charging');                  -- in flight (not on the old deny-list)
     sb[3] := pg_temp.mks(ms, mtt, ms, d9, 'completed'); rb[3] := pg_temp.mkr(ms, ms, mtt, sb[3], d9, 'initiated');                 -- in flight (not on the old deny-list)
@@ -778,8 +781,8 @@ begin
     select count(*) into n6 from tutor_verification_documents where tutor_id = tn;
     select count(*) into nlines from platform_disputes where id = dr;
     select count(*) into nfail from account_closure_tasks where profile_id = tn and kind = 'storage_remove' and closure_id = run12;
-    r := r || format('R10a %s the notice and the wake-up fail: the run completes (errors=%s want 1, notice_errors=%s want 2), 7 journal rows (%s) of which 4 are clean (%s) and the 3 failures are named: category %s, notice %s, wake %s (1 each); the tutor''s documents were still deleted (left=%s) and the file step queued (%s); the failed category left its report alone (%s)',
-      case when (j ->> 'errors') = '1' and (j ->> 'notice_errors') = '2' and n = 7 and n2 = 4 and n3 = 1 and n4 = 1 and n5 = 1 and n6 = 0 and nfail = 1 and nlines = 1 then 'ok' else 'FAIL' end,
+    r := r || format('R10a %s the notice and the wake-up fail: the run completes (errors=%s want 1, notice_errors=%s want 2), 8 journal rows (%s) of which 5 are clean (%s) and the 3 failures are named: category %s, notice %s, wake %s (1 each); the tutor''s documents were still deleted (left=%s) and the file step queued (%s); the failed category left its report alone (%s)',
+      case when (j ->> 'errors') = '1' and (j ->> 'notice_errors') = '2' and n = 8 and n2 = 5 and n3 = 1 and n4 = 1 and n5 = 1 and n6 = 0 and nfail = 1 and nlines = 1 then 'ok' else 'FAIL' end,
       j ->> 'errors', j ->> 'notice_errors', n, n2, n3, n4, n5, n6, nfail, nlines) || E'\n';
   exception when others then
     reset role;

@@ -4,7 +4,7 @@ import { test, expect } from './fixtures';
 // A11Y-AUTO-01: axe-core on every public page, against WCAG 2.0, 2.1 and 2.2 level A and AA (the 2.2 rules axe has). The check fails on any violation at all (not only
 // "serious"/"critical"), so a regression is caught while it is small. An automated scan finds roughly a third of accessibility problems;
 // it does not replace a person using a keyboard and a screen reader (the gate row says so too).
-const PAGES = ['/', '/login', '/signin/tutor', '/signup/tutor', '/signup/student', '/signup/parent', '/forgot-password', '/terms', '/privacy', '/refunds', '/no/such/page'];
+const PAGES = ['/', '/login', '/signin/tutor', '/signup/tutor', '/signup/student', '/signup/parent', '/forgot-password', '/terms', '/privacy', '/refunds', '/delivery', '/teach', '/about', '/no/such/page'];
 
 for (const path of PAGES) {
   test(`axe finds no WCAG A/AA violation on ${path}`, async ({ page, browserName }) => {

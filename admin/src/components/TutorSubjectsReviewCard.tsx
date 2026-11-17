@@ -4,6 +4,7 @@ import { fetchCriteria, fetchSubjectApprovals, reviewSubject } from '../lib/curr
 import { checklistFor, curriculumLabel, isWaiting, statusLabel } from '../lib/subjectApprovals';
 import { ReviewForm } from './SubjectApprovalsBody';
 import { getErrorMessage } from '../lib/errors';
+import { approveSubjectsOnCredential, fetchTeachingCredentialInfo, type TeachingCredentialInfo } from '../lib/teachingCredential';
 import type { CriterionRow, SubjectApprovalRow } from '../types';
 
 // The subjects this tutor declared, with the approval checklist right here (burst-readiness, 4 Nov 2026). Before, an admin read the documents
@@ -24,6 +25,11 @@ export const TutorSubjectsReviewCard: React.FC<{ tutorId: string }> = ({ tutorId
   const [criteria, setCriteria] = useState<CriterionRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [cred, setCred] = useState<TeachingCredentialInfo | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const [credError, setCredError] = useState<string | null>(null);
 
   const load = () => {
     Promise.all([fetchSubjectApprovals(), fetchCriteria()])
@@ -34,8 +40,27 @@ export const TutorSubjectsReviewCard: React.FC<{ tutorId: string }> = ({ tutorId
         setOpenId(null);
       })
       .catch((e) => setLoadError(getErrorMessage(e, 'Could not load the subjects.')));
+    // The teaching-credential path; shows nothing new if the database update is not applied yet or the question fails.
+    fetchTeachingCredentialInfo(tutorId).then(setCred).catch(() => setCred(null));
   };
   useEffect(load, [tutorId]);
+
+  const waiting = rows ? rows.filter((r) => isWaiting(r.status)) : [];
+  const approveAll = async () => {
+    if (!cred || cred.path.kind !== 'ready') return;
+    setBusy(true);
+    setCredError(null);
+    try {
+      const out = await approveSubjectsOnCredential(tutorId, cred.path.credential.id);
+      setDone(`${out.approved} subject${out.approved === 1 ? '' : 's'} approved on the strength of: ${out.credential}.`);
+      setConfirming(false);
+      load();
+    } catch (e) {
+      setCredError(getErrorMessage(e, 'Could not approve the subjects.'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl p-6 border border-slate-200 mb-4" data-section="subjects-review">
@@ -52,6 +77,36 @@ export const TutorSubjectsReviewCard: React.FC<{ tutorId: string }> = ({ tutorId
       ) : rows.length === 0 ? (
         <p className="text-xs text-slate-500">No subjects declared yet.</p>
       ) : (
+        <>
+        {cred && cred.available && (
+          <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs" data-section="teaching-credential">
+            {cred.path.kind === 'ready' ? (
+              <>
+                <div className="font-bold text-[#0F172A]">Teaching credential on file: {cred.path.credential.label}</div>
+                <div className="text-slate-600 mt-0.5">Its document ({cred.path.documentType.replace(/_/g, ' ')}) is verified. A qualified teacher or a student teacher does not need the checklist for each subject.</div>
+                {waiting.length > 0 ? (
+                  confirming ? (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-slate-700">Approve {waiting.length} claimed subject{waiting.length === 1 ? '' : 's'} (rejected ones are left alone)?</span>
+                      <button type="button" disabled={busy} onClick={approveAll} className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold disabled:opacity-50 cursor-pointer">{busy ? 'Approving…' : 'Yes, approve'}</button>
+                      <button type="button" disabled={busy} onClick={() => setConfirming(false)} className="font-bold text-slate-600 hover:underline cursor-pointer">Cancel</button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => { setDone(null); setConfirming(true); }} className="mt-2 px-3 py-1.5 rounded-xl bg-[#0F172A] text-white font-bold cursor-pointer">Approve all claimed subjects on the strength of this credential</button>
+                  )
+                ) : (
+                  <div className="mt-1 text-slate-500">No claimed subject is waiting.</div>
+                )}
+              </>
+            ) : cred.path.kind === 'document_not_verified' ? (
+              <div className="text-amber-700 font-semibold">A teaching credential ({cred.path.credential.label}) is recorded, but its document is not marked verified yet. Check the document above first; then the one-button approval appears here. Until then, use the checklist for each subject.</div>
+            ) : (
+              <div className="text-slate-600">No teaching credential recorded. For a qualified teacher or a student teacher: verify their qualification or proof of enrolment above, record it as a credential on the Level card, and the one-button approval appears here. Anyone else: use the checklist for each subject.</div>
+            )}
+            {done && <div className="mt-2 text-emerald-700 font-semibold">{done}</div>}
+            {credError && <div className="mt-2 text-rose-600 font-semibold">{credError}</div>}
+          </div>
+        )}
         <div className="divide-y divide-slate-100">
           {rows.map((r) => (
             <div key={r.id} className="py-3 first:pt-0 last:pb-0">
@@ -72,6 +127,7 @@ export const TutorSubjectsReviewCard: React.FC<{ tutorId: string }> = ({ tutorId
             </div>
           ))}
         </div>
+        </>
       )}
     </div>
   );

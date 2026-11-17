@@ -219,12 +219,17 @@ begin
   perform pg_temp.prefill(null, replace(gen_random_uuid()::text, '-', ''));
   r := r || pg_temp.chk('R1b', 'one lookup that finds nothing is recorded', (select count(*)::text from founding_signup_lookups), '1');
   delete from founding_signup_lookups;
-  for n in 1..60 loop
+  for n in 1..20 loop   -- 18 Nov 2026: the breaker is per caller first (20 misses in 10 minutes), migration 20261118120000; it was 60 for everybody
     perform pg_temp.prefill(null, replace(gen_random_uuid()::text, '-', ''));
   end loop;
   select count(*)::text into t from founding_signup_lookups;
-  r := r || pg_temp.chk('R2', '60 lookups that found nothing are all recorded', t, '60');
-  r := r || pg_temp.chk('R3', 'then the breaker is on: even a good token answers null, and nothing more is recorded', pg_temp.prefill(null, tok2) || '/' || (select count(*)::text from founding_signup_lookups), 'null/60');
+  r := r || pg_temp.chk('R2', '20 lookups by one caller that found nothing are all recorded', t, '20');
+  r := r || pg_temp.chk('R3', 'then the breaker is on for that caller: even a good token answers null, and nothing more is recorded', pg_temp.prefill(null, tok2) || '/' || (select count(*)::text from founding_signup_lookups), 'null/20');
+  perform set_config('request.headers', '{"x-forwarded-for": "203.0.113.9"}', true);
+  r := r || pg_temp.chk('R3b', 'ANOTHER caller (another address) is not stopped by the first one''s misses: a good token works', (pg_temp.prefill(null, tok2) like '{%"first_name": "Lena"%')::text, 'true');
+  insert into founding_signup_lookups (bucket) select 'ip:fill-' || g from generate_series(1, 280) g;
+  r := r || pg_temp.chk('R3c', 'the global second line still exists: with 300 misses in 10 minutes in all, a good token answers null for everybody', pg_temp.prefill(null, tok2), 'null');
+  perform set_config('request.headers', '', true);
   update founding_signup_lookups set created_at = now() - interval '11 minutes';
   r := r || pg_temp.chk('R4', 'eleven minutes later the breaker is off: a good token works again', (pg_temp.prefill(null, tok2) like '{%"first_name": "Lena"%')::text, 'true');
   update founding_signup_lookups set created_at = now() - interval '2 days';

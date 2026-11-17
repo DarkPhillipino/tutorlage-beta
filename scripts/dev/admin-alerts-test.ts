@@ -20,6 +20,7 @@ import { getDesktopBridge, noteManualSignOut, secureAuthStorage, wasManualSignOu
 import { NotificationsBody } from '../../admin/src/components/NotificationsBody';
 import { walletTabFromSearch } from '../../admin/src/components/WalletTabs';
 import type { AdminRole } from '../../admin/src/types';
+import { mapStaleRequests, waitedText } from '../../admin/src/lib/staleRequests';
 
 const adminRequire = createRequire(new URL('../../admin/package.json', import.meta.url));
 const React = adminRequire('react') as typeof import('react');
@@ -39,18 +40,25 @@ type Row = Record<string, unknown>;
 interface Call { table: string; cols: string; filters: string[] }
 interface World {
   tutors: string[]; disputes: string[]; payments: string[]; subjects: string[]; schoolResults: string[]; tier1: string[]; topups: string[]; payouts: string[];
-  mismatch: string[]; bank: string[]; errors: string[]; closures: string[];
+  mismatch: string[]; bank: string[]; errors: string[]; closures: string[]; stale: string[];
   // known errors that were reported again recently: what the spike question gets back (id and running count)
   spikes: { id: string; occurrences: number }[];
   fail: Partial<Record<string, { code?: string; message?: string; status?: number }>>;   // table -> error
 }
-const newWorld = (): World => ({ tutors: [], disputes: [], payments: [], subjects: [], schoolResults: [], tier1: [], topups: [], payouts: [], mismatch: [], bank: [], errors: [], closures: [], spikes: [], fail: {} });
+const newWorld = (): World => ({ tutors: [], disputes: [], payments: [], subjects: [], schoolResults: [], tier1: [], topups: [], payouts: [], mismatch: [], bank: [], errors: [], closures: [], stale: [], spikes: [], fail: {} });
 const ids = (list: string[]): Row[] => list.map((id) => ({ id }));
 
 function fakeClient(world: World, opts: { session?: boolean } = {}) {
   const calls: Call[] = [];
   const client: AlertClient = {
     auth: { getSession: async () => ({ data: { session: opts.session === false ? null : { user: { id: 'admin-1' } } } }) },
+    // the database function of the stale-request watch (admin_stale_requests): rows carry the request id, as the real function does
+    async rpc(fn: string, args?: Record<string, unknown>) {
+      calls.push({ table: `rpc:${fn}`, cols: '', filters: [JSON.stringify(args ?? {})] });
+      const error = world.fail[`rpc:${fn}`];
+      if (error) return { data: null, error };
+      return { data: fn === 'admin_stale_requests' ? world.stale.map((id) => ({ request_id: id, hours_waiting: 30 })) : [], error: null };
+    },
     from(table: string) {
       const call: Call = { table, cols: '', filters: [] };
       calls.push(call);
@@ -111,10 +119,10 @@ async function main() {
     check(`${w.id}: same roles as its page's menu entry (${w.route.split('?')[0]})`, !!page && JSON.stringify([...w.roles].sort()) === JSON.stringify(page.roles), JSON.stringify({ w: w.roles, page: page?.roles }));
   }
   const idsFor = (role: AdminRole) => watchersForRole(role).map((w) => w.id).sort().join(',');
-  check('support agent: disputes and account closures', idsFor('support_agent') === 'closure_stuck,dispute', idsFor('support_agent'));
-  check('verification officer: tutors, subjects, school results, Tier 1, account closures', idsFor('verification_officer') === 'closure_stuck,school_result,subject_approval,tier1_record,tutor_verification', idsFor('verification_officer'));
-  check('finance manager: the five money alerts', idsFor('finance_manager') === 'payment_attention,wallet_bank_changed,wallet_mismatch,wallet_payout,wallet_topup', idsFor('finance_manager'));
-  check('super admin: all 13 (the 11 of phase 5 + a closure alert + the error-spike alert)', watchersForRole('super_admin').length === 13 && WATCHER_IDS.length === 13);
+  check('support agent: disputes, account closures and requests waiting', idsFor('support_agent') === 'closure_stuck,dispute,stale_request', idsFor('support_agent'));
+  check('verification officer: tutors, subjects, school results, Tier 1, account closures', idsFor('verification_officer') === 'closure_stuck,school_result,stale_request,subject_approval,tier1_record,tutor_verification', idsFor('verification_officer'));
+  check('finance manager: the five money alerts and requests waiting', idsFor('finance_manager') === 'payment_attention,stale_request,wallet_bank_changed,wallet_mismatch,wallet_payout,wallet_topup', idsFor('finance_manager'));
+  check('super admin: all 14 (the 11 of phase 5 + a closure alert + the error-spike alert + requests waiting)', watchersForRole('super_admin').length === 14 && WATCHER_IDS.length === 14);
   check('no role, no alerts', watchersForRole(null).length === 0 && watchersForRole(undefined).length === 0);
   check('the three wallet entries the CEO asked for are there (proof sent, payout requested, balance mismatch/wallet alert)', ['wallet_topup', 'wallet_payout', 'wallet_mismatch', 'wallet_bank_changed'].every((id) => WATCHER_IDS.includes(id as WatcherId)));
   check('every alert is on the Notifications menu entry for all four roles', /to: '\/notifications', label: 'Notifications', icon: Bell, roles: \['support_agent', 'verification_officer', 'finance_manager', 'super_admin'\]/.test(layout));
@@ -134,7 +142,7 @@ async function main() {
   const pageFilter = /\.or\('([^']+)'\)/.exec(read('admin/src/lib/queries.ts').slice(read('admin/src/lib/queries.ts').indexOf('fetchPaymentsNeedingAttention')))?.[1];
   check('card payments: the very filter of the Payments page "Needs a person" list', !!pageFilter && asked('session_requests')?.filters.join(' ').includes(JSON.stringify(pageFilter).slice(1, -1).replace(/\\"/g, '\\"')) === true, String(pageFilter));
   check('every question selects ONLY an id column (no name, amount, reference, document or bank column can reach a notification); the spike question adds the running count and nothing else',
-    full.calls.every((c) => c.cols === 'id' || c.cols === 'tutor_id' || (c.table === 'client_errors' && c.cols === 'id, occurrences')), full.calls.map((c) => c.cols).join('|'));
+    full.calls.every((c) => c.table.startsWith('rpc:') || c.cols === 'id' || c.cols === 'tutor_id' || (c.table === 'client_errors' && c.cols === 'id, occurrences')), full.calls.map((c) => c.cols).join('|'));
   check('closure alert: THIS admin\'s own unread closure_step_failed / closure_overdue notices of the last 7 days',
     asked('notifications', 'closure_step_failed')?.filters.join(' ').includes('"profile_id","admin-1"') === true && asked('notifications', 'closure_step_failed')?.filters.join(' ').includes('"closure_step_failed","closure_overdue"') === true
     && asked('notifications', 'closure_step_failed')?.filters.join(' ').includes('is("read_at",null)') === true && asked('notifications', 'closure_step_failed')?.filters.join(' ').includes('gte("created_at"') === true);
@@ -237,6 +245,39 @@ async function main() {
   check('and then it stays quiet', r.toasts.length === 0);
   check('only a super admin gets the spike alert; a finance manager and a support agent do not', watchersForRole('finance_manager').every((w) => w.id !== 'error_spike') && watchersForRole('support_agent').every((w) => w.id !== 'error_spike'));
 
+  // ---- a paid request has waited 24 hours or more (road to P5 item 3, 18 Nov 2026) ---------------------------------------------------------------------
+  const wsq = newWorld();
+  const sq = harness('support_agent', wsq);
+  await sq.round();
+  sq.clock += CHECK_EVERY_MS;
+  wsq.stale = ['req-1'];
+  r = await sq.round();
+  check('a request has waited: "1 request has waited 24 hours or more for a tutor", opens Phase 1 numbers, names nobody and no amount',
+    r.toasts.length === 1 && r.toasts[0].title === 'Request waiting' && r.toasts[0].body === '1 request has waited 24 hours or more for a tutor.' && r.toasts[0].route === '/phase-1' && !/R\s?\d/.test(r.toasts[0].body), JSON.stringify(r.toasts));
+  check('it asked the read-only database function for 24 hours', sq.calls.some((c) => c.table === 'rpc:admin_stale_requests' && c.filters[0] === '{"p_hours":24}'));
+  sq.clock += CHECK_EVERY_MS;
+  r = await sq.round();
+  check('the same request is not announced again', r.toasts.length === 0);
+  sq.clock += CHECK_EVERY_MS;
+  wsq.stale = ['req-1', 'req-2', 'req-3'];
+  r = await sq.round();
+  check('two more: one notification with the new count and the total', r.toasts.length === 1 && r.toasts[0].body === '2 requests have waited 24 hours or more for a tutor (3 waiting in all).', r.toasts[0]?.body);
+  const wsqf = newWorld();
+  wsqf.fail['rpc:admin_stale_requests'] = { code: 'PGRST202', message: 'function not found' };
+  wsqf.disputes = ['d-1'];
+  const sqf = harness('support_agent', wsqf);
+  r = await sqf.round();
+  check('the function not on the database yet (before the migration): that one alert says nothing and the others still work', r.failed.includes('stale_request') && !r.failed.includes('dispute'), JSON.stringify(r.failed));
+  check('the alert source asks only the read-only function and never writes', /admin_stale_requests/.test(code('admin/src/lib/adminAlerts.ts')) && !/\.(insert|update|delete|upsert)\(/.test(code('admin/src/lib/adminAlerts.ts')));
+
+  // ---- the list on the Phase 1 numbers page (item 3) -----------------------------------------------------------------------------------------------------
+  const rows = mapStaleRequests([{ request_id: 'a1b2c3d4-0000-0000-0000-000000000000', created_at: '2026-11-15T08:00:00Z', hours_waiting: '72.0', requested_start: '2026-11-20T08:00:00Z', duration_hours: 1, addressed_to_one_tutor: true, funding: 'wallet' }, { request_id: null }, null, { request_id: 'x', funding: 'weird' }]);
+  check('the list maps rows: id, hours as a number, one tutor, how paid; a row without an id is dropped; an unknown way of paying reads as card', rows.length === 2 && rows[0].hoursWaiting === 72 && rows[0].sentToOneTutor && rows[0].funding === 'wallet' && rows[1].funding === 'card' && mapStaleRequests('nope').length === 0, JSON.stringify(rows));
+  check('waiting time in plain words', waitedText(26) === '26 hours' && waitedText(72) === '3 days' && waitedText(75.4) === '3 days 3 h');
+  const phase1 = read('admin/src/pages/Phase1Numbers.tsx');
+  check('the Phase 1 numbers page has the "Waiting 24 hours or more" section, hidden when the function is missing, with its own error line', phase1.includes('Waiting 24 hours or more') && phase1.includes('fetchStaleRequests') && /return null/.test(read('admin/src/lib/staleRequests.ts')) && read('admin/src/lib/staleRequests.ts').includes("'PGRST202'"));
+  check('what the list reads: the one admin function and no name, email or phone column', /rpc\('admin_stale_requests'/.test(read('admin/src/lib/staleRequests.ts')) && !/full_name|email|phone/i.test(code('admin/src/lib/staleRequests.ts')));
+
   // ---- quiet: summaries --------------------------------------------------------------------------------------------------------------------------------
   const wq = newWorld();
   const q = harness('super_admin', wq);
@@ -318,7 +359,7 @@ async function main() {
   r = await fl.round();
   check('one question failing (a table not switched on yet) says nothing and does not stop the others', r.failed.includes('new_error') && r.toasts.length === 1 && r.toasts[0].tag === 'w:dispute');
   const offline = newWorld();
-  offline.fail = Object.fromEntries(['tutor_verification_documents', 'platform_disputes', 'session_requests', 'tutor_subject_competencies', 'school_results', 'tier1_academic_records', 'wallet_topups', 'payout_requests', 'notifications', 'client_errors'].map((t) => [t, { message: 'Failed to fetch' }]));
+  offline.fail = Object.fromEntries(['tutor_verification_documents', 'platform_disputes', 'session_requests', 'tutor_subject_competencies', 'school_results', 'tier1_academic_records', 'wallet_topups', 'payout_requests', 'notifications', 'client_errors', 'rpc:admin_stale_requests'].map((t) => [t, { message: 'Failed to fetch' }]));
   const off = harness('super_admin', offline);
   r = await off.round();
   check('everything failing (offline): nothing shown, NOTHING remembered (the next round is still a first look)', r.toasts.length === 0 && r.checked.length === 0 && storageAlertStore(off.storage).loadState('admin-1').lastCheckedAt === null);
