@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabaseClient';
 import { getCurrencySymbol } from '../lib/currencies';
 import type { CloseAccountSetup, ClosureClient, ClosureResult } from '../lib/closeAccount';
 import { CloseAccountSection } from './CloseAccountSection';
+import { ChangePasswordCard } from './ChangePasswordCard';
 import { TeachingProfilePanel } from './TeachingProfilePanel';
 import { FoundingTeachingGate } from './FoundingGate';
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel';
@@ -270,6 +271,9 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Change your password (17 Nov 2026): a link to the person's own email; see ChangePasswordCard. */}
+              <ChangePasswordCard email={userAccount.email} />
 
               {/* Only the upcoming count is backed by real data. "Completed",
                   "Saved Tutors" (no such feature), a "Notification

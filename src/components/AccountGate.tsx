@@ -7,6 +7,7 @@ import {
   acceptCurrentPolicies,
   fetchAccountGateState,
   setMyDateOfBirth,
+  setMySurname,
 } from '../lib/queries';
 import { ADULT_AGE, COPY, ageFromIsoDate, isPlausibleDateOfBirth } from '../lib/accountRules';
 import { getErrorMessage } from '../lib/errors';
@@ -48,6 +49,7 @@ export const AccountGate: React.FC<{ children: React.ReactNode }> = ({ children 
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [dateOfBirth, setDateOfBirth] = useState('');
+  const [surname, setSurname] = useState('');
   const [accepted, setAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -118,7 +120,9 @@ export const AccountGate: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const needsDateOfBirth = !state.dateOfBirth;
   const needsAcceptance = state.pendingDocuments.length > 0;
-  if (!needsDateOfBirth && !needsAcceptance) {
+  // A tutor account made for a person from the founding list holds a first name only (17 Nov 2026): ask for the surname here, with the date of birth and the Terms.
+  const needsSurname = state.needsSurname;
+  if (!needsDateOfBirth && !needsAcceptance && !needsSurname) {
     const status: AccountStatus = {
       dateOfBirth: state.dateOfBirth!,
       isViewOnlyLearner:
@@ -131,6 +135,11 @@ export const AccountGate: React.FC<{ children: React.ReactNode }> = ({ children 
     e.preventDefault();
     setFormError(null);
 
+    const surnameTyped = surname.trim();
+    if (needsSurname && (surnameTyped.length < 1 || surnameTyped.length > 50 || /[<>\u0000-\u001f]/.test(surnameTyped))) {
+      setFormError('Enter your surname.');
+      return;
+    }
     if (needsDateOfBirth) {
       if (!isPlausibleDateOfBirth(dateOfBirth)) {
         setFormError('Enter your real date of birth.');
@@ -153,6 +162,7 @@ export const AccountGate: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setIsSubmitting(true);
     try {
+      if (needsSurname) await setMySurname(surnameTyped);
       if (needsDateOfBirth) await setMyDateOfBirth(dateOfBirth);
       if (needsAcceptance) await acceptCurrentPolicies();
       load();
@@ -172,7 +182,7 @@ export const AccountGate: React.FC<{ children: React.ReactNode }> = ({ children 
         One more step
       </h1>
       <p className="text-sm text-slate-500 mb-6">
-        {needsDateOfBirth
+        {needsDateOfBirth || needsSurname
           ? 'Before you start, we need a couple of details.'
           : 'Please read and accept our Terms of Service and Privacy Policy to start using Tutorlage.'}
       </p>
@@ -185,6 +195,26 @@ export const AccountGate: React.FC<{ children: React.ReactNode }> = ({ children 
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {needsSurname && (
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1.5" htmlFor="gateSurname">
+              Surname
+            </label>
+            <input
+              id="gateSurname"
+              type="text"
+              required
+              autoComplete="family-name"
+              maxLength={50}
+              value={surname}
+              onChange={(e) => setSurname(e.target.value)}
+              placeholder="Nkosi"
+              className={inputClass}
+            />
+            <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">Your surname, as it is on your ID. Your name has to match the documents you upload.</p>
+          </div>
+        )}
+
         {needsDateOfBirth && (
           <div>
             <label className="block text-xs font-bold text-slate-500 mb-1.5" htmlFor="gateDateOfBirth">

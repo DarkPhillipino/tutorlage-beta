@@ -190,15 +190,39 @@ export interface AccountGateState {
   // (CEO, 17 Oct 2026: "stop signing me out when new tos is created ... simply send a notification").
   pendingDocuments: ('terms' | 'privacy')[];
   hasGuardian: boolean; // a learner account a parent/guardian created
+  // 17 Nov 2026: a tutor account made for someone from the founding list (Drake/programmer/tools/create-warm-tutor-account.mjs) holds only a first name until the person adds their
+  // surname here. The database says so (my_needs_surname: a tutor whose saved name is one word). Any doubt, including a database without the function, is "no".
+  needsSurname: boolean;
+}
+
+export const SURNAME_QUESTION_MS = 3000;
+
+// The answer of `promise`, or `fallback` if it fails or has not answered within `ms`.
+function withinMs<T>(promise: PromiseLike<T>, ms: number, fallback: unknown): Promise<T | { data: unknown; error: unknown }> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback as { data: unknown; error: unknown }), ms);
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback as { data: unknown; error: unknown });
+      },
+    );
+  });
 }
 
 export async function fetchAccountGateState(userId: string): Promise<AccountGateState> {
-  const [dob, pending, accepted, links] = await Promise.all([
+  const [dob, pending, accepted, links, surname] = await Promise.all([
     supabase.rpc('my_date_of_birth'),
     supabase.rpc('my_pending_acceptances'),
     // RLS "Users view own acceptances": the person's own records only.
     supabase.from('policy_acceptances').select('document').eq('profile_id', userId),
     supabase.from('parent_student_links').select('id', { count: 'exact', head: true }).eq('student_id', userId),
+    // This one question must never hold the gate: no answer within 3 seconds (a phone with one bar of signal, a database without the function) is "no".
+    withinMs(supabase.rpc('my_needs_surname'), SURNAME_QUESTION_MS, { data: false as unknown, error: new Error('no answer') }),
   ]);
   if (dob.error) throw dob.error;
   if (pending.error) throw pending.error;
@@ -211,6 +235,7 @@ export async function fetchAccountGateState(userId: string): Promise<AccountGate
       ((accepted.data ?? []) as { document: 'terms' | 'privacy' }[]).map((row) => row.document),
     ),
     hasGuardian: (links.count ?? 0) > 0,
+    needsSurname: !surname.error && surname.data === true,
   };
 }
 
@@ -248,6 +273,12 @@ export async function fetchMySavedCards(profileId: string): Promise<SavedCard[]>
 // Once only — correcting a recorded date of birth takes an admin.
 export async function setMyDateOfBirth(isoDate: string): Promise<void> {
   const { error } = await supabase.rpc('set_my_date_of_birth', { p_dob: isoDate });
+  if (error) throw error;
+}
+
+// Saves the surname of a tutor who has only a first name (database: set_my_surname; refuses anyone who already has one).
+export async function setMySurname(surname: string): Promise<void> {
+  const { error } = await supabase.rpc('set_my_surname', { p_surname: surname });
   if (error) throw error;
 }
 
