@@ -175,7 +175,7 @@ export default function FoundingTutors() {
   const reduceMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const goToForm = () => {
     document.getElementById('founding-join')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-    window.setTimeout(() => document.getElementById('f-fullName')?.focus({ preventScroll: true }), reduceMotion ? 0 : 350);
+    window.setTimeout(() => document.getElementById('f-firstName')?.focus({ preventScroll: true }), reduceMotion ? 0 : 350);
   };
 
   const toggleMore = () => {
@@ -289,11 +289,16 @@ export default function FoundingTutors() {
                 <input id="f-website" name="website" type="text" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
               </div>
 
-              <Field id="f-fullName" label={FOUNDING_COPY.labels.fullName} error={errors.fullName}>
-                <input id="f-fullName" name="name" type="text" autoComplete="name" value={form.fullName} onChange={(e) => set('fullName', e.target.value)} className={field} aria-invalid={!!errors.fullName} aria-describedby={errors.fullName ? 'f-fullName-error' : undefined} maxLength={100} />
-              </Field>
-              <Field id="f-codeName" label={FOUNDING_COPY.labels.codeName} error={errors.codeName}>
-                <input id="f-codeName" name="nickname" type="text" autoComplete="nickname" value={form.codeName} onChange={(e) => set('codeName', e.target.value)} className={field} aria-invalid={!!errors.codeName} aria-describedby={errors.codeName ? 'f-codeName-error' : undefined} maxLength={30} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <Field id="f-firstName" label={FOUNDING_COPY.labels.firstName} error={errors.firstName}>
+                  <input id="f-firstName" name="given-name" type="text" autoComplete="given-name" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} className={field} aria-invalid={!!errors.firstName} aria-describedby={errors.firstName ? 'f-firstName-error' : undefined} maxLength={50} />
+                </Field>
+                <Field id="f-surname" label={FOUNDING_COPY.labels.surname} error={errors.surname}>
+                  <input id="f-surname" name="family-name" type="text" autoComplete="family-name" value={form.surname} onChange={(e) => set('surname', e.target.value)} className={field} aria-invalid={!!errors.surname} aria-describedby={errors.surname ? 'f-surname-error' : undefined} maxLength={50} />
+                </Field>
+              </div>
+              <Field id="f-codeName" label={FOUNDING_COPY.labels.codeName} hint={FOUNDING_COPY.labels.codeNameHint} error={errors.codeName}>
+                <input id="f-codeName" name="nickname" type="text" autoComplete="nickname" value={form.codeName} onChange={(e) => set('codeName', e.target.value)} className={field} aria-invalid={!!errors.codeName} aria-describedby={`f-codeName-hint${errors.codeName ? ' f-codeName-error' : ''}`} maxLength={30} />
               </Field>
               <Field id="f-whatsapp" label={FOUNDING_COPY.labels.whatsapp} hint={FOUNDING_COPY.labels.whatsappHint} error={errors.whatsapp}>
                 <input id="f-whatsapp" name="tel" type="tel" inputMode="tel" autoComplete="tel" value={form.whatsapp} onChange={(e) => set('whatsapp', e.target.value)} className={field} aria-invalid={!!errors.whatsapp} aria-describedby={`f-whatsapp-hint${errors.whatsapp ? ' f-whatsapp-error' : ''}`} maxLength={30} />
@@ -301,7 +306,9 @@ export default function FoundingTutors() {
               <Field id="f-email" label={FOUNDING_COPY.labels.email} error={errors.email}>
                 <input id="f-email" name="email" type="email" inputMode="email" autoComplete="email" value={form.email} onChange={(e) => set('email', e.target.value)} className={field} aria-invalid={!!errors.email} aria-describedby={errors.email ? 'f-email-error' : undefined} maxLength={254} />
               </Field>
-              <Tick id="f-adult" checked={form.isAdult} onChange={(v) => set('isAdult', v)} error={errors.isAdult}>{FOUNDING_COPY.labels.isAdult}</Tick>
+              <Field id="f-dob" label={FOUNDING_COPY.labels.dateOfBirth} hint={FOUNDING_COPY.labels.dateOfBirthWhy} error={errors.dateOfBirth}>
+                <input id="f-dob" name="bday" type="date" autoComplete="bday" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} className={field} aria-invalid={!!errors.dateOfBirth} aria-describedby={`f-dob-hint${errors.dateOfBirth ? ' f-dob-error' : ''}`} />
+              </Field>
 
               <fieldset data-error={errors.subjects ? 'true' : undefined} aria-describedby={errors.subjects ? 'f-subjects-error' : 'f-subjects-hint'}>
                 <legend className="block text-sm font-bold text-[#0F172A] mb-1">{FOUNDING_COPY.labels.subjects}</legend>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, GraduationCap, BookOpen, AlertCircle, MailCheck, Users } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../lib/AuthContext';
@@ -14,6 +14,7 @@ import { logClientError } from '../lib/errorLog';
 import { ResendConfirmation } from '../lib/ResendConfirmation';
 import { forgetPromoCode, promoCheckMessage, promoSignupMetadata, recallPromoCode } from '../lib/promoCode';
 import { usePromoCodeCheck } from '../lib/promoHooks';
+import { PREFILL_EMAIL_HINT, PREFILL_NOTICE, fetchSignupPrefill, signupTokenFromSearch, type PrefillClient } from '../lib/signupPrefill';
 
 const inputClass = 'w-full bg-slate-100 text-[#0F172A] placeholder-slate-400 text-sm font-semibold px-4 py-3.5 rounded-xl border border-transparent focus:outline-none focus:border-[#15803D] focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 transition-all';
 const labelClass = 'block text-xs font-bold text-slate-500 mb-1.5';
@@ -48,6 +49,31 @@ export default function CreateAccount() {
   useEffect(() => {
     if (!authLoading && session) navigate('/', { replace: true });
   }, [authLoading, session, navigate]);
+
+  // THE WAITING LIST IS THE FIRST STAGE OF SIGN-UP (17 Nov 2026): a person on the founding tutors list opens tutorlage.com/signup/tutor?k=<token> from the second message and the
+  // boxes fill in from what they gave the list; they type only their password. Tutor sign-up only. Any doubt (no token, a bad or used token, no answer) leaves the empty form
+  // exactly as it has always been, with no message. A box the person has already typed in is never overwritten. Nothing is ticked for them. See src/lib/signupPrefill.ts.
+  const { search } = useLocation();
+  const prefillToken = role === 'tutor' ? signupTokenFromSearch(search) : null;
+  const [prefilled, setPrefilled] = useState(false);
+  const [prefilledEmail, setPrefilledEmail] = useState('');
+  useEffect(() => {
+    if (!prefillToken) return undefined;
+    let cancelled = false;
+    void fetchSignupPrefill(supabase as unknown as PrefillClient, prefillToken).then((p) => {
+      if (cancelled || !p) return;
+      setFirstName((v) => v || p.firstName);
+      setSurname((v) => v || p.surname);
+      setEmail((v) => v || p.email);
+      setPhoneNumber((v) => v || p.phone);
+      setDateOfBirth((v) => v || p.dateOfBirth);
+      setPrefilledEmail(p.email);
+      setPrefilled(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [prefillToken]);
 
   // The versions the checkbox accepts are recorded with the account (ECTA).
   useEffect(() => {
@@ -227,6 +253,10 @@ export default function CreateAccount() {
             Join Tutorlage
           </h1>
 
+          {prefilled && (
+            <p data-prefilled="true" role="status" className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-xs font-semibold text-emerald-900 leading-relaxed">{PREFILL_NOTICE}</p>
+          )}
+
           {error && (
             <div className="mb-4 flex items-start space-x-2 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs font-semibold text-rose-700">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -249,6 +279,9 @@ export default function CreateAccount() {
             <div>
               <label className={labelClass} htmlFor="email">Email</label>
               <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className={inputClass} />
+              {prefilledEmail && email.trim().toLowerCase() === prefilledEmail.toLowerCase() && (
+                <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">{PREFILL_EMAIL_HINT}</p>
+              )}
             </div>
 
             <div>

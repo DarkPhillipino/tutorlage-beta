@@ -14,6 +14,7 @@ import {
   noticeBody, parseFoundingGate, randomId, srcFromSearch, tidyZaMobile, validateFoundingForm, countingSwitchedOff, getFirstTag, logCodeOpen, looksLikeBot,
   type FoundingClient, type FoundingForm, type FoundingLists,
 } from '../../src/lib/foundingList';
+import { COPY as ACCOUNT_COPY } from '../../src/lib/accountRules';
 import { FoundingGateInline, FoundingGateNotice } from '../../src/components/FoundingGateNotice';
 import { PAGE_META } from '../../src/lib/pageMeta';
 import { fetchFoundingGatePublic } from '../../src/lib/foundingGatePublic';
@@ -31,6 +32,14 @@ function check(name: string, ok: boolean, detail = ''): void {
 const read = (p: string) => readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 const code = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const MIGRATION = read('supabase/migrations/20261110200000_founding_tutors_list.sql');
+// 17 Nov 2026: the join function was replaced (first name, surname, date of birth); the live text is in this one.
+const NEW_MIGRATION = read('supabase/migrations/20261117090000_founding_signup_prefill.sql');
+const isoYearsAgo = (years: number, extraDays = 0): string => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - years);
+  d.setDate(d.getDate() + extraDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 type Err = { code?: string; message?: string } | null;
 function fake(opts: { data?: unknown; error?: Err; throws?: boolean } = {}) {
@@ -50,7 +59,7 @@ const lists: FoundingLists = {
   grades: ['Grade R', 'Grade 1', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'Honours'],
 };
 const goodForm = (over: Partial<FoundingForm> = {}): FoundingForm => ({
-  ...EMPTY_FOUNDING_FORM, fullName: 'Thandi Test', codeName: 'Thandi', whatsapp: '082 123 4567', email: 'thandi@example.invalid', isAdult: true,
+  ...EMPTY_FOUNDING_FORM, firstName: 'Thandi', surname: 'Test', codeName: 'Thandi', whatsapp: '082 123 4567', email: 'thandi@example.invalid', dateOfBirth: isoYearsAgo(30),
   subjects: [{ subject: 'Mathematics', minGrade: 'Grade 8', maxGrade: 'Grade 12' }], availability: ['evenings'], practicum: 'two', policeClearance: 'applied', parentReach: '10_to_30',
   parentReachWilling: 'yes', consentContact: true, ...over,
 });
@@ -99,7 +108,7 @@ async function main() {
 
   // ---- the form's checks ----
   const empty = validateFoundingForm(EMPTY_FOUNDING_FORM, lists);
-  check('an empty form flags every needed field (name, link name, number, email, 18+, subjects, practicum, police, reach, willing, consent a)', ['fullName', 'codeName', 'whatsapp', 'email', 'isAdult', 'subjects', 'practicum', 'policeClearance', 'parentReach', 'parentReachWilling', 'consentContact'].every((k) => k in empty) && Object.keys(empty).length === 11);
+  check('an empty form flags every needed field (first name, surname, number, email, date of birth, subjects, practicum, police, reach, willing, consent a); the link name is optional now', ['firstName', 'surname', 'whatsapp', 'email', 'dateOfBirth', 'subjects', 'practicum', 'policeClearance', 'parentReach', 'parentReachWilling', 'consentContact'].every((k) => k in empty) && Object.keys(empty).length === 11 && !('codeName' in empty));
   check('a complete form passes with no error', Object.keys(validateFoundingForm(goodForm(), lists)).length === 0);
   check('consent b, availability, weeks away, tutoring history and "heard about it" are optional', Object.keys(validateFoundingForm(goodForm({ availability: [], unavailableWeeks: '', priorTutoring: '', heardFrom: '', consentMarketing: false }), lists)).length === 0);
   check('the three "I have" ticks are not forced (someone without a bank account can still join)', Object.keys(validateFoundingForm(goodForm({ hasDevice: false, hasConnection: false, hasBank: false }), lists)).length === 0);
@@ -108,13 +117,27 @@ async function main() {
     && !('subjects' in validateFoundingForm(goodForm({ subjects: [{ subject: 'mathematics', minGrade: 'grade 8', maxGrade: 'GRADE 12' }] }), lists)));
   check('up to 12 subjects, not 13', FOUNDING_MAX_SUBJECTS === 12 && !('subjects' in validateFoundingForm(goodForm({ subjects: Array.from({ length: 12 }, () => ({ subject: 'Mathematics', minGrade: 'Grade 8', maxGrade: 'Grade 9' })) }), lists))
     && 'subjects' in validateFoundingForm(goodForm({ subjects: Array.from({ length: 13 }, () => ({ subject: 'Mathematics', minGrade: 'Grade 8', maxGrade: 'Grade 9' })) }), lists));
-  check('under 18 (not ticked), a landline, a bad email, a 301-character history and angle brackets are refused in words', 'isAdult' in validateFoundingForm(goodForm({ isAdult: false }), lists) && 'whatsapp' in validateFoundingForm(goodForm({ whatsapp: '011 123 4567' }), lists)
-    && 'email' in validateFoundingForm(goodForm({ email: 'nope' }), lists) && 'priorTutoring' in validateFoundingForm(goodForm({ priorTutoring: 'x'.repeat(301) }), lists) && 'fullName' in validateFoundingForm(goodForm({ fullName: '<b>x</b>' }), lists));
+  check('a landline, a bad email, a 301-character history and angle brackets in a name are refused in words', 'whatsapp' in validateFoundingForm(goodForm({ whatsapp: '011 123 4567' }), lists)
+    && 'email' in validateFoundingForm(goodForm({ email: 'nope' }), lists) && 'priorTutoring' in validateFoundingForm(goodForm({ priorTutoring: 'x'.repeat(301) }), lists)
+    && 'firstName' in validateFoundingForm(goodForm({ firstName: '<b>x</b>' }), lists) && 'surname' in validateFoundingForm(goodForm({ surname: 'Te>st' }), lists) && 'codeName' in validateFoundingForm(goodForm({ codeName: 'x'.repeat(31) }), lists));
+  // 17 Nov 2026: the date of birth, with the sign-up's own rule and words (turns 18 today is allowed; turns 18 tomorrow is not; a made-up or future date is not a date)
+  const dobErr = (v: string) => validateFoundingForm(goodForm({ dateOfBirth: v }), lists).dateOfBirth;
+  check('DATE OF BIRTH: 18 today is allowed; 18 tomorrow, 17, a child and a baby are refused with the sign-up\'s tutor words', dobErr(isoYearsAgo(18)) === undefined && dobErr(isoYearsAgo(18, 1)) === ACCOUNT_COPY.tutorUnder18 && dobErr(isoYearsAgo(17)) === ACCOUNT_COPY.tutorUnder18
+    && dobErr(isoYearsAgo(9)) === ACCOUNT_COPY.tutorUnder18 && dobErr(isoYearsAgo(0)) === ACCOUNT_COPY.tutorUnder18);
+  check('DATE OF BIRTH: empty, words, the future and 130 years ago are "not a real date" (a date box cannot make 30 February; the database refuses it too)', ['', 'last Tuesday', isoYearsAgo(-1), isoYearsAgo(130)].every((v) => dobErr(v) === 'Enter your real date of birth.'));
+  check('DATE OF BIRTH: the tutor under-18 words are the sign-up\'s (one place, src/lib/accountRules.ts) and there is no "I am 18" tick any more', ACCOUNT_COPY.tutorUnder18.startsWith('Tutors on Tutorlage need to be 18 or older') && !('isAdult' in EMPTY_FOUNDING_FORM) && !/isAdult|f-adult/.test(code('src/pages/FoundingTutors.tsx')));
+  const asked = FOUNDING_COPY.labels;
+  check('THE FORM ASKS WHAT THE SIGN-UP ASKS (first name, surname, email, phone, date of birth) and nothing about a password', asked.firstName === 'First name *' && asked.surname === 'Surname *' && asked.email.startsWith('The email you will use to sign up') && asked.whatsapp.startsWith('WhatsApp number')
+    && asked.dateOfBirth === 'Date of birth *' && !/password/i.test(allFoundingWords()) && /id="f-firstName"/.test(read('src/pages/FoundingTutors.tsx')) && /id="f-surname"/.test(read('src/pages/FoundingTutors.tsx')) && /id="f-dob" name="bday" type="date"/.test(read('src/pages/FoundingTutors.tsx')));
 
   // ---- the payload (its keys are exactly the ones the database reads) ----
   const payload = buildJoinPayload(goodForm({ parentReachWilling: 'no', consentMarketing: true, subjects: [{ subject: 'Mathematics', minGrade: 'Grade 8', maxGrade: 'Grade 12' }, { subject: '', minGrade: '', maxGrade: '' }] }),
     { elapsedMs: 12345.6, website: '', src: 'fac', visitor: '11111111-1111-4111-8111-111111111111' });
-  const fnText = MIGRATION.slice(MIGRATION.indexOf('create or replace function public.join_founding_list'), MIGRATION.indexOf('revoke all on function public.join_founding_list'));
+  const fnText = NEW_MIGRATION.slice(NEW_MIGRATION.indexOf('create or replace function public.join_founding_list'), NEW_MIGRATION.indexOf('revoke all on function public.join_founding_list'));
+  check('the payload carries the new fields (first name, surname, date of birth) AND the old ones the previous database function reads (full name, the adult flag), so either side can be published first',
+    payload.first_name === 'Thandi' && payload.surname === 'Test' && payload.date_of_birth === isoYearsAgo(30) && payload.full_name === 'Thandi Test' && payload.is_adult === true && payload.code_name === 'Thandi');
+  const noNick = buildJoinPayload(goodForm({ codeName: '' }), { elapsedMs: 9000, website: '', src: null, visitor: null });
+  check('an empty link name is sent as the first name (the database does the same)', noNick.code_name === 'Thandi' && /v_code := left\(v_first, 30\)/.test(NEW_MIGRATION));
   const readKeys = new Set([...fnText.matchAll(/p ->>? '([a-z_]+)'/g)].map((m) => m[1]));
   check('the payload sends exactly the keys the migration\'s join function reads', [...readKeys].sort().join() === Object.keys(payload).sort().join(), `${[...readKeys].sort().join()} | ${Object.keys(payload).sort().join()}`);
   check('empty subject rows are dropped; the others use min_grade / max_grade as the database reads them', (payload.subjects as unknown[]).length === 1 && JSON.stringify(payload.subjects) === JSON.stringify([{ subject: 'Mathematics', min_grade: 'Grade 8', max_grade: 'Grade 12' }]) && /el ->> 'min_grade'|v_el ->> 'min_grade'/.test(fnText) && /v_el ->> 'max_grade'/.test(fnText));
@@ -223,7 +246,7 @@ async function main() {
   check('the bot trap: a hidden field called website that a person cannot reach (off-screen, not in the tab order, no autofill) and is sent with the form', /name="website"/.test(page) && /tabIndex=\{-1\}/.test(page) && /left: '-10000px'/.test(page) && /autoComplete="off"/.test(page) && /website, src: firstTag, visitor/.test(page));
   check('the See more control is a button that says whether it is open (aria-expanded) and what it controls', /aria-expanded=\{moreOpen\}/.test(page) && /aria-controls="founding-more"/.test(page));
   check('Join the list sends once at a time (the button waits while sending) and says what happened (alert for problems, status for success)', /disabled=\{sending\}/.test(page) && /if \(sending\) return;/.test(page) && /role="alert"/.test(page) && /role="status"/.test(page));
-  check('phone-friendly: inputs are 16 px (no zoom on tap), have the right keyboard and autofill types, and the layout is one column', /text-base/.test(page) && /type="tel" inputMode="tel" autoComplete="tel"/.test(page) && /type="email" inputMode="email" autoComplete="email"/.test(page) && /autoComplete="name"/.test(page) && /max-w-xl/.test(page));
+  check('phone-friendly: inputs are 16 px (no zoom on tap), have the right keyboard and autofill types, and the layout is one column', /text-base/.test(page) && /type="tel" inputMode="tel" autoComplete="tel"/.test(page) && /type="email" inputMode="email" autoComplete="email"/.test(page) && /autoComplete="given-name"/.test(page) && /autoComplete="family-name"/.test(page) && /type="date" autoComplete="bday"/.test(page) && /max-w-xl/.test(page));
   check('the subject and grade lists are the app\'s own tables (subjects, grade_levels), read once after the page has drawn', /from\('subjects'\)/.test(page) && /from\('grade_levels'\)\.select\('name'\)\.order\('sort_order'\)/.test(page) && /window\.setTimeout\(\(\) => void loadLists\(\), 250\)/.test(page));
   check('the page loads no image, font or script of its own (light on data) and never renders typed text as HTML', !/<img|dangerouslySetInnerHTML|innerHTML/.test(page));
   check('what is typed stays on a failed send (the form is only replaced on success)', /\{done \? \(/.test(page) && /setProblem\(result\.message\)/.test(page));

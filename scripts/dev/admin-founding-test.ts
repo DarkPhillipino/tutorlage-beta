@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import {
-  CSV_HEADER, FOUNDING_NOT_ON_YET, FOUNDING_NO_ACCESS, NO_FILTER, PHASES, SIGNUP_LINK, STATUS_LABELS, LAPSE_DAYS,
+  CSV_HEADER, FOUNDING_NOT_ON_YET, FOUNDING_NO_ACCESS, NO_FILTER, PHASES, SIGNUP_LINK, STATUS_LABELS, LAPSE_DAYS, personalSignupLink,
   addEntry, countsByStatus, dailyCsv, deleteEntry, describeAgo, fetchFounding, fetchFunnel, filterEntries, greetingName, isMissingFounding, lastDays, mapCoverage, mapEntry, mapFunnel, mapGateCheck, mapHourly, markMessaged, parseTags, rate,
   releaseEntries, releaseMessage, saveTags, linkEntry, waitingMessage, setEntryStatus, setGate, subjectOptions, verifiedMessage, verifiedMessageWithLink, waDigits, waLink,
   type FoundingAdminClient, type FoundingEntry, type FoundingResult,
@@ -28,6 +28,7 @@ function check(name: string, ok: boolean, detail = ''): void {
 const read = (p: string) => readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 const code = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const MIGRATION = read('supabase/migrations/20261110200000_founding_tutors_list.sql');
+const NEW_MIGRATION = read('supabase/migrations/20261117090000_founding_signup_prefill.sql');
 const fnParams = (name: string) => new RegExp(`create or replace function public\\.${name}\\(([^)]*)\\)`).exec(MIGRATION)?.[1].split(',').map((s) => s.trim().split(/\s+/)[0]).filter(Boolean).join();
 
 type Err = { code?: string; message?: string } | null;
@@ -81,7 +82,7 @@ async function main() {
   const a = allOk();
   const res = await fetchFounding(a.db);
   const data = res.state === 'ok' ? res.data : null;
-  check('the page reads through the admin functions only (list, coverage, counts by day, counts by hour, tags, gate check), with the day range for the counts', a.calls.rpcs.map((c) => c.fn).sort().join() === 'admin_founding_coverage,admin_founding_entries,admin_founding_funnel,admin_founding_gate_check,admin_founding_hourly,admin_founding_tags'
+  check('the page reads through the admin functions only (list, coverage, counts by day, counts by hour, tags, gate check, and since 17 Nov the sign-up links), with the day range for the counts', a.calls.rpcs.map((c) => c.fn).sort().join() === 'admin_founding_coverage,admin_founding_entries,admin_founding_funnel,admin_founding_gate_check,admin_founding_hourly,admin_founding_signup_links,admin_founding_tags'
     && Object.keys(a.calls.rpcs.find((c) => c.fn === 'admin_founding_funnel')?.args ?? {}).join() === 'p_from,p_to');
   check('every function it calls is defined by the migration, and the argument names are the migration\'s', ['admin_founding_coverage', 'admin_founding_entries', 'admin_founding_funnel', 'admin_founding_gate_check', 'admin_founding_hourly', 'admin_founding_tags', 'admin_set_founding_tags', 'admin_delete_founding_entry'].every((f) => new RegExp(`create or replace function public\\.${f}\\(`).test(MIGRATION))
     && fnParams('admin_founding_funnel') === 'p_from,p_to' && fnParams('admin_founding_hourly') === 'p_from,p_to' && fnParams('admin_set_founding_tags') === 'p_tags' && fnParams('admin_delete_founding_entry') === 'p_id');
@@ -149,6 +150,30 @@ async function main() {
     '3. We check them within up to a week and message you here when you are verified.',
     'Stuck? Reply here.',
   ].join('\n') && SIGNUP_LINK === 'https://tutorlage.com/signup/tutor');
+  // ---- 17 Nov 2026: the waiting list is the first stage of sign-up: each person's message carries their own link ----
+  const TOK = '0123456789abcdef0123456789abcdef';
+  const withLink = entry({ codeName: 'Thandi', fullName: 'Thandi Testfounder', email: 'thandi@example.invalid', whatsapp: '+27821234567', signupToken: TOK, src: 'f1-n1' });
+  check('THE SECOND MESSAGE carries the person\'s own link with the token and the list tag, and the wording is otherwise the same (name, 14 days, LATER, the email, steps 2 and 3, Stuck)',
+    releaseMessage(withLink) === [
+      'Hi Thandi, your place on Tutorlage has opened and stays open for 14 days. If this is not a good time, reply LATER and we will move you to a later group.',
+      `1. Create your account here: https://tutorlage.com/signup/tutor?k=${TOK}&src=f1-n1, using thandi@example.invalid.`,
+      '2. Upload your documents in the app: ID or passport, police clearance from the last 6 months, school results or proof of your teaching experience, and your bank details.',
+      '3. We check them within up to a week and message you here when you are verified.',
+      'Stuck? Reply here.',
+    ].join('\n'));
+  check('the link has no name, age or email in it: only k and the tag; no tag means only k; a bad token (or none) gives the plain sign-up link exactly as before',
+    personalSignupLink({ signupToken: TOK, src: '' }) === `https://tutorlage.com/signup/tutor?k=${TOK}` && !/thandi|testfounder|@|%40|dob|birth|[?&](age|name|email)=/i.test(personalSignupLink(withLink)) && personalSignupLink(withLink).split('?')[1] === `k=${TOK}&src=f1-n1`
+    && personalSignupLink({ signupToken: 'short' }) === SIGNUP_LINK && personalSignupLink({ signupToken: '' }) === SIGNUP_LINK && personalSignupLink({}) === SIGNUP_LINK
+    && personalSignupLink({ signupToken: TOK.toUpperCase(), src: 'A B' }) === `https://tutorlage.com/signup/tutor?k=${TOK}` && releaseMessage(person).includes(`${SIGNUP_LINK}, using`));
+  const withTokens = await fetchFounding(fake({ admin_founding_entries: { data: [rawEntry({ id: 'e1' }), rawEntry({ id: 'e2', email: 'two@example.invalid' }), rawEntry({ id: 'e3', source: 'backfill' })] },
+    admin_founding_signup_links: { data: [{ id: 'e1', signup_token: TOK }, { id: 'e2', signup_token: 'f'.repeat(32) }] } }).db);
+  const tokenOf = (id: string) => (withTokens.state === 'ok' ? withTokens.data.entries.find((x) => x.id === id)?.signupToken : 'not ok');
+  check('the tokens from admin_founding_signup_links are joined to the entries by id; a row without one (an existing-tutor row) has none', tokenOf('e1') === TOK && tokenOf('e2') === 'f'.repeat(32) && tokenOf('e3') === '');
+  const noLinks = await fetchFounding(fake({ admin_founding_entries: { data: [rawEntry()] }, admin_founding_signup_links: { error: { code: 'PGRST202', message: 'Could not find the function public.admin_founding_signup_links in the schema cache' } } }).db);
+  check('BEFORE the database change (or if the links call fails) the list still loads and the messages use the plain link, exactly as before', noLinks.state === 'ok' && noLinks.data.entries.length === 1 && noLinks.data.entries[0].signupToken === '' && !releaseMessage(noLinks.data.entries[0]).includes('?k='));
+  check('the admin page and the row both build the message from the whole entry (so the token and tag are in it), and the new function exists in the migration with its one admin check',
+    /releaseMessage\(row\)/.test(code('admin/src/components/FoundingBody.tsx')) && /releaseMessage\(message\)/.test(code('admin/src/pages/FoundingTutors.tsx'))
+    && /create or replace function public\.admin_founding_signup_links\(\)/.test(NEW_MIGRATION) && /if not public\.founding_admin_ok\(\)/.test(NEW_MIGRATION.slice(NEW_MIGRATION.indexOf('admin_founding_signup_links()'))));
   check('"verified" is the drafts\' 5d variant 1 (no personal link yet)', verifiedMessage(person) === 'Hi Thandi, good news: you are verified on Tutorlage and can now accept requests. Open your Tutor page and check that your subjects and hours are set. You will see requests that match your level and subjects. Questions? Reply here.' && !/code=/.test(verifiedMessage(person)));
   check('variant 2 exists for the day the code is live (not used by any button): the link, 10 percent off the first 3 lessons, 5 percent more for the tutor', /tutorlage\.com\/\?code=ABC/.test(verifiedMessageWithLink(person, 'ABC')) && /10% off their first 3 lessons/.test(verifiedMessageWithLink(person, 'ABC')) && /earn 5% more/.test(verifiedMessageWithLink(person, 'ABC'))
     && !/verifiedMessageWithLink/.test(code('admin/src/components/FoundingBody.tsx') + code('admin/src/pages/FoundingTutors.tsx')));

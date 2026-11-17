@@ -29,6 +29,15 @@ export const HEARD_LABELS: Record<string, string> = { message: 'A message or gro
 export const FOUNDING_NOT_ON_YET = 'The founding tutors list is not switched on in this database yet. It starts as soon as its database change is applied.';
 export const FOUNDING_NO_ACCESS = 'Only a verification officer or a super admin can see the founding tutors list.';
 export const SIGNUP_LINK = 'https://tutorlage.com/signup/tutor';
+// 17 Nov 2026 (the waiting list is the first stage of sign-up): each person's own link opens the tutor sign-up already filled in from what they gave the list; the token is the only
+// thing in it (no name, age or email), and the list's ?src= tag is kept. A token is 32 lower-case hex characters; anything else gives the plain link.
+export const SIGNUP_TOKEN_SHAPE = /^[0-9a-f]{32}$/;
+export function personalSignupLink(e: { signupToken?: string; src?: string }): string {
+  const token = (e.signupToken ?? '').trim().toLowerCase();
+  if (!SIGNUP_TOKEN_SHAPE.test(token)) return SIGNUP_LINK;
+  const src = (e.src ?? '').trim().toLowerCase();
+  return `${SIGNUP_LINK}?k=${token}${/^[a-z0-9_-]{1,32}$/.test(src) ? `&src=${src}` : ''}`;
+}
 // A released person with no account after this many days goes back to "On the list" (marked lapsed); the database's daily job does it, and the message says so.
 export const LAPSE_DAYS = 14;
 
@@ -59,6 +68,8 @@ export interface FoundingEntry {
   consentMarketingAt: string | null;
   consentVersion: string;
   src: string;
+  // The person's own sign-up link token (admin_founding_signup_links; '' for an existing-tutor row, or before that database change is applied).
+  signupToken: string;
   // What is stored, and what is true now (a released entry whose person has an account is "signed_up"; a verified account is "verified").
   status: FoundingStatus;
   effectiveStatus: EffectiveStatus;
@@ -154,6 +165,7 @@ export function mapEntry(raw: Record<string, unknown>): FoundingEntry {
     consentMarketingAt: nullableText(raw.consent_marketing_at),
     consentVersion: text(raw.consent_version),
     src: text(raw.src),
+    signupToken: text(raw.signup_token),
     status: asStatus(raw.status),
     effectiveStatus: asEffective(raw.effective_status ?? raw.status),
     lapsedAt: nullableText(raw.lapsed_at),
@@ -232,13 +244,16 @@ export function mapGateCheck(raw: unknown): GateCheck | null {
 // (their parts of the page then show nothing). Never throws.
 export async function fetchFounding(db: FoundingAdminClient, range: DayRange = lastDays(30)): Promise<FoundingResult> {
   try {
-    const [entries, coverage, funnel, gate, hourly, tags] = await Promise.all([
+    const [entries, coverage, funnel, gate, hourly, tags, links] = await Promise.all([
       db.rpc('admin_founding_entries'),
       db.rpc('admin_founding_coverage'),
       db.rpc('admin_founding_funnel', { p_from: range.from, p_to: range.to }),
       db.rpc('admin_founding_gate_check'),
       db.rpc('admin_founding_hourly'),
       db.rpc('admin_founding_tags'),
+      // The sign-up link tokens (17 Nov 2026). Its own call, so the list itself is unchanged; if it fails (the database change is not applied, no access) the messages are built
+      // with the plain sign-up link, exactly as before.
+      db.rpc('admin_founding_signup_links'),
     ]);
     if (entries.error) {
       if (isMissingFounding(entries.error)) return { state: 'not_set_up' };
@@ -246,6 +261,10 @@ export async function fetchFounding(db: FoundingAdminClient, range: DayRange = l
       return { state: 'failed', message: entries.error.message ?? 'Could not load the list.' };
     }
     const rows = objects(entries.data).map(mapEntry);
+    if (!links.error) {
+      const tokens = new Map(objects(links.data).map((l) => [text(l.id), text(l.signup_token)] as const));
+      for (const r of rows) r.signupToken = tokens.get(r.id) ?? r.signupToken;
+    }
     rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return {
       state: 'ok',
@@ -309,10 +328,12 @@ export const subjectOptions = (rows: FoundingEntry[]): string[] => Array.from(ne
 export const greetingName = (e: Pick<FoundingEntry, 'codeName' | 'fullName'>): string => e.codeName.trim() || e.fullName.trim().split(/\s+/)[0] || 'there';
 
 // Section 5c of the drafts: "Your place is open".
-export function releaseMessage(e: Pick<FoundingEntry, 'codeName' | 'fullName' | 'email'>): string {
+// 17 Nov 2026: the link is the person's own (personalSignupLink): it opens the sign-up with their details filled in. The wording is unchanged, including "using <email>", which
+// still helps if the link ever opens the empty form (the email is the one the list matches them by).
+export function releaseMessage(e: Pick<FoundingEntry, 'codeName' | 'fullName' | 'email'> & { signupToken?: string; src?: string }): string {
   return [
     `Hi ${greetingName(e)}, your place on Tutorlage has opened and stays open for ${LAPSE_DAYS} days. If this is not a good time, reply LATER and we will move you to a later group.`,
-    `1. Create your account here: ${SIGNUP_LINK}, using ${e.email ?? 'the email you gave us'}.`,
+    `1. Create your account here: ${personalSignupLink(e)}, using ${e.email ?? 'the email you gave us'}.`,
     '2. Upload your documents in the app: ID or passport, police clearance from the last 6 months, school results or proof of your teaching experience, and your bank details.',
     '3. We check them within up to a week and message you here when you are verified.',
     'Stuck? Reply here.',

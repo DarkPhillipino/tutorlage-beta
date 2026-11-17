@@ -10,6 +10,12 @@
 // (the test reads every word below for both). The top rate is "R590" (CEO, 10 Nov night: 4B, the highest level families can book today; 4C and 4D stay held back,
 // so R1,044 is NOT used; if they are ever opened the figure changes then). The personal-link line is held until the code system is live: SHOW_PERSONAL_LINK_LINE.
 
+import { ADULT_AGE, COPY as ACCOUNT_COPY, ageFromIsoDate, isPlausibleDateOfBirth } from './accountRules';
+
+// 17 Nov 2026: the list form is the first stage of the tutor sign-up. It now asks everything the sign-up asks except the password: first name, surname, email, phone
+// (the WhatsApp number) and date of birth. The personal link in the second message (tutorlage.com/signup/tutor?k=<token>) fills the sign-up in from these answers
+// (src/lib/signupPrefill.ts). The consent wording below is NOT changed by this build (the PM rewrites it to match the new fields); when it is, bump this version
+// so each row records which wording the person agreed to.
 export const FOUNDING_CONSENT_VERSION = '2026-11-10';
 export const FOUNDING_MAX_SUBJECTS = 12;
 export const FOUNDING_VISITOR_KEY = 'tutorlage.founding.visitor';
@@ -52,12 +58,15 @@ export const FOUNDING_COPY = {
   formTitle: 'Join the list',
   formIntro: 'About 2 minutes. Fields marked * are needed.',
   labels: {
-    fullName: 'Full name *',
-    codeName: 'The name you want on your personal link (first name or nickname) *',
+    firstName: 'First name *',
+    surname: 'Surname *',
+    codeName: 'The name you want on your personal link (first name or nickname)',
+    codeNameHint: 'Optional. If you leave it empty we use your first name.',
     whatsapp: 'WhatsApp number (+27) *',
     whatsappHint: 'For example 082 123 4567',
     email: 'The email you will use to sign up *',
-    isAdult: 'I am 18 or older *',
+    dateOfBirth: 'Date of birth *',
+    dateOfBirthWhy: 'We ask because tutors must be 18 or older. It is also the date you will use when you create your account, so you do not have to type it again.',
     subjects: 'Subjects you would teach, and the grades *',
     subjectsHint: 'Pick from the list. Add a row for each subject.',
     subject: 'Subject',
@@ -143,11 +152,13 @@ export interface SubjectPick {
 }
 
 export interface FoundingForm {
-  fullName: string;
+  firstName: string;
+  surname: string;
   codeName: string;
   whatsapp: string;
   email: string;
-  isAdult: boolean;
+  // YYYY-MM-DD, from a date box (the same box and the same check as the sign-up's).
+  dateOfBirth: string;
   subjects: SubjectPick[];
   availability: string[];
   unavailableWeeks: string;
@@ -165,7 +176,7 @@ export interface FoundingForm {
 }
 
 export const EMPTY_FOUNDING_FORM: FoundingForm = {
-  fullName: '', codeName: '', whatsapp: '', email: '', isAdult: false, subjects: [{ subject: '', minGrade: '', maxGrade: '' }], availability: [], unavailableWeeks: '',
+  firstName: '', surname: '', codeName: '', whatsapp: '', email: '', dateOfBirth: '', subjects: [{ subject: '', minGrade: '', maxGrade: '' }], availability: [], unavailableWeeks: '',
   practicum: '', policeClearance: '', parentReach: '', parentReachWilling: '', priorTutoring: '', heardFrom: '', hasDevice: false, hasConnection: false, hasBank: false,
   consentContact: false, consentMarketing: false,
 };
@@ -196,7 +207,7 @@ export function srcFromSearch(search: string): string | null {
   }
 }
 
-export type FormErrors = Partial<Record<'fullName' | 'codeName' | 'whatsapp' | 'email' | 'isAdult' | 'subjects' | 'practicum' | 'policeClearance' | 'parentReach' | 'parentReachWilling' | 'priorTutoring' | 'consentContact', string>>;
+export type FormErrors = Partial<Record<'firstName' | 'surname' | 'codeName' | 'whatsapp' | 'email' | 'dateOfBirth' | 'subjects' | 'practicum' | 'policeClearance' | 'parentReach' | 'parentReachWilling' | 'priorTutoring' | 'consentContact', string>>;
 
 export interface FoundingLists {
   subjects: string[];
@@ -206,13 +217,19 @@ export interface FoundingLists {
 // Plain-words checks before anything is sent. `lists` are the app's own subject and grade lists (the same ones the database checks against).
 export function validateFoundingForm(form: FoundingForm, lists: FoundingLists): FormErrors {
   const e: FormErrors = {};
-  const name = form.fullName.trim();
-  if (name.length < 2 || name.length > 100 || hasMarkup(name)) e.fullName = 'Please enter your full name.';
+  const first = form.firstName.trim();
+  if (first.length < 1 || first.length > 50 || hasMarkup(first)) e.firstName = 'Please enter your first name.';
+  const surname = form.surname.trim();
+  if (surname.length < 1 || surname.length > 50 || hasMarkup(surname)) e.surname = 'Please enter your surname.';
+  // The link name is optional now: empty means the first name (the database does the same).
   const code = form.codeName.trim();
-  if (code.length < 1 || code.length > 30 || hasMarkup(code)) e.codeName = 'Please enter the name you want on your personal link.';
+  if (code.length > 30 || hasMarkup(code)) e.codeName = 'Please keep the name for your personal link to 30 characters, with no < or > signs.';
   if (!tidyZaMobile(form.whatsapp)) e.whatsapp = 'Please enter a South African WhatsApp number, for example 082 123 4567.';
   if (!isPlausibleEmail(form.email.trim())) e.email = 'Please enter the email you will use to sign up.';
-  if (!form.isAdult) e.isAdult = 'You must be 18 or older to join the list.';
+  // The same rule and the same words as the sign-up: a real date, then 18 or older.
+  const age = isPlausibleDateOfBirth(form.dateOfBirth) ? ageFromIsoDate(form.dateOfBirth) : null;
+  if (age === null) e.dateOfBirth = 'Enter your real date of birth.';
+  else if (age < ADULT_AGE) e.dateOfBirth = ACCOUNT_COPY.tutorUnder18;
   const order = (g: string) => lists.grades.findIndex((x) => x.toLowerCase() === g.toLowerCase());
   const picks = form.subjects.filter((s) => s.subject || s.minGrade || s.maxGrade);
   if (picks.length === 0) e.subjects = 'Please pick at least one subject and its grades.';
@@ -247,11 +264,15 @@ export function buildJoinPayload(form: FoundingForm, ctx: JoinContext): Record<s
   return {
     website: ctx.website,
     elapsed_ms: Math.max(0, Math.round(ctx.elapsedMs)),
-    full_name: form.fullName.trim(),
-    code_name: form.codeName.trim(),
+    first_name: form.firstName.trim(),
+    surname: form.surname.trim(),
+    date_of_birth: form.dateOfBirth,
+    // full_name and is_adult are what the database's OLD join function reads, so a page published before the database change (or a database not yet changed) still works.
+    full_name: `${form.firstName.trim()} ${form.surname.trim()}`.trim(),
+    code_name: form.codeName.trim() || form.firstName.trim().slice(0, 30),
     whatsapp: form.whatsapp.trim(),
     email: form.email.trim(),
-    is_adult: form.isAdult,
+    is_adult: (ageFromIsoDate(form.dateOfBirth) ?? 0) >= ADULT_AGE,
     subjects: form.subjects
       .filter((s) => s.subject && s.minGrade && s.maxGrade)
       .map((s) => ({ subject: s.subject, min_grade: s.minGrade, max_grade: s.maxGrade })),
@@ -324,7 +345,8 @@ export async function logFoundingEvent(db: FoundingClient, visitor: string | nul
 
 // R4 (abandons by last field): the NAME of the field a visitor last typed in or picked, never what they entered. One value per visitor on the database side (the last one wins).
 export const FOUNDING_FIELD_FOR_KEY: Record<string, string> = {
-  fullName: 'full_name', codeName: 'code_name', whatsapp: 'whatsapp', email: 'email', isAdult: 'is_adult', subjects: 'subjects', availability: 'availability',
+  // The database's list of field names for the "last field touched" count (log_founding_field) is the old one: first name and surname count as 'full_name', the date of birth as 'is_adult'.
+  firstName: 'full_name', surname: 'full_name', codeName: 'code_name', whatsapp: 'whatsapp', email: 'email', dateOfBirth: 'is_adult', subjects: 'subjects', availability: 'availability',
   unavailableWeeks: 'unavailable_weeks', practicum: 'practicum', policeClearance: 'police_clearance', parentReach: 'parent_reach', parentReachWilling: 'parent_reach_willing',
   priorTutoring: 'prior_tutoring', heardFrom: 'heard_from', hasDevice: 'have', hasConnection: 'have', hasBank: 'have', consentContact: 'consent_contact', consentMarketing: 'consent_marketing',
 };
