@@ -16,7 +16,7 @@ import { ADULT_AGE, COPY as ACCOUNT_COPY, ageFromIsoDate, isPlausibleDateOfBirth
 // (the WhatsApp number) and date of birth. The personal link in the second message (tutorlage.com/signup/tutor?k=<token>) fills the sign-up in from these answers
 // (src/lib/signupPrefill.ts). The consent wording below is NOT changed by this build (the PM rewrites it to match the new fields); when it is, bump this version
 // so each row records which wording the person agreed to.
-export const FOUNDING_CONSENT_VERSION = '2026-11-10';
+export const FOUNDING_CONSENT_VERSION = '2026-11-17'; // 17 Nov 2026: the consent line now names the date of birth and the 6-month deletion (PM wording, Drake/project-manager/join-form-privacy-wording-2026-11-17.md)
 export const FOUNDING_MAX_SUBJECTS = 12;
 export const FOUNDING_VISITOR_KEY = 'tutorlage.founding.visitor';
 // The database also refuses a form that was open for less than this (a bot that posts straight to it); a person cannot fill 14 fields in 4 seconds.
@@ -123,7 +123,7 @@ export const FOUNDING_COPY = {
     bank: 'A bank account in my own name',
   },
   consentContact:
-    'Required: I agree that Tutorlage may use the details I give here to contact me about my place on the list and to ask me for my documents when my place opens.',
+    'Required: I agree that Tutorlage may use the details I give here, including my date of birth, to contact me about my place on the list and to ask me for my documents when my place opens. If I do not make an account, Tutorlage deletes these details after 6 months, or sooner if I ask.',
   consentMarketing:
     'Optional: I also agree that Tutorlage may send me news, offers and invitations about Tutorlage by WhatsApp and email, including about sharing my link with families.',
   noticeTitle: 'How we use your details.',

@@ -23,6 +23,7 @@ This policy explains what personal information Tutorlage collects, why, who it i
 | **Consent and acceptance records** | Which version of our Terms, Privacy Policy and notices you accepted, how and when; a guardian's consent for a learner and any withdrawal | Everyone |
 | **Communications** | Emails to support@ and safety@, in-app problem reports, notifications we send you | Anyone who contacts us |
 | **What you type in the Suggestions box** | The text (up to 1,000 characters), your role and the date. Our team reads it and may keep an internal note on it that you cannot see. Please do not put other people's personal details in a suggestion | Anyone who sends one |
+| **Join-list details** | What you type into the "Join the list" form on our tutor page: first name, surname, WhatsApp number, email address, date of birth, the subjects and grades you could teach, when you could teach, the weeks you are not available, whether you have passed a teaching practicum, whether you have a police clearance (yes or not yet; not the document), how many parents you could tell about us, your tutoring history, how you heard of us, whether you have a device, data and a bank account, and your consent choices | People who join the list |
 | **Technical data** | IP address, browser and device details, and times of access, recorded in our service providers' logs when you use the site and sign in | Everyone, including visitors |
 | **Feedback** (closed test only) | Your answers to our feedback forms | Testers |
 
@@ -51,6 +52,7 @@ We collect only what we need for the purposes in §4.
 | Measuring a learner's progress with a tutor from their school results, showing it to the parent or learner, and counting it towards the tutor's level (§10) | (a) consent: the parent or guardian's prior consent for a learner under 18 (s 35(1)(a)), or the adult learner's own |
 | Checking tutors' ID, police clearances and, where a tutor chooses to add them, their qualifications, experience and SACE registration, and using these to set the level a tutor starts at | (a) the tutor's consent (for a police clearance, also s 27(1)(a)), §7 |
 | Handling safety reports and protecting learners | (c) legal obligations (reporting duties); (d) protecting the learner's legitimate interests; (f) our legitimate interests |
+| Keeping you on the join list, contacting you about your place and asking for your documents when it opens | (a) consent |
 | Keeping records for tax, accounting and consumer law | (c) legal obligations |
 | Security, preventing fraud and abuse, and keeping the site working (technical data) | (f) legitimate interest |
 | Improving Tutorlage from closed-test feedback | (a) consent |
@@ -183,6 +185,7 @@ We will ask your consent before using your information for a purpose not listed 
 | Suggestions you send in the Suggestions box | Until your account is closed, then deleted with the rest of your data |
 | "Tell me when a tutor is available" requests | Not acted on after 60 days; deleted 90 days after you were told or after you asked, whichever applies; you can remove one at any time |
 | Choices about tutors (kept, tried someone else) and a tutor's decision not to carry on | While the learner's or tutor's account is open, then deleted with it. Removed by the learner at any time ("Undo") |
+| Join-list details | Deleted 6 months after you join, or 30 days after your place opens if that comes first, unless you make an account, or sooner if you ask. If you make an account, your date of birth is removed from the list at that point (your account keeps it), and your list entry is deleted when you close your account. The page-visit counts we keep about the list (which link was opened, no name) are deleted after 90 days |
 | Technical logs | For as long as each provider keeps them under its own policy |
 | **Data from the closed test** (accounts and sessions made before 28 October 2026) | **Deleted by 27 November 2026**, except anonymised feedback and counts |
 
