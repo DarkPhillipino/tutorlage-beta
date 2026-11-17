@@ -35,7 +35,14 @@
     // OZOW_API_BASE: production below; Ozow's staging system (credentials on request) is https://stagingone.ozow.com/v1 and is the only place test payments are accepted.
     "OZOW_API_BASE": "https://one.ozow.com/v1",
     // Where the payer lands after Ozow: <this>/wallet/topup-return?topup=<id>. Ozow rejects localhost.
-    "OZOW_RETURN_ORIGIN": "https://tutorlage.com"
+    "OZOW_RETURN_ORIGIN": "https://tutorlage.com",
+    // Ozow PAYMENTS API (the older "classic" API; server/ozowPayments.ts; 17 Nov 2026): the second provider, chosen by the database setting wallet_online_provider = ozow_payments.
+    // Its secrets are set by the CEO, never written here: OZOW_API_KEY and OZOW_PRIVATE_KEY (both from the Ozow dashboard, Merchant Details and Site) and OZOW_SITE_CODE (shared with the One API).
+    // These two are plain variables. OZOW_PAYMENTS_BASE: https://api.ozow.com is production; https://stagingapi.ozow.com is Ozow's staging system (its own credentials, on request).
+    // OZOW_PAYMENTS_TEST: "true" is a REHEARSAL (every request says isTest true: Ozow skips the bank, the payer picks a pretend outcome, and the database refuses to credit it). Leave it "false".
+    // Ozow posts its notification to the Worker's own address (OZOW_NOTIFY_ORIGIN, which defaults to the workers.dev address in server/ozowPayments.ts; set it only if the Worker moves).
+    "OZOW_PAYMENTS_BASE": "https://api.ozow.com",
+    "OZOW_PAYMENTS_TEST": "false"
   },
   "observability": { "enabled": true }
 }

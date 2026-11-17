@@ -8,10 +8,11 @@ import { mayUseCamera } from './cameraRule';
 import { jobSecretMatches, mailerFromEnv, runClosureRounds } from './closeAccount';
 import type { CloseAccountDeps } from './closeAccount';
 import type { IceServer } from './iceServers';
-import { createWalletOnline, mountOnlineRoutes, mountOnlineWebhook } from './walletOnline';
+import { createWalletOnline, mountOnlineRoutes, mountOnlineReturn, mountOnlineWebhook } from './walletOnline';
 import { emailForPaystack, plainPaystackMessage } from './paystackEmail';
 import { cardCheckoutDecision } from './cardCheckout';
-import { OZOW_SECRET_NAMES, createOzowProvider, ozowConfigFromEnv } from './ozow';
+import { createOzowProvider, ozowConfigFromEnv } from './ozow';
+import { OZOW_PAYMENTS_ONLY_SECRET_NAMES, OZOW_PAYMENTS_PROVIDER, createOzowPaymentsProvider, ozowPaymentsConfigFromEnv } from './ozowPayments';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PORT = Number(process.env.PORT) || 8787;
@@ -68,9 +69,15 @@ if (process.env.TRUST_PROXY) {
 // The provider's webhook is mounted HERE, before the generic JSON reader below: Ozow signs the exact bytes, and that reader answers 400 or
 // 413 to a body it does not like and parses the rest. The other three routes are mounted near the end of this file.
 // Settings are all-or-nothing: with any Ozow secret missing the online routes answer "not set up" and nothing else changes.
+// Two providers can be set up; the database setting wallet_online_provider says which one a new top-up is sent to ('ozow' = One API, 'ozow_payments' = the Payments API, server/ozowPayments.ts).
+// Each is all-or-nothing on its own. A provider is reported as "not configured" only when one of the secrets that mean "this one is wanted" is present (OZOW_SITE_CODE is shared by both).
 const ozow = ozowConfigFromEnv(process.env);
-if (!ozow.config && OZOW_SECRET_NAMES.some((k) => process.env[k])) {
-  console.error(`Online payments not configured: missing [${ozow.missing.join(', ')}] problems [${ozow.problems.join('; ')}]`);
+if (!ozow.config && ['OZOW_CLIENT_ID', 'OZOW_CLIENT_SECRET', 'OZOW_WEBHOOK_SECRET'].some((k) => process.env[k])) {
+  console.error(`Online payments (One API) not configured: missing [${ozow.missing.join(', ')}] problems [${ozow.problems.join('; ')}]`);
+}
+const ozowPayments = ozowPaymentsConfigFromEnv(process.env);
+if (!ozowPayments.config && OZOW_PAYMENTS_ONLY_SECRET_NAMES.some((k) => process.env[k])) {
+  console.error(`Online payments (Payments API) not configured: missing [${ozowPayments.missing.join(', ')}] problems [${ozowPayments.problems.join('; ')}]`);
 }
 const onlineTopUps = createWalletOnline({
   db: {
@@ -83,10 +90,14 @@ const onlineTopUps = createWalletOnline({
     const { data, error } = await db.auth.getUser(token);
     return error || !data.user ? null : data.user.id;
   },
-  providers: ozow.config ? { ozow: createOzowProvider(ozow.config, (url, init) => fetch(url, init)) } : {},
+  providers: {
+    ...(ozow.config ? { ozow: createOzowProvider(ozow.config, (url, init) => fetch(url, init)) } : {}),
+    ...(ozowPayments.config ? { [OZOW_PAYMENTS_PROVIDER]: createOzowPaymentsProvider(ozowPayments.config, (url, init) => fetch(url, init)) } : {}),
+  },
   jobSecret: process.env.WALLET_JOB_SECRET,
 });
 mountOnlineWebhook(app, onlineTopUps, { rateLimit, unavailable: () => CONFIG_ERROR });
+mountOnlineReturn(app, { rateLimit, returnOrigin: ozowPayments.config?.returnOrigin ?? null });
 // --- ONLINE TOP-UPS: END ---
 // JSON request bodies, keeping the exact bytes of each: Paystack signs the raw webhook body, and
 // re-serialised JSON wouldn't match the signature. Written out rather than express.json(), because Express

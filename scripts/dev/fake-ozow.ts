@@ -166,6 +166,7 @@ export class FakeWalletDb {
   calls: { name: string; args: Record<string, unknown> }[] = [];
   users = new Map<string, string>();
   mode: 'off' | 'staff' | 'on' = 'on';
+  provider = 'ozow'; // the database setting wallet_online_provider ('ozow' = One API, 'ozow_payments' = the Payments API)
   private failures: { name: string | null; remaining: number; how: 'error' | 'throw' }[] = [];
   private seq = 0;
   private lastRejectedAlert = -Infinity;
@@ -246,8 +247,8 @@ export class FakeWalletDb {
         }
         if (this.mode === 'off') return { action: 'closed', status: t.status, why: 'off' };
         const expires = this.iso(nowMs + 60 * 60_000);
-        this.attempts.set(t.id, { topup_id: t.id, provider: 'ozow', provider_payment_id: null, redirect_url: null, provider_txn_id: null, claimed_at: this.iso(), expires_at: expires, checked_at: null, check_requested_at: null });
-        return { action: 'create', provider: 'ozow', reference: t.reference, amount_rand: t.amount_rand, expires_at: expires, idempotency_key: `topup-${t.id}` };
+        this.attempts.set(t.id, { topup_id: t.id, provider: this.provider, provider_payment_id: null, redirect_url: null, provider_txn_id: null, claimed_at: this.iso(), expires_at: expires, checked_at: null, check_requested_at: null });
+        return { action: 'create', provider: this.provider, reference: t.reference, amount_rand: t.amount_rand, expires_at: expires, idempotency_key: `topup-${t.id}` };
       }
       case 'wallet_online_attach': {
         const t = this.topups.get(a.p_topup);

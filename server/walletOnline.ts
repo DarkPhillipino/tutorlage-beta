@@ -95,6 +95,13 @@ export interface WalletOnlineDeps {
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SAFE_WORD = /[^A-Za-z0-9_.:-]/g;
 export const WEBHOOK_PROVIDER = 'ozow';
+// Each provider has its own webhook address, because each signs and shapes its messages differently: the One API (Svix signature, JSON) at /webhook/ozow, the Payments API (form body with a
+// Hash field) at /webhook/ozow-payments. The path decides which provider checks the message; the provider name is what the database sees.
+export const WEBHOOK_ROUTES: ReadonlyArray<{ path: string; provider: string }> = [
+  { path: 'ozow', provider: 'ozow' },
+  { path: 'ozow-payments', provider: 'ozow_payments' },
+];
+export const OZOW_RETURN_ROUTE = '/api/wallet/ozow-return'; // the payer's browser comes back here from the Payments API's page; see mountOnlineWebhook
 export const MAX_WEBHOOK_BYTES = 64 * 1024;
 
 // A few characters of something a stranger sent, safe to put in a log line or a database note.
@@ -349,8 +356,8 @@ export function createWalletOnline(deps: WalletOnlineDeps) {
     await rpc('wallet_online_record_event', { p_provider: provider.name, p_source: 'webhook', p_event_id: eventId, p_outcome: outcome, p_detail: detail.slice(0, 380) });
   }
 
-  async function webhook(headers: Record<string, string | string[] | undefined>, raw: Buffer | null, tooBig: boolean): Promise<Reply> {
-    const provider = deps.providers[WEBHOOK_PROVIDER];
+  async function webhook(headers: Record<string, string | string[] | undefined>, raw: Buffer | null, tooBig: boolean, providerKey: string = WEBHOOK_PROVIDER): Promise<Reply> {
+    const provider = deps.providers[providerKey];
     if (!provider) {
       log('webhook: refused with 503 because the provider is not set up');
       return { status: 503, body: { error: 'Not set up.' } };
@@ -447,9 +454,11 @@ export function createWalletOnline(deps: WalletOnlineDeps) {
   // OZOW_API_BASE is the staging host. It carries no secret, no key, no address and nothing about any person; it asks nobody and reads no database.
   // Not set up (or no provider set up) is a 503 "not_configured", which the screen reads as "do not offer the bank as the main way to pay".
   function environment(): Reply {
-    const set = Object.values(deps.providers).find((p): p is PaymentProvider => Boolean(p));
-    if (!set) return { status: 503, headers: { 'Cache-Control': 'no-store' }, body: { error: MSG.notSetUp, code: 'not_configured' } };
-    return { status: 200, headers: { 'Cache-Control': 'no-store' }, body: { configured: true, provider: set.name, test: set.allowTestPayments === true } };
+    const set = Object.values(deps.providers).filter((p): p is PaymentProvider => Boolean(p));
+    if (set.length === 0) return { status: 503, headers: { 'Cache-Control': 'no-store' }, body: { error: MSG.notSetUp, code: 'not_configured' } };
+    // This answer reads no database, so it cannot know which provider the setting wallet_online_provider points at. With ONE provider set up (the normal case) it is exact. With two it says
+    // "test" if EITHER is a test system: a "Test mode" note shown by mistake is a lesser fault than one hidden while the payment is a test. The go-live sheet leaves one provider set up.
+    return { status: 200, headers: { 'Cache-Control': 'no-store' }, body: { configured: true, provider: set[0].name, test: set.some((p) => p.allowTestPayments === true) } };
   }
 
   return { startOnline, check, webhook, backstop, environment };
@@ -493,20 +502,42 @@ const bearer = (req: Request): string | undefined => {
 // MUST be mounted BEFORE the generic JSON reader in server/index.ts: the provider signs the exact bytes, and that reader refuses a
 // non-JSON body (400) or a large one (413) before any route sees it, and parses what it keeps.
 export function mountOnlineWebhook(app: Application, wo: WalletOnline, opts: MountOptions): void {
-  app.post(`/api/wallet/webhook/${WEBHOOK_PROVIDER}`, opts.rateLimit(120, 60_000), async (req: Request, res: Response) => {
-    const down = opts.unavailable?.();
-    if (down) {
-      res.status(503).json({ error: 'Not set up.' });
+  for (const route of WEBHOOK_ROUTES) {
+    app.post(`/api/wallet/webhook/${route.path}`, opts.rateLimit(120, 60_000), async (req: Request, res: Response) => {
+      const down = opts.unavailable?.();
+      if (down) {
+        res.status(503).json({ error: 'Not set up.' });
+        return;
+      }
+      try {
+        const { raw, tooBig } = await readRawBody(req, MAX_WEBHOOK_BYTES);
+        sendReply(res, await wo.webhook(req.headers, raw, tooBig, route.provider));
+      } catch (e) {
+        console.error('webhook: the request could not be read:', e instanceof Error ? e.message : 'error');
+        if (!res.headersSent) res.status(500).json({ error: 'Try again.' });
+      }
+    });
+  }
+}
+
+// The Payments API sends the payer back to the success, cancel or error address we gave it. Its pages do not say whether the browser is sent there by GET or POST, and our site is static
+// pages that cannot answer a POST, so that address is THIS route on the Worker: it accepts either, ignores everything Ozow added (the outcome is learned only from the verified notification or
+// the status check, never from the browser coming back), and sends the browser on to the site's own "checking your payment" page. Mounted before the generic JSON reader and the cross-origin check
+// for the same reason as the webhook: a form POST from Ozow's page carries Ozow's Origin, which those would refuse. The only thing used from the request is the top-up id, and only if it is a UUID;
+// the place it goes is always the configured site address, so this can never be used as an open redirect.
+export function mountOnlineReturn(app: Application, opts: { rateLimit: MountOptions['rateLimit']; returnOrigin: string | null }): void {
+  const go = (req: Request, res: Response): void => {
+    const origin = opts.returnOrigin;
+    if (!origin) {
+      res.status(503).type('text/plain').send('Not set up.');
       return;
     }
-    try {
-      const { raw, tooBig } = await readRawBody(req, MAX_WEBHOOK_BYTES);
-      sendReply(res, await wo.webhook(req.headers, raw, tooBig));
-    } catch (e) {
-      console.error('webhook: the request could not be read:', e instanceof Error ? e.message : 'error');
-      if (!res.headersSent) res.status(500).json({ error: 'Try again.' });
-    }
-  });
+    const id = typeof req.query.topup === 'string' ? req.query.topup : '';
+    res.set('Cache-Control', 'no-store');
+    res.redirect(303, UUID_SHAPE.test(id) ? `${origin}/wallet/topup-return?topup=${id}` : `${origin}/wallet`);
+  };
+  app.get(OZOW_RETURN_ROUTE, opts.rateLimit(120, 60_000), go);
+  app.post(OZOW_RETURN_ROUTE, opts.rateLimit(120, 60_000), go);
 }
 
 export function mountOnlineRoutes(app: Application, wo: WalletOnline, opts: MountOptions): void {
