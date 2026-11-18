@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { hasRelay, iceConfigFromEnv, iceServersFor, relayConfigured } from './iceServers';
 import { mayUseCamera } from './cameraRule';
 import { jobSecretMatches, mailerFromEnv, runClosureRounds } from './closeAccount';
+import { classifyCreateUserError, createSignupByLink } from './signupByLink';
 import type { CloseAccountDeps } from './closeAccount';
 import type { IceServer } from './iceServers';
 import { createWalletOnline, mountOnlineRoutes, mountOnlineReturn, mountOnlineWebhook } from './walletOnline';
@@ -1462,6 +1463,51 @@ app.post('/api/internal/close-account/run', rateLimit(6, 60_000), async (req, re
     res.status(500).json({ error: 'The closing run failed.' });
   }
 });
+
+// --- A personal sign-up link makes the tutor account already confirmed (job T, 18 Nov 2026): server/signupByLink.ts is the logic, supabase/migrations/20261118210000_signup_link_confirms.sql the database half ---
+// No sign-in: the token in the link is the credential. Every detail of the account comes from the list row, never from the request. While the database setting signup_link_confirms is off (its default),
+// both routes answer "not available" and the page uses the ordinary sign-up. The notice mail uses the same RESEND_API_KEY and MAIL_FROM as the closing emails.
+const signupByLink = createSignupByLink({
+  resolve: async (token, caller) => {
+    const { data, error } = await db.rpc('founding_signup_resolve', { p_token: token, p_caller: caller });
+    if (error) throw new Error(`resolve: ${error.message}`);
+    const d = data as Record<string, unknown> | null;
+    if (!d || typeof d !== 'object' || typeof d.row_id !== 'string') return null;
+    return {
+      rowId: d.row_id,
+      firstName: String(d.first_name ?? ''),
+      surname: String(d.surname ?? ''),
+      email: String(d.email ?? ''),
+      phone: typeof d.phone === 'string' && d.phone !== '' ? d.phone : null,
+      dateOfBirth: String(d.date_of_birth ?? ''),
+    };
+  },
+  currentVersions: async () => {
+    const { data, error } = await db.rpc('current_policy_versions');
+    if (error) return null;
+    const row = Array.isArray(data) ? data[0] : data;
+    return row?.terms_version && row?.privacy_version ? { terms: String(row.terms_version), privacy: String(row.privacy_version) } : null;
+  },
+  createUser: async ({ email, password, metadata }) => {
+    const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: metadata });
+    if (error) return classifyCreateUserError(error) ?? { ok: false, kind: 'failed' };
+    return data.user ? { ok: true, userId: data.user.id } : { ok: false, kind: 'failed' };
+  },
+  sendMail: mailerFromEnv(process.env, (url, init) => fetch(url, init)),
+});
+function callerKey(req: Request): string {
+  const forwarded = RATE_LIMIT_IP_HEADER ? req.headers[RATE_LIMIT_IP_HEADER] : undefined;
+  return `ip:${(typeof forwarded === 'string' && forwarded) || req.ip || 'unknown'}`;
+}
+app.post('/api/signup/tutor-by-link/check', rateLimit(30, 60_000), async (req, res) => {
+  const reply = await signupByLink.check(req.body, callerKey(req));
+  res.set('Cache-Control', 'no-store').status(reply.status).json(reply.body);
+});
+app.post('/api/signup/tutor-by-link', rateLimit(8, 60_000), async (req, res) => {
+  const reply = await signupByLink.create(req.body, callerKey(req));
+  res.set('Cache-Control', 'no-store').status(reply.status).json(reply.body);
+});
+// --- end: personal sign-up link ---
 
 // --- ONLINE TOP-UPS: BEGIN (start, check, and the backstop job; the webhook is mounted near the top of this file) ---
 // start-online and check take the payer from their access token. online-check is woken every 5 minutes by the database (pg_cron + net.http_post)

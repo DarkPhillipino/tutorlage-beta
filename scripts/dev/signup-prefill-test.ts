@@ -67,7 +67,7 @@ async function main() {
   const rawPage = read('src/pages/CreateAccount.tsx');
   const block = rawPage.slice(rawPage.indexOf('THE WAITING LIST IS THE FIRST STAGE'), rawPage.indexOf('// The versions the checkbox accepts'));
   check('NOTHING IS TICKED FOR THEM: the Terms box still starts unticked, and the pre-fill block never sets it or the password boxes', block.length > 400 && /const \[accepted, setAccepted\] = useState\(false\)/.test(page) && !/setAccepted|setPassword|setConfirmPassword|setPromoCode|setError/.test(block) && !/setAccepted\(true\)|checked=\{true\}/.test(page));
-  check('a failed or empty pre-fill shows nothing: the only message is drawn when a pre-fill happened, and it is not an error', /\{prefilled && \(/.test(page) && !/setError\([^)]*[Pp]refill/.test(page) && /data-prefilled="true"/.test(page));
+  check('a failed or empty pre-fill shows nothing: the only message is drawn when a pre-fill happened, and it is not an error', /\{!showOneStep && prefilled && \(/.test(page) && !/setError\([^)]*[Pp]refill/.test(page) && /data-prefilled="true"/.test(page));
   check('the words: the notice says to check the details, choose a password and accept the Terms; the email hint says to use the same one; neither says "free"', /Check them, choose a password and accept the Terms and Privacy Policy/.test(PREFILL_NOTICE) && /same one/.test(PREFILL_EMAIL_HINT) && !/\bfree\b/i.test(PREFILL_NOTICE + PREFILL_EMAIL_HINT));
   const lib = code('src/lib/signupPrefill.ts');
   check('the pre-fill never puts anything about the person in an address, a log or storage: no history, storage, console or error-log call in its file or the page\'s pre-fill block', !/history\.|localStorage|sessionStorage|console\.|logClientError|document\.cookie/.test(lib)

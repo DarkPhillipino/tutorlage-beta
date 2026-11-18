@@ -51,7 +51,7 @@ for (const file of [...sourceFiles('src'), ...sourceFiles('admin/src')]) {
   }
 }
 check('no raw password box outside PasswordInput (src/ and admin/src/)', offenders.length === 0, offenders.join(', '));
-check('the nine password boxes all use PasswordInput (8 in the app, 1 on the admin sign-in)', boxes === 9, `found ${boxes}`);
+check('the eleven password boxes all use PasswordInput (10 in the app, among them the two of the one-step sign-up, and 1 on the admin sign-in)', boxes === 11, `found ${boxes}`);
 
 // ---- 2. What one box renders --------------------------------------------------------------------------------------------------------------
 const box = renderRoot(

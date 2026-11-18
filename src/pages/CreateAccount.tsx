@@ -15,6 +15,9 @@ import { ResendConfirmation } from '../lib/ResendConfirmation';
 import { forgetPromoCode, promoCheckMessage, promoSignupMetadata, recallPromoCode } from '../lib/promoCode';
 import { usePromoCodeCheck } from '../lib/promoHooks';
 import { PREFILL_EMAIL_HINT, PREFILL_NOTICE, fetchSignupPrefill, signupTokenFromSearch, type PrefillClient } from '../lib/signupPrefill';
+import { checkSignupLink, type LinkDetails } from '../lib/signupByLink';
+import { apiUrl } from '../lib/api';
+import { LinkSignupForm } from '../components/LinkSignupForm';
 
 const inputClass = 'w-full bg-slate-100 text-[#0F172A] placeholder-slate-400 text-sm font-semibold px-4 py-3.5 rounded-xl border border-transparent focus:outline-none focus:border-[#15803D] focus:bg-white focus:ring-2 focus:ring-[#15803D]/20 transition-all';
 const labelClass = 'block text-xs font-bold text-slate-500 mb-1.5';
@@ -69,6 +72,23 @@ export default function CreateAccount() {
       setDateOfBirth((v) => v || p.dateOfBirth);
       setPrefilledEmail(p.email);
       setPrefilled(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [prefillToken]);
+
+  // ONE-STEP SIGN-UP FROM THE PERSONAL LINK (job T, 18 Nov 2026; src/lib/signupByLink.ts): the Worker is asked whether this link can make the account already confirmed. While the database switch
+  // signup_link_confirms is off (its default) it always says no, and nothing below changes: the form above is the form. If it says yes, the person sees their details, "Is this the right
+  // email?", a password and the Terms (src/components/LinkSignupForm.tsx). "No, change my details", or any doubt, goes back to this form.
+  const [oneStep, setOneStep] = useState<LinkDetails | null>(null);
+  const [useFullForm, setUseFullForm] = useState(false);
+  const [switchNote, setSwitchNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!prefillToken) return undefined;
+    let cancelled = false;
+    void checkSignupLink(prefillToken, apiUrl).then((d) => {
+      if (!cancelled && d) setOneStep(d);
     });
     return () => {
       cancelled = true;
@@ -182,6 +202,7 @@ export default function CreateAccount() {
   };
 
   const RoleIcon = role === 'tutor' ? GraduationCap : role === 'parent' ? Users : BookOpen;
+  const showOneStep = role === 'tutor' && !!prefillToken && !!oneStep && !useFullForm;
 
   if (needsEmailConfirmation) {
     return (
@@ -253,17 +274,40 @@ export default function CreateAccount() {
             Join Tutorlage
           </h1>
 
-          {prefilled && (
+          {showOneStep && oneStep && prefillToken && (
+            <LinkSignupForm
+              details={oneStep}
+              token={prefillToken}
+              versions={versions}
+              onUseFullForm={(message) => {
+                // Hand over to the form below with the details filled in (a box already typed in is kept).
+                setFirstName((v) => v || oneStep.firstName);
+                setSurname((v) => v || oneStep.surname);
+                setEmail((v) => v || oneStep.email);
+                setPhoneNumber((v) => v || oneStep.phone);
+                setDateOfBirth((v) => v || oneStep.dateOfBirth);
+                setSwitchNote(message ?? null);
+                setUseFullForm(true);
+              }}
+            />
+          )}
+
+          {!showOneStep && switchNote && (
+            <p data-switch-note="true" role="status" className="mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs font-semibold text-amber-900 leading-relaxed">{switchNote}</p>
+          )}
+
+          {!showOneStep && prefilled && (
             <p data-prefilled="true" role="status" className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-xs font-semibold text-emerald-900 leading-relaxed">{PREFILL_NOTICE}</p>
           )}
 
-          {error && (
+          {!showOneStep && error && (
             <div className="mb-4 flex items-start space-x-2 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs font-semibold text-rose-700">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
+          {!showOneStep && (
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -365,8 +409,9 @@ export default function CreateAccount() {
               </>
             )}
           </form>
+          )}
 
-          {role === 'tutor' && (
+          {!showOneStep && role === 'tutor' && (
             <p className="text-[11px] text-slate-600 mt-4 text-center leading-relaxed">
               {FEATURES.tutorOnboarding
                 ? "Next, you'll tell us what kind of tutor you are and upload your documents: your ID or passport, a police clearance certificate, and your results or proof of experience."
@@ -375,7 +420,7 @@ export default function CreateAccount() {
           )}
 
           {/* FEATURES.googleSignIn (src/lib/features.ts) hides Google, the "or" line and the note included. */}
-          {FEATURES.googleSignIn && (
+          {!showOneStep && FEATURES.googleSignIn && (
             <>
               <div className="flex items-center gap-3 my-5">
                 <div className="flex-1 h-px bg-slate-200" />
