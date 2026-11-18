@@ -229,7 +229,8 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
         </div>
         <div className="bg-white p-3 rounded-2xl border border-slate-200 text-center">
           <div className="text-lg font-extrabold text-[#0F172A]">{tutor.totalCompletedHours}</div>
-          <div className="text-[9px] text-slate-500 font-bold uppercase mt-0.5">Hours</div>
+          <div className="text-[9px] text-slate-500 font-bold uppercase mt-0.5">{tutor.priorHours > 0 ? 'Tutorlage hours' : 'Hours'}</div>
+          {tutor.priorHours > 0 && <div className="text-[10px] text-slate-600 font-semibold mt-1">+ {tutor.priorHours} outside Tutorlage</div>}
         </div>
         <div className="bg-white p-3 rounded-2xl border border-slate-200 text-center">
           <div className="text-lg font-extrabold text-[#15803D] flex items-center justify-center gap-0.5">

@@ -76,8 +76,8 @@ export const TutorCalendar: React.FC<TutorCalendarProps> = ({ availability, sess
                             booked ? 'bg-[#0F172A] text-white' : 'bg-emerald-100 text-[#15803D]'
                           }`}
                         >
-                          <div className="text-[8px] font-bold">{formatTime(slot.startTime)}</div>
-                          <div className="text-[7px] font-semibold opacity-80">{booked ? 'Booked' : 'Open'}</div>
+                          <div className="text-[9px] font-bold">{formatTime(slot.startTime)}</div>
+                          <div className="text-[9px] font-semibold">{booked ? 'Lesson' : 'Open'}</div>
                         </div>
                       );
                     })
@@ -88,8 +88,8 @@ export const TutorCalendar: React.FC<TutorCalendarProps> = ({ availability, sess
           })}
         </div>
         <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-500">
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-200 inline-block" /> Open, not yet booked</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#0F172A] inline-block" /> Booked</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-200 inline-block" /> Open, no lesson yet</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#0F172A] inline-block" /> Has a lesson (the rest of your hours stay open)</span>
         </div>
       </div>
 

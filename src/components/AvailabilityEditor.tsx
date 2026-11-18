@@ -1,10 +1,25 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Clock, AlertCircle } from 'lucide-react';
+import { Clock, AlertCircle, CheckCircle2, Repeat } from 'lucide-react';
 import { TutorAvailabilitySlot } from '../types';
-import { addTutorAvailabilitySlot, deleteTutorAvailabilitySlot } from '../lib/queries';
+import { saveTutorAvailabilityChanges } from '../lib/queries';
 import { getErrorMessage } from '../lib/errors';
-
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+import {
+  DAY_NAMES,
+  DAY_SHORT,
+  END_OPTIONS,
+  EVERY_DAY,
+  START_OPTIONS,
+  WEEKDAYS,
+  WEEKENDS,
+  WEEK_ORDER,
+  describeDays,
+  formatRange,
+  fromMinutes,
+  idsForDay,
+  planSave,
+  rangesForDay,
+  withValue,
+} from '../lib/availabilityPlan';
 
 interface AvailabilityEditorProps {
   tutorId: string;
@@ -12,49 +27,103 @@ interface AvailabilityEditorProps {
   onChange: (slots: TutorAvailabilitySlot[]) => void;
 }
 
-// Lets a tutor set their own recurring weekly working hours — the write
-// side of tutor_availability (TutorCalendar / fetchTutorAvailability only
-// ever read it). RLS: "Tutors manage own availability" (auth.uid() = tutor_id).
+const selectClass =
+  'w-full bg-slate-100 text-sm font-semibold text-[#0F172A] rounded-lg px-2.5 min-h-11 focus:outline-none focus:ring-2 focus:ring-[#15803D]/40 cursor-pointer';
+const shortcutClass =
+  'min-h-11 px-3 rounded-lg border border-slate-200 bg-white text-xs font-bold text-[#0F172A] hover:bg-slate-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#15803D]/40';
+const rowButtonClass =
+  'min-h-9 px-2.5 rounded-lg text-[11px] font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#15803D]/40 disabled:opacity-50';
+
+// Lets a tutor set their own weekly working hours: tick the days, pick one start and one end time, press Save. The hours repeat every week
+// until the tutor changes them (tutor_availability holds a repeating weekly pattern, one row per day and time range, so nothing expires).
+// RLS: "Tutors manage own availability" (auth.uid() = tutor_id). What Save writes is decided in lib/availabilityPlan.ts.
 export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId, availability, onChange }) => {
-  const [dayOfWeek, setDayOfWeek] = useState(1);
+  const [days, setDays] = useState<number[]>([]);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('17:00');
-  const [isSaving, setIsSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [replaceIds, setReplaceIds] = useState<string[]>([]);
+  const [replaceLabel, setReplaceLabel] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
 
-  const sortSlots = (slots: TutorAvailabilitySlot[]) =>
-    [...slots].sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime));
+  const rows = availability;
+  const hasAny = rows.length > 0;
 
-  const handleAdd = async () => {
+  const toggleDay = (d: number) => {
+    setNotice(null);
+    setDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]));
+  };
+  const pickDays = (list: number[]) => {
+    setNotice(null);
+    setDays(list);
+  };
+
+  const run = async (inserts: { dayOfWeek: number; startTime: string; endTime: string }[], deleteIds: string[], done: string, failure: string) => {
     setError(null);
-    if (startTime >= endTime) {
-      setError('End time must be after start time.');
+    setNotice(null);
+    setBusy(true);
+    try {
+      const fresh = await saveTutorAvailabilityChanges(tutorId, inserts, deleteIds);
+      onChange(fresh);
+      setNotice(done);
+      return true;
+    } catch (e) {
+      setError(getErrorMessage(e, failure));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSave = async () => {
+    const plan = planSave(rows, days, startTime, endTime, replaceIds);
+    if (plan.message) {
+      setError(plan.message);
+      setNotice(null);
       return;
     }
-    setIsSaving(true);
-    try {
-      const slot = await addTutorAvailabilitySlot(tutorId, dayOfWeek, startTime, endTime);
-      onChange(sortSlots([...availability, slot]));
-    } catch (e) {
-      setError(getErrorMessage(e, 'Could not add that slot.'));
-    } finally {
-      setIsSaving(false);
+    const what = days.length > 0 ? `${describeDays(days)}, ${startTime} to ${endTime}` : '';
+    const done =
+      plan.inserts.length === 0 && plan.deleteIds.length === 0
+        ? `Those hours were already saved (${what}).`
+        : `Saved: ${what}. This repeats every week until you change it.`;
+    const ok = await run(plan.inserts, plan.deleteIds, done, 'Could not save those hours.');
+    if (ok) {
+      setReplaceIds([]);
+      setReplaceLabel(null);
+      setDays([]);
     }
   };
 
-  const handleDelete = async (slotId: string) => {
+  const startChange = (day: number, range: { start: number; end: number; ids: string[] }) => {
     setError(null);
-    setDeletingId(slotId);
-    try {
-      await deleteTutorAvailabilitySlot(slotId);
-      onChange(availability.filter((s) => s.id !== slotId));
-    } catch (e) {
-      setError(getErrorMessage(e, 'Could not remove that slot.'));
-    } finally {
-      setDeletingId(null);
-    }
+    setNotice(null);
+    setDays([day]);
+    setStartTime(fromMinutes(range.start));
+    setEndTime(fromMinutes(range.end));
+    setReplaceIds(range.ids);
+    setReplaceLabel(`${DAY_NAMES[day]} ${formatRange(range)}`);
   };
+
+  const cancelChange = () => {
+    setReplaceIds([]);
+    setReplaceLabel(null);
+    setDays([]);
+  };
+
+  const removeIds = (ids: string[], label: string) =>
+    run([], ids, `Removed ${label}.`, 'Could not remove those hours.');
+
+  const clearAll = async () => {
+    setConfirmClearAll(false);
+    await run([], rows.map((r) => r.id), 'All your working hours were cleared.', 'Could not clear your hours.');
+  };
+
+  const startOptions = withValue(START_OPTIONS, startTime);
+  const endOptions = withValue(END_OPTIONS, endTime);
+  const editing = replaceLabel !== null;
 
   return (
     <div>
@@ -63,70 +132,197 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId,
         Working Hours
       </h4>
 
-      <div className="space-y-1.5 mb-3">
-        {availability.length === 0 ? (
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 text-center">
-            <p className="text-xs text-slate-500">No working hours set yet — add some below.</p>
-          </div>
-        ) : (
-          availability.map((slot) => (
-            <div key={slot.id} className="bg-white rounded-xl p-3 border border-slate-200 flex items-center justify-between">
-              <span className="text-xs font-bold text-[#0F172A]">{DAY_NAMES[slot.dayOfWeek] ?? `Day ${slot.dayOfWeek}`}</span>
-              <div className="flex items-center gap-2.5">
-                <span className="text-[11px] font-semibold text-slate-600">{slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}</span>
-                <button
-                  onClick={() => handleDelete(slot.id)}
-                  disabled={deletingId === slot.id}
-                  className="p-1 rounded-full hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer disabled:opacity-50"
-                  aria-label={`Remove ${DAY_NAMES[slot.dayOfWeek]} ${slot.startTime.slice(0, 5)}-${slot.endTime.slice(0, 5)} slot`}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+      <p className="flex items-start gap-1.5 text-xs text-slate-600 mb-3">
+        <Repeat className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#15803D]" aria-hidden="true" />
+        <span>
+          Your hours repeat every week until you change them. You never need to add them again. A learner picks a time inside these hours, and
+          the rest of the hours stay open for other lessons. Times are South African time.
+        </span>
+      </p>
+
+      {/* The week at a glance: what a learner can book. */}
+      <div className="space-y-1.5 mb-3" aria-label="Your week">
+        {WEEK_ORDER.map((day) => {
+          const ranges = rangesForDay(rows, day);
+          return (
+            <div key={day} className="bg-white rounded-xl p-2.5 border border-slate-200 flex items-start gap-2">
+              <span className="w-24 shrink-0 pt-2 text-xs font-bold text-[#0F172A]">{DAY_NAMES[day]}</span>
+              <div className="flex-1 min-w-0">
+                {ranges.length === 0 ? (
+                  <span className="block pt-2 text-xs text-slate-500">Not available</span>
+                ) : (
+                  ranges.map((r) => (
+                    <div key={`${r.start}-${r.end}`} className="flex items-center justify-between gap-1 flex-wrap">
+                      <span className="text-xs font-semibold text-slate-700 py-1.5">{formatRange(r)}</span>
+                      <span className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => startChange(day, r)}
+                          disabled={busy}
+                          className={`${rowButtonClass} text-[#15803D] hover:bg-emerald-50`}
+                          aria-label={`Change ${DAY_NAMES[day]} ${formatRange(r)}`}
+                        >
+                          Change
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeIds(r.ids, `${DAY_NAMES[day]} ${formatRange(r)}`)}
+                          disabled={busy}
+                          className={`${rowButtonClass} text-rose-700 hover:bg-rose-50`}
+                          aria-label={`Remove ${DAY_NAMES[day]} ${formatRange(r)}`}
+                        >
+                          Remove
+                        </button>
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
+              {ranges.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeIds(idsForDay(rows, day), `all of ${DAY_NAMES[day]}`)}
+                  disabled={busy}
+                  className={`${rowButtonClass} text-slate-600 hover:bg-slate-100`}
+                  aria-label={`Clear ${DAY_NAMES[day]}`}
+                >
+                  Clear day
+                </button>
+              )}
             </div>
-          ))
+          );
+        })}
+        {!hasAny && (
+          <p className="text-xs text-slate-500 px-1">No working hours yet. Tick your days below, pick your times and press Save.</p>
         )}
       </div>
 
-      <div className="bg-white rounded-2xl p-3 border border-slate-200 flex items-center gap-2 flex-wrap">
-        <select
-          value={dayOfWeek}
-          onChange={(e) => setDayOfWeek(Number(e.target.value))}
-          className="flex-1 min-w-[7rem] bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20 cursor-pointer"
-        >
-          {DAY_NAMES.map((d, i) => (
-            <option key={i} value={i}>{d}</option>
-          ))}
-        </select>
-        <input
-          type="time"
-          value={startTime}
-          onChange={(e) => setStartTime(e.target.value)}
-          className="bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
-        />
-        <span className="text-xs text-slate-500">to</span>
-        <input
-          type="time"
-          value={endTime}
-          onChange={(e) => setEndTime(e.target.value)}
-          className="bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
-        />
-        <button
-          onClick={handleAdd}
-          disabled={isSaving}
-          className="ml-auto flex items-center gap-1 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all cursor-pointer"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add
-        </button>
+      {/* One step: days, one time range, one Save. */}
+      <div className="bg-white rounded-2xl p-3 border border-slate-200 space-y-3">
+        <p className="text-xs font-bold text-[#0F172A]">{editing ? `Change ${replaceLabel}` : 'Add hours'}</p>
+
+        <fieldset>
+          <legend className="text-[11px] font-bold text-slate-500 mb-1.5">Which days?</legend>
+          <div className="grid grid-cols-7 gap-1" role="group" aria-label="Days of the week">
+            {WEEK_ORDER.map((d) => {
+              const on = days.includes(d);
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggleDay(d)}
+                  className={`min-h-11 rounded-lg text-xs font-bold border cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#15803D]/40 ${
+                    on ? 'bg-[#15803D] border-[#15803D] text-white' : 'bg-white border-slate-300 text-[#0F172A] hover:bg-slate-50'
+                  }`}
+                >
+                  {DAY_SHORT[d]}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            <button type="button" onClick={() => pickDays(WEEKDAYS)} className={shortcutClass}>Weekdays</button>
+            <button type="button" onClick={() => pickDays(WEEKENDS)} className={shortcutClass}>Weekends</button>
+            <button type="button" onClick={() => pickDays(EVERY_DAY)} className={shortcutClass}>Every day</button>
+            {days.length > 0 && !editing && (
+              <button type="button" onClick={() => pickDays([])} className={`${shortcutClass} text-slate-600`}>Clear ticks</button>
+            )}
+          </div>
+        </fieldset>
+
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="block text-[11px] font-bold text-slate-500 mb-1">From</span>
+            <select
+              value={startTime}
+              onChange={(e) => {
+                setNotice(null);
+                setStartTime(e.target.value);
+              }}
+              className={selectClass}
+            >
+              {startOptions.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="block text-[11px] font-bold text-slate-500 mb-1">Until</span>
+            <select
+              value={endTime}
+              onChange={(e) => {
+                setNotice(null);
+                setEndTime(e.target.value);
+              }}
+              className={selectClass}
+            >
+              {endOptions.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {days.length > 0 && (
+          <p className="text-xs text-slate-600">
+            {describeDays(days)}, {startTime} to {endTime}, every week.
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={busy}
+            className="bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold px-4 min-h-11 rounded-lg transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#15803D]/40 focus:ring-offset-1"
+          >
+            {busy ? 'Saving…' : editing ? 'Save change' : 'Save'}
+          </button>
+          {editing && (
+            <button type="button" onClick={cancelChange} disabled={busy} className={shortcutClass}>
+              Cancel
+            </button>
+          )}
+        </div>
       </div>
 
-      {error && (
-        <div className="flex items-center gap-1.5 mt-2 text-[11px] text-rose-600 font-semibold">
-          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-          <span>{error}</span>
+      {hasAny && (
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          {confirmClearAll ? (
+            <>
+              <span className="text-xs text-slate-700">Clear every day?</span>
+              <button type="button" onClick={clearAll} disabled={busy} className={`${rowButtonClass} bg-rose-700 text-white hover:bg-rose-800`}>
+                Yes, clear all
+              </button>
+              <button type="button" onClick={() => setConfirmClearAll(false)} className={`${rowButtonClass} text-slate-700 hover:bg-slate-100`}>
+                No
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setConfirmClearAll(true)} disabled={busy} className={`${rowButtonClass} text-slate-600 hover:bg-slate-100`}>
+              Clear all days
+            </button>
+          )}
         </div>
       )}
+
+      <div aria-live="polite">
+        {notice && (
+          <div className="flex items-start gap-1.5 mt-2 text-xs text-[#166534] font-semibold">
+            <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span>{notice}</span>
+          </div>
+        )}
+      </div>
+      <div role="alert">
+        {error && (
+          <div className="flex items-start gap-1.5 mt-2 text-xs text-rose-700 font-semibold">
+            <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

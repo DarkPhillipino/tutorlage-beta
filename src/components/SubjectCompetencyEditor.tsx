@@ -240,6 +240,7 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
             ))}
           </datalist>
           <select
+            aria-label="Curriculum"
             value={curriculum}
             onChange={(e) => setCurriculum(e.target.value)}
             className="bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20 cursor-pointer"
@@ -251,6 +252,7 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <select
+            aria-label="Lowest grade"
             value={minGradeLevel}
             onChange={(e) => moveGrade('min', e.target.value)}
             className="flex-1 min-w-[7rem] bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20 cursor-pointer"
@@ -261,6 +263,7 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
           </select>
           <span className="text-xs text-slate-500">to</span>
           <select
+            aria-label="Highest grade"
             value={maxGradeLevel}
             onChange={(e) => moveGrade('max', e.target.value)}
             className="flex-1 min-w-[7rem] bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20 cursor-pointer"

@@ -269,6 +269,8 @@ export interface TutorDashboardData {
   rating: number;
   reviewsCount: number;
   totalCompletedHours: number;
+  // Hours an admin recorded from teaching OUTSIDE Tutorlage (with proof); counted in the HOURS part of the level only. totalCompletedHours stays Tutorlage hours.
+  priorHours: number;
   totalSessionsCompleted: number;
   teachingMode: string;
   isDispatchActive: boolean;

@@ -595,6 +595,15 @@ export async function fetchTutorDashboard(tutorId: string): Promise<TutorDashboa
 
   const row = data as unknown as TutorDashboardRow;
 
+  // Hours taught outside Tutorlage, recorded by an admin (the tutor reads only her own total). Before the database has the function, or on any error: 0.
+  let priorHours = 0;
+  try {
+    const { data: ph, error: phError } = await supabase.rpc('tutor_prior_hours_total', { p_tutor: tutorId });
+    if (!phError) priorHours = Number(ph) || 0;
+  } catch {
+    priorHours = 0;
+  }
+
   return {
     id: row.id,
     name: row.profiles?.full_name ?? 'Tutorlage Tutor',
@@ -607,6 +616,7 @@ export async function fetchTutorDashboard(tutorId: string): Promise<TutorDashboa
     rating: row.avg_rating ?? 0,
     reviewsCount: row.total_reviews_count ?? 0,
     totalCompletedHours: row.total_completed_hours ?? 0,
+    priorHours,
     totalSessionsCompleted: row.total_sessions_completed ?? 0,
     teachingMode: row.teaching_mode,
     isDispatchActive: row.is_dispatch_active,
@@ -733,6 +743,26 @@ export async function addTutorAvailabilitySlot(
 export async function deleteTutorAvailabilitySlot(slotId: string): Promise<void> {
   const { error } = await supabase.from('tutor_availability').delete().eq('id', slotId);
   if (error) throw error;
+}
+
+// The hours editor's one Save: inserts the new (already joined) ranges first, THEN removes the rows they replace, so a failure half
+// way never leaves the tutor with fewer open hours than before. Returns the tutor's rows as they now are. RLS enforces ownership.
+export async function saveTutorAvailabilityChanges(
+  tutorId: string,
+  inserts: { dayOfWeek: number; startTime: string; endTime: string }[],
+  deleteIds: string[]
+): Promise<TutorAvailabilitySlot[]> {
+  if (inserts.length > 0) {
+    const { error } = await supabase
+      .from('tutor_availability')
+      .insert(inserts.map((r) => ({ tutor_id: tutorId, day_of_week: r.dayOfWeek, start_time: r.startTime, end_time: r.endTime })));
+    if (error) throw error;
+  }
+  if (deleteIds.length > 0) {
+    const { error } = await supabase.from('tutor_availability').delete().in('id', deleteIds);
+    if (error) throw error;
+  }
+  return fetchTutorAvailability(tutorId);
 }
 
 interface TutorSessionRow {

@@ -92,7 +92,7 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
   // A requirement of zero isn't a step, so it's left out (e.g. 1D has no grade uplift since 2026-10-07).
   const criteria: ProgressCriterion[] = nextSubTier
     ? [
-        { threshold: nextSubTier.minHours, label: `${nextSubTier.minHours} hrs completed`, met: tutor.totalCompletedHours >= nextSubTier.minHours },
+        { threshold: nextSubTier.minHours, label: `${nextSubTier.minHours} hrs completed${tutor.priorHours > 0 ? ' (Tutorlage and outside)' : ''}`, met: tutor.totalCompletedHours + tutor.priorHours >= nextSubTier.minHours },
         { threshold: nextSubTier.minRating, label: `${nextSubTier.minRating.toFixed(2)} avg rating`, met: tutor.rating >= nextSubTier.minRating },
         { threshold: nextSubTier.minWrittenReviews, label: `${nextSubTier.minWrittenReviews} written reviews`, met: tutor.reviewsCount >= nextSubTier.minWrittenReviews },
         { threshold: nextSubTier.minRepeatRatePct, label: `${nextSubTier.minRepeatRatePct}% repeat rate`, met: tutor.repeatStudentRatePct >= nextSubTier.minRepeatRatePct },
