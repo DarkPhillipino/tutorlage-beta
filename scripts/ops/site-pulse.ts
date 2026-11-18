@@ -25,6 +25,9 @@ export interface PulseOptions {
   timeoutMs?: number;       // per request
   retryWaitMs?: number;     // wait before the one retry
   slowMs?: number;          // an answer slower than this is flagged "slow" in the detail (still OK)
+  // false = leave out the check of the payments/rooms Worker's own address. The scheduled run (server/pulseSchedule.ts) executes INSIDE that
+  // Worker, so it cannot say anything useful about it being down; the outside pinger watches it instead.
+  checkWorker?: boolean;
 }
 
 const DEFAULT_SITE = 'https://tutorlage.com';
@@ -132,7 +135,9 @@ export async function runPulse(options: PulseOptions = {}): Promise<PulseResult>
     }
   }
 
-  if (!worker) {
+  if (options.checkWorker === false) {
+    // left out on purpose (see PulseOptions.checkWorker)
+  } else if (!worker) {
     checks.push({ name: 'payments and rooms Worker', ok: false, ms: 0, detail: homeOk ? 'the home page does not name a Worker address' : 'not tried: the home page did not load' });
   } else {
     await check('payments and rooms Worker (/healthz)', async () => {
@@ -158,7 +163,8 @@ export function formatPulse(result: PulseResult, when = new Date()): string {
 }
 
 // Run directly (not when a test imports it).
-const isMain = typeof process !== 'undefined' && process.argv[1] && /site-pulse\.(ts|js|mjs)$/.test(process.argv[1].replace(/\\/g, '/'));
+// (The Worker bundles this file too: where `process.argv` does not exist this must stay false, never throw.)
+const isMain = typeof process !== 'undefined' && Array.isArray(process.argv) && !!process.argv[1] && /site-pulse\.(ts|js|mjs)$/.test(process.argv[1].replace(/\\/g, '/'));
 if (isMain) {
   runPulse({ site: process.argv[2] }).then((result) => {
     console.log(formatPulse(result));

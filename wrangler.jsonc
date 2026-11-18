@@ -44,5 +44,13 @@
     "OZOW_PAYMENTS_BASE": "https://api.ozow.com",
     "OZOW_PAYMENTS_TEST": "false"
   },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // Scheduled pulse (17 Nov 2026; server/pulseSchedule.ts): every 10 minutes the Worker checks the public site and mails when it breaks, once
+  // an hour while it stays broken, and once when it is fine again (at most 24 mails a day: Resend's free plan allows 100 for the whole site).
+  // It needs one more Worker secret, set by hand, NEVER written in this file or anywhere in the repository:
+  //   npx wrangler secret put PULSE_ALERT_TO        (the address that gets the mail; without it nothing is mailed)
+  // and a small Workers KV store for "was it fine last time" (binding PULSE_STATE; no id here: wrangler creates the store on the first deploy,
+  // or run `npx wrangler kv namespace create PULSE_STATE` and put the id it prints in this binding). Without the store nothing is mailed.
+  "triggers": { "crons": ["*/10 * * * *"] },
+  "kv_namespaces": [{ "binding": "PULSE_STATE" }]
 }

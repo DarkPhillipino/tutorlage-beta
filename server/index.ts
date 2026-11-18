@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { hasRelay, iceConfigFromEnv, iceServersFor, relayConfigured } from './iceServers';
 import { mayUseCamera } from './cameraRule';
 import { jobSecretMatches, mailerFromEnv, runClosureRounds } from './closeAccount';
+import { runNoticeEmails } from './noticeEmails';
 import { classifyCreateUserError, createSignupByLink } from './signupByLink';
 import type { CloseAccountDeps } from './closeAccount';
 import type { IceServer } from './iceServers';
@@ -1461,6 +1462,50 @@ app.post('/api/internal/close-account/run', rateLimit(6, 60_000), async (req, re
   } catch (e) {
     console.error('close-account run failed:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'The closing run failed.' });
+  }
+});
+
+// --- Email for two in-app notices (SHOULD item 11, 18 Nov 2026): "top-up approved" and "tutor has not joined" ---
+// The database wakes this route every few minutes (migration 20261118220100) with the shared secret NOTICE_EMAIL_JOB_SECRET (the same value is the Vault secret
+// notice_email_job_secret). Nothing here is reachable by a browser. The database decides what may be mailed (a switch per kind, OFF by default; the last 3 hours;
+// once per notice; a daily cap) and this route only sends it through Resend (RESEND_API_KEY and MAIL_FROM) and logs counts, never an address or a name.
+const NOTICE_EMAIL_JOB_SECRET = process.env.NOTICE_EMAIL_JOB_SECRET;
+const noticeEmailDeps = {
+  mailReady: () => Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM),
+  claim: async (limit: number) => {
+    const { data, error } = await db.rpc('notice_email_claim', { p_limit: limit });
+    if (error) throw new Error(`notice claim: ${error.message}`);
+    return (data ?? []) as Awaited<ReturnType<Parameters<typeof runNoticeEmails>[0]['claim']>>;
+  },
+  finish: async (notificationId: string, sent: boolean) => {
+    const { error } = await db.rpc('notice_email_finish', { p_notification_id: notificationId, p_sent: sent });
+    if (error) throw new Error(`notice finish: ${error.message}`);
+  },
+  emailOf: async (profileId: string) => {
+    const { data, error } = await db.auth.admin.getUserById(profileId);
+    if (error) return null;
+    return data.user?.email ?? null;
+  },
+  sendMail: mailerFromEnv(process.env, (url, init) => fetch(url, init)),
+  siteUrl: process.env.NOTICE_EMAIL_SITE_URL || 'https://tutorlage.com',
+  log: (line: string) => console.log(line),
+};
+
+app.post('/api/internal/notice-emails/run', rateLimit(12, 60_000), async (req, res) => {
+  if (!NOTICE_EMAIL_JOB_SECRET) {
+    res.status(503).json({ error: 'Notice emails are not set up on this server yet.' });
+    return;
+  }
+  if (!jobSecretMatches(req.headers['x-job-secret'], NOTICE_EMAIL_JOB_SECRET)) {
+    res.status(401).json({ error: 'Not allowed.' });
+    return;
+  }
+  try {
+    const summary = await runNoticeEmails(noticeEmailDeps, { rounds: 5, limit: 10 });
+    res.json(summary); // counts only
+  } catch (e) {
+    console.error('notice-emails run failed:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'The notice email run failed.' });
   }
 });
 

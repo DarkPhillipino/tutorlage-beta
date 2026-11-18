@@ -67,6 +67,13 @@ async function main() {
     check('the time is shown in South African time', /12:00:00 \(SAST\)/.test(text));
   }
 
+  // ---- the scheduled run leaves the Worker's own address out (it runs inside that Worker): 5 checks, no call to /healthz, still OK ----
+  {
+    const net = fakeInternet();
+    const r = await runPulse({ site: SITE, fetchFn: net.fetchFn, timeoutMs: 60, retryWaitMs: 1, checkWorker: false });
+    check('checkWorker false: the Worker address is not called and is not a check, the rest still pass', r.ok && r.checks.length === 5 && !net.calls.some((c) => c.url === `${API}/healthz`) && !r.checks.some((c) => /Worker/.test(c.name)), `${r.checks.length} checks`);
+  }
+
   // ---- a half-finished publish: the page names a file that is not there ----
   {
     const r = await run(fakeInternet({ [`${SITE}/assets/vendor-react-BBB.js`]: { status: 404 } }).fetchFn);
