@@ -184,7 +184,7 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
                     ) : (
                       <Circle className="w-3.5 h-3.5 text-slate-300 shrink-0" />
                     )}
-                    <span className={c.met ? 'text-slate-600' : 'text-slate-400'}>{c.label}</span>
+                    <span className={c.met ? 'text-slate-600' : 'text-slate-500'}>{c.label}</span>
                   </div>
                 ))}
               </div>
@@ -212,7 +212,7 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
             <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-slate-200 space-y-2">
               <div className="flex items-center space-x-1.5">
                 <Video className="w-3.5 h-3.5 text-[#15803D]" />
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Video room</span>
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Video room</span>
               </div>
               <p className="text-[11px] text-slate-600 leading-relaxed">
                 Open a room and share its link with adult learners or parents. They wait in a lobby until you let them in.
@@ -232,7 +232,7 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
           <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-slate-200">
             <div className="flex items-center space-x-1.5 mb-2">
               <Sparkles className="w-3.5 h-3.5 text-[#15803D]" />
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tips (general advice)</span>
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tips (general advice)</span>
             </div>
             <ul className="space-y-1.5">
               {TIPS.map((tip, idx) => (

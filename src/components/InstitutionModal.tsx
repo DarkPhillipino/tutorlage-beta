@@ -62,6 +62,7 @@ export const InstitutionModal: React.FC<InstitutionModalProps> = ({
       onClick={onClose}
     >
       <div
+        role="dialog" aria-modal="true" aria-label="Choose your institution"
         className="bg-white rounded-3xl max-w-lg w-full overflow-hidden flex flex-col shadow-2xl border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -76,6 +77,7 @@ export const InstitutionModal: React.FC<InstitutionModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />

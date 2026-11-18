@@ -68,7 +68,7 @@ export const PriceLadder: React.FC<PriceLadderProps> = ({ rows, available, selec
                       {currencySymbol(row.currencyCode)}
                       {formatRate(row.price)}
                     </div>
-                    <div className="text-[10px] text-slate-400 font-semibold">per hour</div>
+                    <div className="text-[10px] text-slate-500 font-semibold">per hour</div>
                     <div className="mt-1.5 inline-block rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
                       Level {row.id}
                     </div>
@@ -79,7 +79,7 @@ export const PriceLadder: React.FC<PriceLadderProps> = ({ rows, available, selec
                       <p className="text-xs text-slate-600">{FIRST_LEVEL_LINE}</p>
                     ) : (
                       <>
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-1">{MINIMUMS_LEAD}</p>
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">{MINIMUMS_LEAD}</p>
                         <ul className="space-y-0.5">
                           {lines.map((line) => (
                             <li key={line} className="text-xs text-slate-600 leading-relaxed flex gap-1.5">
@@ -101,7 +101,7 @@ export const PriceLadder: React.FC<PriceLadderProps> = ({ rows, available, selec
                       </div>
                     )}
                     {availability && (
-                      <p className={`text-[11px] font-bold mt-2 ${tutors && tutors > 0 ? 'text-[#15803D]' : 'text-slate-400'}`}>{availability}</p>
+                      <p className={`text-[11px] font-bold mt-2 ${tutors && tutors > 0 ? 'text-[#15803D]' : 'text-slate-500'}`}>{availability}</p>
                     )}
                   </div>
 

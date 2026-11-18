@@ -75,7 +75,9 @@ export const NotificationsBell: React.FC<NotificationsBellProps> = ({ onOpenNoti
   if (!user) return null;
 
   return (
-    <div className="relative">
+    // On a phone the list hangs from the bottom edge of the whole header, between 16 px margins (it used to hang from the bell's right edge and
+    // ran 21 px off the left of a 375 px screen); from "sm" up it hangs under the bell as before.
+    <div className="sm:relative">
       <button
         onClick={toggle}
         onBlur={() => setTimeout(() => setIsOpen(false), 200)}
@@ -93,7 +95,7 @@ export const NotificationsBell: React.FC<NotificationsBellProps> = ({ onOpenNoti
         // onMouseDown keeps the bell button from losing focus (and closing the list) before a tap on an item registers.
         <div
           onMouseDown={(e) => e.preventDefault()}
-          className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-96 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50"
+          className="absolute left-4 right-4 top-full mt-1 sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 max-h-96 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50"
         >
           {isLoading && items.length === 0 ? (
             <div className="flex items-center justify-center py-6 text-slate-400 text-xs">
@@ -114,7 +116,7 @@ export const NotificationsBell: React.FC<NotificationsBellProps> = ({ onOpenNoti
               >
                 <div className="text-xs font-bold text-[#0F172A]">{n.title}</div>
                 {n.body && <div className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">{n.body}</div>}
-                <div className="text-[10px] text-slate-400 mt-1">{formatSaDateTime(n.createdAt)}</div>
+                <div className="text-[10px] text-slate-500 mt-1">{formatSaDateTime(n.createdAt)}</div>
               </button>
             ))
           )}

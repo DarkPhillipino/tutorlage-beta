@@ -21,7 +21,7 @@ export const CloseAccountSection: React.FC<CloseAccountSectionProps> = ({ client
 
   return (
     <div id="close-my-account" className="bg-white rounded-2xl p-4 border border-slate-200">
-      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{CLOSE_COPY.sectionTitle}</div>
+      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{CLOSE_COPY.sectionTitle}</div>
       {setup.mode === 'minor' ? (
         <p className="text-xs text-slate-600 leading-relaxed mt-1.5">{CLOSE_COPY.minorNote}</p>
       ) : isOpen ? (

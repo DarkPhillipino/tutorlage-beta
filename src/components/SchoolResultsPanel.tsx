@@ -255,7 +255,7 @@ export const SchoolResultsPanel: React.FC<SchoolResultsPanelProps> = ({ learnerI
                         <FileText className="w-3.5 h-3.5" /> View
                       </button>
                     )}
-                    <button onClick={() => handleDelete(r.id)} className="inline-flex items-center gap-1 font-bold text-slate-400 hover:text-rose-600 cursor-pointer">
+                    <button onClick={() => handleDelete(r.id)} className="inline-flex items-center gap-1 font-bold text-slate-500 hover:text-rose-600 cursor-pointer">
                       <Trash2 className="w-3.5 h-3.5" /> Delete
                     </button>
                   </div>
@@ -265,7 +265,7 @@ export const SchoolResultsPanel: React.FC<SchoolResultsPanelProps> = ({ learnerI
           )}
 
           {!confirmWithdraw ? (
-            <button onClick={() => setConfirmWithdraw(true)} className="text-[11px] font-bold text-slate-400 hover:text-rose-600 cursor-pointer">
+            <button onClick={() => setConfirmWithdraw(true)} className="text-[11px] font-bold text-slate-500 hover:text-rose-600 cursor-pointer">
               Withdraw consent and delete all school results
             </button>
           ) : (

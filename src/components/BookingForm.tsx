@@ -60,7 +60,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
         <button
           type="button"
           onClick={onChangeInstitution}
-          className="text-[#0F172A] font-bold underline underline-offset-4 hover:text-[#15803D] transition-colors cursor-pointer"
+          className="py-2.5 -my-2.5 text-[#0F172A] font-bold underline underline-offset-4 hover:text-[#15803D] transition-colors cursor-pointer"
         >
           Change institution
         </button>
@@ -116,7 +116,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
           {/* Subject Autocomplete Dropdown */}
           {showSubjectSuggestions && filteredSubjects.length > 0 && (
             <div className="absolute left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-30 max-h-56 overflow-y-auto">
-              <div className="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              <div className="px-3 py-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 Suggested Subjects & Skills
               </div>
               {filteredSubjects.map((subj, idx) => (
@@ -130,7 +130,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
                   className="w-full text-left px-4 py-2 text-sm text-[#0F172A] font-medium hover:bg-slate-50 flex items-center justify-between"
                 >
                   <span>{subj}</span>
-                  <span className="text-xs text-slate-400 font-normal">Select</span>
+                  <span className="text-xs text-slate-500 font-normal">Select</span>
                 </button>
               ))}
             </div>
@@ -150,7 +150,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
           <button
             type="button"
             onClick={onChangeGradeLevel}
-            className="text-xs font-bold text-[#15803D] hover:underline shrink-0 ml-2 cursor-pointer"
+            className="py-2.5 -my-2.5 text-xs font-bold text-[#15803D] hover:underline shrink-0 ml-2 cursor-pointer"
           >
             {gradeLevel ? 'Change' : gradeSetLabel}
           </button>

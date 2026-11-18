@@ -72,7 +72,7 @@ export const MyTutorsPanel: React.FC<MyTutorsPanelProps> = ({ learner, showLearn
   const now = new Date();
   return (
     <div className="space-y-2">
-      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+      <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
         {KEEP_OR_SWAP_COPY.heading}
         {showLearnerName ? ` · ${learner.firstName}` : ''}
       </h4>

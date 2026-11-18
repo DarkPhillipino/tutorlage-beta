@@ -184,7 +184,7 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
 
   return (
     <div>
-      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+      <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
         <GraduationCap className="w-3.5 h-3.5" />
         Subjects Taught
       </h4>
@@ -259,7 +259,7 @@ export const SubjectCompetencyEditor: React.FC<SubjectCompetencyEditorProps> = (
               <option key={g} value={g}>{g}</option>
             ))}
           </select>
-          <span className="text-xs text-slate-400">to</span>
+          <span className="text-xs text-slate-500">to</span>
           <select
             value={maxGradeLevel}
             onChange={(e) => moveGrade('max', e.target.value)}

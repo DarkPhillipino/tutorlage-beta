@@ -48,7 +48,7 @@ export const ChangePasswordCard: React.FC<{ email: string }> = ({ email }) => {
     <div data-change-password className="bg-white rounded-2xl p-4 border border-slate-200">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Password</div>
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Password</div>
           <div className="text-xs text-slate-600 mt-0.5 leading-relaxed">We email a link to {email || 'your address'} so you can choose a new one.</div>
         </div>
         <button

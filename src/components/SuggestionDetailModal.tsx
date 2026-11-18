@@ -63,6 +63,7 @@ export const SuggestionDetailModal: React.FC<SuggestionDetailModalProps> = ({
       onClick={onClose}
     >
       <div
+        role="dialog" aria-modal="true" aria-label="Learning format"
         className="bg-white rounded-3xl max-w-lg w-full overflow-hidden flex flex-col shadow-2xl border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -82,6 +83,7 @@ export const SuggestionDetailModal: React.FC<SuggestionDetailModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -122,7 +124,7 @@ export const SuggestionDetailModal: React.FC<SuggestionDetailModalProps> = ({
         <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between px-6">
           <button
             onClick={onClose}
-            className="text-xs font-bold text-slate-500 hover:text-[#0F172A] cursor-pointer"
+            className="py-2.5 -my-2.5 text-xs font-bold text-slate-500 hover:text-[#0F172A] cursor-pointer"
           >
             Close
           </button>

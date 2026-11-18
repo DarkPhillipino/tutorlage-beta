@@ -54,7 +54,7 @@ export const LearnersITaughtPanel: React.FC<LearnersITaughtPanelProps> = ({ tuto
 
   return (
     <div className="mt-6">
-      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+      <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1.5">
         <UserMinus className="w-3.5 h-3.5" />
         {KEEP_OR_SWAP_COPY.tutorHeading}
       </h4>

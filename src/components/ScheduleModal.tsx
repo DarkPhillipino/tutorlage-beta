@@ -84,7 +84,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   const lengthPicker = (
     <div>
-      <label className="text-xs font-bold text-[#0F172A] block mb-1.5">Session length:</label>
+      <label className="text-xs font-bold text-[#0F172A] block mb-1.5">Session length (hours):</label>
       <div className="grid grid-cols-5 gap-1.5">
         {SESSION_LENGTHS.map((h) => (
           <button
@@ -99,7 +99,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
             }`}
           >
-            {h}h
+            {/* Just the number, with "(hours)" in the label above: the spoken name ("1.5 hours") must contain the words printed on the button (WCAG 2.5.3, found
+                by axe in the 375 px audit; "1.5h" is not the word "hours"). */}
+            {h}
           </button>
         ))}
       </div>
@@ -112,6 +114,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       onClick={onClose}
     >
       <div
+        role="dialog" aria-modal="true" aria-label="Schedule a session"
         className="bg-white rounded-3xl max-w-md w-full max-h-[calc(100vh-2rem)] overflow-hidden flex flex-col shadow-2xl border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -124,6 +127,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -200,7 +204,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 </div>
                 <div className="grid grid-cols-7 gap-1 text-center" role="grid" aria-label="Calendar">
                   {WEEKDAY_HEADINGS.map((w) => (
-                    <div key={w} className="text-[10px] font-bold text-slate-400 py-1">{w}</div>
+                    <div key={w} className="text-[10px] font-bold text-slate-500 py-1">{w}</div>
                   ))}
                   {weeks.flat().map((day) =>
                     day.inMonth ? (

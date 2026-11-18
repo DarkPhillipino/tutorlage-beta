@@ -168,7 +168,7 @@ export const TutorWalletPanel: React.FC<{ tutorId: string }> = ({ tutorId }) => 
       <TutorCodeCard />
 
       <div className="space-y-2">
-        <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Your bank account</h4>
+        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Your bank account</h4>
         {bank === undefined ? (
           <p className="text-xs text-slate-500">Your bank details could not be read just now. Try again in a moment.</p>
         ) : showForm ? (
@@ -258,7 +258,7 @@ export const TutorWalletPanel: React.FC<{ tutorId: string }> = ({ tutorId }) => 
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Payouts</h4>
+        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Payouts</h4>
         {payouts.length === 0 ? (
           <p className="text-xs text-slate-500">You have not asked for a payout yet.</p>
         ) : (
@@ -275,7 +275,7 @@ export const TutorWalletPanel: React.FC<{ tutorId: string }> = ({ tutorId }) => 
       </div>
 
       <div className="space-y-2">
-        <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">History</h4>
+        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">History</h4>
         <WalletHistory lines={data.ledger} requestSubjects={new Map()} sessionSubjects={data.sessionSubjects} tutorView />
       </div>
     </div>

@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* The signed-in app (the outer box of src/App.tsx; 375 px and axe audit, 18 Nov 2026). Small "slate-500" print is 4.45 to 1 on the cream page and
+   4.34 to 1 on the grey chips, just under the 4.5 to 1 that WCAG AA asks for. Inside the app it is drawn as slate-600 (7 to 1). Done as a colour
+   variable, scoped to this one box, so no other page changes: the sign-in, sign-up and founding-list pages are outside it and keep the colours
+   they have (the CEO's wave rule). */
+.app-shell {
+  --color-slate-500: var(--color-slate-600);
+}
+
+/* An iPhone zooms the page in when a typing box with text smaller than 16 px is tapped (and does not zoom back out). Inside the signed-in app,
+   on a phone, every typing box is 16 px (14 px and 12 px boxes were the rule). From the "sm" width up nothing changes. */
+@media (max-width: 639.98px) {
+  .app-shell input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']):not([type='color']),
+  .app-shell select,
+  .app-shell textarea {
+    font-size: 16px;
+  }
+}
+
 /* Edge draws its own "show password" eye inside password boxes; ours (src/components/PasswordInput.tsx) replaces it so there is only one. */
 input[type="password"]::-ms-reveal,
 input[type="password"]::-ms-clear {

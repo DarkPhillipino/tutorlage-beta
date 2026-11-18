@@ -116,6 +116,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div 
+        role="dialog" aria-modal="true" aria-label="Manage account"
         className="bg-white rounded-3xl max-w-lg w-full overflow-hidden flex flex-col shadow-2xl border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -133,6 +134,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -192,7 +194,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
               {/* Institution Card */}
               <div className="bg-white rounded-2xl p-4 border border-slate-200 flex items-center justify-between">
                 <div>
-                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                     Primary Campus Institution
                   </div>
                   <div className="text-sm font-bold text-[#0F172A] mt-0.5">
@@ -214,7 +216,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
               <div className="bg-white rounded-2xl p-4 border border-slate-200">
                 {isEditingGradeLevel ? (
                   <div className="space-y-2">
-                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                       Grade Level
                     </div>
                     <select
@@ -255,7 +257,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
                 ) : (
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                         Grade Level
                       </div>
                       <div className="text-sm font-bold text-[#0F172A] mt-0.5">
@@ -321,7 +323,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
                         {card.cardType ? card.cardType.trim().replace(/^\w/, (c) => c.toUpperCase()) : 'Card'}
                         {card.last4 ? ` ending in ${card.last4}` : ''}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-medium">
+                      <div className="text-[10px] text-slate-500 font-medium">
                         {[card.bank, card.expMonth && card.expYear ? `expires ${card.expMonth}/${card.expYear}` : null]
                           .filter(Boolean)
                           .join(' · ')}
@@ -345,7 +347,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
               onClose();
               onSignOut();
             }}
-            className="flex items-center space-x-1.5 text-xs font-bold text-rose-600 hover:text-rose-800 cursor-pointer"
+            className="flex items-center space-x-1.5 py-2.5 -my-2.5 text-xs font-bold text-rose-600 hover:text-rose-800 cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign Out</span>

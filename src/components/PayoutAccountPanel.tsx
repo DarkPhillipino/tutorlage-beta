@@ -96,7 +96,7 @@ export const PayoutAccountPanel: React.FC<PayoutAccountPanelProps> = ({ tutorId,
     <div className="bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
       <div className="flex items-center gap-1.5">
         <Landmark className="w-3.5 h-3.5 text-[#15803D]" />
-        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Where you get paid</span>
+        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Where you get paid</span>
       </div>
 
       {account && !isEditing ? (

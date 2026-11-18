@@ -159,7 +159,7 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
         {isEditingProfile && (
           <div className="mt-3 space-y-2">
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Headline</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Headline</label>
               <input
                 type="text"
                 value={headlineDraft}
@@ -169,7 +169,7 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                 Institution (optional — narrows matching to students there)
               </label>
               <button
@@ -187,7 +187,7 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
                 <button
                   type="button"
                   onClick={() => setInstitutionDraft(null)}
-                  className="text-[10px] font-semibold text-slate-400 hover:text-rose-600 mt-1 cursor-pointer"
+                  className="text-[10px] font-semibold text-slate-500 hover:text-rose-600 mt-1 cursor-pointer"
                 >
                   Clear institution
                 </button>
@@ -273,7 +273,7 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
 
       {/* Reviews */}
       <div>
-        <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
           <MessageSquare className="w-3.5 h-3.5" />
           Recent Reviews
         </h4>
@@ -290,7 +290,7 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
                     <Star className="w-3.5 h-3.5 fill-current mr-1" />
                     {r.rating ?? '—'}
                   </div>
-                  <span className="text-[10px] text-slate-400">{formatSaDate(r.createdAt)}</span>
+                  <span className="text-[10px] text-slate-500">{formatSaDate(r.createdAt)}</span>
                 </div>
                 {r.comment && <p className="text-[11px] text-slate-600 mt-1.5">"{r.comment}"</p>}
               </div>

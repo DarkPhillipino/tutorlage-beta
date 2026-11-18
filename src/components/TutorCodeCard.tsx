@@ -32,7 +32,7 @@ export const TutorCodeCard: React.FC<{ client?: TutorCodeClient }> = ({ client =
 
   return (
     <div className="bg-white rounded-2xl p-4 border border-slate-200 space-y-2" data-tutor-code>
-      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{TUTOR_CODE_COPY.title}</h4>
+      <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{TUTOR_CODE_COPY.title}</h4>
       <div className="text-xl font-extrabold text-[#0F172A] tracking-wide" data-tutor-code-value>{code.code}</div>
       {!code.active ? (
         <p className="text-xs text-amber-800 font-semibold">{TUTOR_CODE_COPY.paused}</p>

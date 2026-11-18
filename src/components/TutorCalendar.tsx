@@ -48,7 +48,7 @@ export const TutorCalendar: React.FC<TutorCalendarProps> = ({ availability, sess
 
       {/* Next 7 days: availability slots, marked open vs booked */}
       <div>
-        <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
           <CalendarClock className="w-3.5 h-3.5" />
           Next 7 Days
         </h4>
@@ -58,7 +58,7 @@ export const TutorCalendar: React.FC<TutorCalendarProps> = ({ availability, sess
             return (
               <div key={day.toISOString()} className="bg-white rounded-xl border border-slate-200 p-1.5 min-h-[5.5rem]">
                 <div className="text-center mb-1">
-                  <div className="text-[9px] font-bold text-slate-400 uppercase">{DAY_LABELS[day.getDay()]}</div>
+                  <div className="text-[9px] font-bold text-slate-500 uppercase">{DAY_LABELS[day.getDay()]}</div>
                   <div className="text-[11px] font-bold text-[#0F172A]">{day.getDate()}</div>
                 </div>
                 <div className="space-y-1">
@@ -95,7 +95,7 @@ export const TutorCalendar: React.FC<TutorCalendarProps> = ({ availability, sess
 
       {/* Upcoming sessions */}
       <div>
-        <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
           <GraduationCap className="w-3.5 h-3.5" />
           Upcoming Sessions
         </h4>

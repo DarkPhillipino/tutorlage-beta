@@ -45,7 +45,7 @@ export const TutorNextSessions: React.FC<TutorNextSessionsProps> = ({ tutorId, r
     <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-slate-200 space-y-3" data-section="tutor-next-sessions">
       <div className="flex items-center gap-1.5">
         <CalendarClock className="w-3.5 h-3.5 text-[#15803D]" />
-        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Your upcoming sessions</span>
+        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Your upcoming sessions</span>
       </div>
       <div className="space-y-3">
         {sessions.slice(0, 3).map((s) => (

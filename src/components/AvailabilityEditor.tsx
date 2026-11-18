@@ -58,7 +58,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId,
 
   return (
     <div>
-      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+      <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
         <Clock className="w-3.5 h-3.5" />
         Working Hours
       </h4>
@@ -104,7 +104,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId,
           onChange={(e) => setStartTime(e.target.value)}
           className="bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-[#15803D]/20"
         />
-        <span className="text-xs text-slate-400">to</span>
+        <span className="text-xs text-slate-500">to</span>
         <input
           type="time"
           value={endTime}

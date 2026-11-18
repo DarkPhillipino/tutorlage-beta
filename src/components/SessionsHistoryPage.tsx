@@ -25,7 +25,7 @@ export const SessionsHistoryPage: React.FC<SessionsHistoryPageProps> = ({ userId
       <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
         <button
           onClick={onBack}
-          className="inline-flex items-center space-x-1.5 text-sm font-bold text-slate-600 hover:text-[#0F172A] mb-6 cursor-pointer"
+          className="inline-flex items-center space-x-1.5 text-sm font-bold text-slate-600 hover:text-[#0F172A] py-2.5 mb-4 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back</span>

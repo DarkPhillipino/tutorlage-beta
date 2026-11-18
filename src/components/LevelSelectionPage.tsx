@@ -151,7 +151,7 @@ export const LevelSelectionPage: React.FC<LevelSelectionPageProps> = ({
             </div>
             {tiers.map((tier) => (
               <div key={tier.tierId}>
-                <h2 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">{tier.tierName}</h2>
+                <h2 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">{tier.tierName}</h2>
                 <div className="space-y-2">
                   {tier.levels.map((level) => (
                     <button
@@ -163,7 +163,7 @@ export const LevelSelectionPage: React.FC<LevelSelectionPageProps> = ({
                         <div className="text-base font-black text-[#0F172A]">
                           {getCurrencySymbol(level.currencyCode)}{formatRate(level.price)}
                         </div>
-                        <div className="text-[10px] text-slate-400 font-semibold">per hour</div>
+                        <div className="text-[10px] text-slate-500 font-semibold">per hour</div>
                       </div>
                       <p className="flex-1 text-xs text-slate-600">{LEVEL_DESCRIPTIONS[level.id] ?? ''}</p>
                       <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#15803D] shrink-0" />

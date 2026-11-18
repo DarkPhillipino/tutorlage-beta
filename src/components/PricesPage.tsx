@@ -439,7 +439,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
 
           <button
             onClick={onBack}
-            className="inline-flex items-center space-x-1.5 text-sm font-bold text-slate-600 hover:text-[#0F172A] mb-6 cursor-pointer"
+            className="inline-flex items-center space-x-1.5 text-sm font-bold text-slate-600 hover:text-[#0F172A] py-2.5 mb-4 cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to search</span>
@@ -532,7 +532,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
               <button
                 type="button"
                 onClick={onChangeGradeLevel}
-                className="text-xs font-bold text-[#15803D] hover:underline shrink-0 ml-2 cursor-pointer"
+                className="py-2.5 -my-2.5 text-xs font-bold text-[#15803D] hover:underline shrink-0 ml-2 cursor-pointer"
               >
                 {gradeLevel ? 'Change' : gradeSetLabel}
               </button>
@@ -562,7 +562,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
             <button
               type="button"
               onClick={onChangeInstitution}
-              className="text-xs font-bold text-[#15803D] hover:underline shrink-0 ml-2 cursor-pointer"
+              className="py-2.5 -my-2.5 text-xs font-bold text-[#15803D] hover:underline shrink-0 ml-2 cursor-pointer"
             >
               Change
             </button>

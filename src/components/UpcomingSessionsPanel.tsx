@@ -179,7 +179,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
       {myTutorsSection}
       {waiting.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Waiting for a tutor</h4>
+          <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Waiting for a tutor</h4>
           {waiting.map((r) => {
             const start = new Date(r.requestedStart);
             return (
@@ -218,7 +218,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
       )}
       {upcoming.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Upcoming</h4>
+          <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Upcoming</h4>
           {upcoming.map((s) => {
             const start = new Date(s.scheduledStart);
             return (
@@ -272,7 +272,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
 
       {completed.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{page ? 'Completed' : 'Recently completed'}</h4>
+          <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{page ? 'Completed' : 'Recently completed'}</h4>
           {completed.map((s) =>
             isGuardian ? (
               <div key={s.id} className="bg-white rounded-2xl p-4 border border-slate-200 space-y-1">
@@ -301,7 +301,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
 
       {finished.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Finished, not yet marked complete</h4>
+          <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Finished, not yet marked complete</h4>
           {finished.map((s) => (
             <div key={s.id} className="bg-white rounded-2xl p-4 border border-slate-200 space-y-1">
               <div className="text-sm font-bold text-[#0F172A]">
@@ -318,7 +318,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
 
       {cancelled.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cancelled</h4>
+          <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cancelled</h4>
           {cancelled.map((s) => (
             <div key={s.id} className="bg-white rounded-2xl p-4 border border-slate-200 space-y-1">
               <div className="text-sm font-bold text-slate-600">
@@ -447,7 +447,7 @@ export const CancelSessionControl: React.FC<{ sessionId: string; onCancelled: ()
           </button>
         </div>
       ) : (
-        <button onClick={() => setIsConfirming(true)} className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer">
+        <button onClick={() => setIsConfirming(true)} className="py-2.5 -my-2.5 text-[11px] font-bold text-rose-600 hover:underline cursor-pointer">
           {kind === 'request' ? 'Cancel request' : 'Cancel session'}
         </button>
       )}
@@ -542,7 +542,7 @@ export const ReportProblemControl: React.FC<{ sessionId: string; startOpen?: boo
   }
   if (!isOpen) {
     return (
-      <button onClick={() => setIsOpen(true)} className="text-[11px] font-bold text-slate-500 hover:underline cursor-pointer">
+      <button onClick={() => setIsOpen(true)} className="py-2.5 -my-2.5 text-[11px] font-bold text-slate-500 hover:underline cursor-pointer">
         Report a problem
       </button>
     );

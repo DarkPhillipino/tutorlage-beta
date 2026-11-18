@@ -201,7 +201,7 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
                   {learner.canBook && confirmWithdrawId !== learner.id && (
                     <button
                       onClick={() => setConfirmWithdrawId(learner.id)}
-                      className="text-[11px] font-bold text-slate-400 hover:text-rose-600 cursor-pointer"
+                      className="py-2.5 -my-2.5 text-[11px] font-bold text-slate-500 hover:text-rose-600 cursor-pointer"
                     >
                       Withdraw consent
                     </button>
@@ -224,7 +224,7 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
                   {closeSetup && closeSetup.mode === 'self' && closeLearnerId !== learner.id && (
                     <button
                       onClick={() => { setClosedNote(null); setCloseLearnerId(learner.id); }}
-                      className="text-[11px] font-bold text-slate-400 hover:text-rose-600 cursor-pointer"
+                      className="py-2.5 -my-2.5 text-[11px] font-bold text-slate-500 hover:text-rose-600 cursor-pointer"
                     >
                       Close this learner&apos;s account
                     </button>

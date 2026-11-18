@@ -45,13 +45,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
 
-          {/* Left Side: Brand Logo & Navigation Links */}
-          <div className="flex items-center space-x-8">
+          {/* Left Side: Brand Logo & Navigation Links. (Phone fix, 18 Nov 2026, 375 px audit: the 32 px gap after the logo belongs to the desktop
+              nav only, and the name is a size smaller on a phone, so the wallet chip, bell and account button fit beside it.) */}
+          <div className="flex items-center md:space-x-8">
             {/* Logo */}
             <a
               href="#"
               onClick={(e) => { e.preventDefault(); setActiveNav('learn'); }}
-              className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#0F172A] hover:text-[#15803D] transition-colors"
+              className="text-xl sm:text-3xl font-extrabold tracking-tight text-[#0F172A] hover:text-[#15803D] transition-colors"
             >
               Tutorlage
             </a>
@@ -108,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
           </div>
 
           {/* Right Side: Utility Navigation */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
+          <div className="flex items-center space-x-0.5 sm:space-x-3">
 
             {/* Language Selector — hidden 2026-09-09 per CEO request (not deleted; a
                 reinstatement suggestion was logged to the PM's game plan under app
@@ -148,7 +149,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
                 2026-10-03 as an email link now that support@ forwards (7v). */}
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
-              className="px-3 py-1.5 rounded-full text-sm font-semibold text-[#0F172A] hover:bg-slate-100 flex items-center space-x-1.5 transition-colors shrink-0"
+              aria-label={t('help')}
+              className="px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-full text-sm font-semibold text-[#0F172A] hover:bg-slate-100 flex items-center space-x-1.5 transition-colors shrink-0"
             >
               <HelpCircle className="w-4 h-4 text-[#0F172A] sm:hidden" />
               <span className="hidden sm:inline">{t('help')}</span>
@@ -161,7 +163,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
             {/* Manage Account Dropdown Pill Button */}
             <button
               onClick={onOpenManageAccount}
-              className="px-3 sm:px-4 py-2 rounded-full text-sm font-bold bg-[#0F172A] text-white hover:bg-slate-800 transition-all flex items-center space-x-2 shadow-xs cursor-pointer shrink-0 whitespace-nowrap"
+              aria-label={t('manageAccount')}
+              className="px-2.5 sm:px-4 py-2 rounded-full text-sm font-bold bg-[#0F172A] text-white hover:bg-slate-800 transition-all flex items-center space-x-2 shadow-xs cursor-pointer shrink-0 whitespace-nowrap"
             >
               <User className="w-4 h-4 text-emerald-400" />
               <span className="hidden sm:inline">{t('manageAccount')}</span>
@@ -172,12 +175,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenManageAccount, activeNav, 
         </div>
 
         {/* Mobile Navigation bar below header for small screens */}
-        <div className="flex md:hidden items-center justify-around border-t border-slate-100 py-2 text-xs font-semibold text-[#0F172A]">
+        <div className="flex md:hidden items-center justify-around border-t border-slate-100 py-1.5 text-sm font-semibold text-[#0F172A]">
           {mainLinks.map((link) => (
             <button
               key={link.id}
               onClick={() => setActiveNav(link.id)}
-              className={`px-3 py-1 rounded-full ${activeNav === link.id ? 'bg-[#0F172A] text-white' : 'text-slate-700'}`}
+              className={`px-5 py-2 rounded-full ${activeNav === link.id ? 'bg-[#0F172A] text-white' : 'text-slate-700'}`}
             >
               {link.name}
             </button>

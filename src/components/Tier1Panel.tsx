@@ -95,7 +95,7 @@ export const Tier1Panel: React.FC<{ tutorId: string }> = ({ tutorId }) => {
 
   return (
     <div>
-      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+      <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
         <GraduationCap className="w-3.5 h-3.5" /> Tier 1 route: tutor a subject you got 70%+ in
       </h4>
       <div className={`${card} space-y-4`}>
@@ -481,7 +481,7 @@ const TestScreen: React.FC<{ test: Tier1Test; onDone: (r: Tier1Result) => void }
       </div>
       {test.items.map((item, n) => (
         <div key={item.id} className="space-y-2 text-sm text-slate-800">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Case {n + 1} of {test.items.length}{item.gradeBand ? ` · ${item.gradeBand}` : ''}</p>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Case {n + 1} of {test.items.length}{item.gradeBand ? ` · ${item.gradeBand}` : ''}</p>
           <div className="rounded-lg bg-slate-50 p-3"><Rich text={item.stem} /></div>
           {(['q1', 'q2'] as const).map((q) => (
             <fieldset key={q} className="space-y-1">

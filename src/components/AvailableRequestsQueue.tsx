@@ -137,7 +137,7 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <Inbox className="w-3.5 h-3.5 text-[#15803D]" />
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Available Requests</span>
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Available Requests</span>
         </div>
         {visibleRequests.length > 0 && (
           <span className="text-[10px] font-bold bg-[#15803D] text-white px-2 py-0.5 rounded-full">{visibleRequests.length}</span>

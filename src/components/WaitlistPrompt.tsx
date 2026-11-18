@@ -86,7 +86,7 @@ export const WaitlistPrompt: React.FC<WaitlistPromptProps> = ({ learnerId, subje
             <Check className="w-4 h-4" /> {WAITLIST_COPY.joinedTitle}
           </div>
           <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">{WAITLIST_COPY.joinedBody}</p>
-          <p className="text-[11px] text-slate-400 mt-1">{WAITLIST_COPY.keptFor}</p>
+          <p className="text-[11px] text-slate-500 mt-1">{WAITLIST_COPY.keptFor}</p>
           <button
             type="button"
             onClick={leave}
@@ -108,7 +108,7 @@ export const WaitlistPrompt: React.FC<WaitlistPromptProps> = ({ learnerId, subje
             {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BellRing className="w-3.5 h-3.5" />}
             {isBusy ? WAITLIST_COPY.joining : WAITLIST_COPY.button}
           </button>
-          <p className="text-[11px] text-slate-400 mt-2">{WAITLIST_COPY.keptFor}</p>
+          <p className="text-[11px] text-slate-500 mt-2">{WAITLIST_COPY.keptFor}</p>
         </>
       )}
       {error && <p className="text-xs font-semibold text-rose-600 mt-2">{error}</p>}

@@ -129,7 +129,7 @@ export const SuggestionsGrid: React.FC<SuggestionsGridProps> = ({ onSelectSugges
             </span>
 
             {/* Sub-indicator hover cue */}
-            <div className="mt-1 flex items-center text-[11px] font-semibold text-slate-400 group-hover:text-[#15803D] opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="mt-1 flex items-center text-[11px] font-semibold text-slate-500 group-hover:text-[#15803D] opacity-0 group-hover:opacity-100 transition-opacity">
               <span>Explore</span>
               <ArrowUpRight className="w-3 h-3 ml-0.5" />
             </div>

@@ -173,7 +173,7 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
           </>
         ) : (
           <div className="space-y-1">
-            {FEATURES.videoRooms && <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Or use your own meeting link (optional)</p>}
+            {FEATURES.videoRooms && <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Or use your own meeting link (optional)</p>}
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex-1 flex items-center bg-slate-100 rounded-lg px-2.5">
                 <LinkIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -226,7 +226,7 @@ export const TutorSessionsPanel: React.FC<TutorSessionsPanelProps> = ({ tutorId 
 
   return (
     <div>
-      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+      <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
         <Video className="w-3.5 h-3.5" />
         Your Sessions
       </h4>
