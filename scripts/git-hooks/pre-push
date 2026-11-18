@@ -7,8 +7,8 @@ zero=0000000000000000000000000000000000000000
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ "$local_sha" = "$zero" ] && continue
   for commit in $(git rev-list "$local_sha" --not --remotes="$remote"); do
-    if git ls-tree -r --name-only "$commit" | grep -q -E '^Drake/|^CLAUDE\.md$|(^|/)CONTEXT\.md$|(^|/)[^/]*items_seed\.sql$|(^|/)build-tier1-items-sql\.mjs$'; then
-      echo "Push refused: commit $commit contains Drake/, CLAUDE.md, a CONTEXT.md or a tutor-test items seed (answer keys), which must never go to GitHub." >&2
+    if git ls-tree -r --name-only "$commit" | grep -q -E '^Drake/|^admin/|^CLAUDE\.md$|(^|/)CONTEXT\.md$|(^|/)[^/]*items_seed\.sql$|(^|/)build-tier1-items-sql\.mjs$'; then
+      echo "Push refused: commit $commit contains Drake/, admin/, CLAUDE.md, a CONTEXT.md or a tutor-test items seed (answer keys), which must never go to GitHub." >&2
       echo "Publish the app with: node scripts/publish-app.mjs, then push the public-main branch." >&2
       exit 1
     fi

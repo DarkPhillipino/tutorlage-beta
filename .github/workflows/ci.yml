@@ -1,0 +1,44 @@
+name: CI
+
+# Runs on every push and every pull request: the type check of the app and of the admin app, every script test (npm run regress) and both production builds.
+# NO secrets are used and none are needed: the checks run against the code only. The build gets no Supabase address or key, so it cannot reach any database; nothing here deploys,
+# publishes or writes anywhere (the site goes out only through deploy-pages.yml, on a push to main). The database suites (supabase/tests) and the browser checks
+# (npm run test:browsers) are NOT part of this job: the first need a database, the second a browser and a finished build; they stay a manual step before a release.
+# The job also refuses a push that carries the private notes (Drake/, CLAUDE.md, any CONTEXT.md): they must never be in the public repository, and the tests here never read them.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Private notes must not be in this repository
+        run: |
+          private="$(git ls-files -- 'Drake' 'admin' 'CLAUDE.md' '**/CONTEXT.md' 'CONTEXT.md')"
+          if [ -n "$private" ]; then
+            echo "These private files are tracked and must not be pushed:"
+            echo "$private"
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      # The admin app is installed only if it is in the repository; without it, npm run regress skips the admin type check, the admin build and the script tests that use it, and says so.
+      - name: Install the admin app's packages (only when the admin app is in the repository)
+        if: hashFiles('admin/package-lock.json') != ''
+        run: npm ci --prefix admin
+      - name: Type checks, script tests and production builds
+        run: npm run regress

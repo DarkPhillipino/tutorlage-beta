@@ -3,8 +3,11 @@
 // origin/main. Saves it as the local branch `public-main` and prints what changed. It does NOT push:
 // pushing is a separate step, `git push origin public-main:main`, and needs the CEO's go-ahead.
 //
-// Run from the working branch with everything committed:  node scripts/publish-app.mjs ["message"] [--allow-dirty]
+// Run from the working branch with everything committed:  node scripts/publish-app.mjs ["message"] [--allow-dirty] [--keep-published=path,path]
 // (the message, if given, must be the first argument)
+// --keep-published=a,b: for each listed path, publish the version that origin/main already has (or leave the file out if
+// origin/main has none), whatever the current commit holds. This is how code that is committed locally but not yet released
+// (for example the scheduled-pulse code) is held back from one publish.
 // It also installs the pre-push hook (scripts/git-hooks/pre-push) that refuses any push carrying those
 // paths.
 import { execFileSync } from 'node:child_process';
@@ -15,9 +18,12 @@ import path from 'node:path';
 // Also private: the seed that loads the Tier 1 tutor test's items WITH their answer keys (found 12 Oct: it was
 // tracked and would have been published; publishing the keys would make the test worthless).
 // (Its generator, build-tier1-items-sql.mjs, only exists to read the private item bank, so it stays private too.)
-const PRIVATE = /^Drake\/|^CLAUDE\.md$|(^|\/)CONTEXT\.md$|(^|\/)[^/]*items_seed\.sql$|(^|\/)build-tier1-items-sql\.mjs$/;
+// admin/ (the self-updating admin app) is private too since 18 Nov 2026 (CEO: "stop admin being in the public repository").
+const PRIVATE = /^Drake\/|^admin\/|^CLAUDE\.md$|(^|\/)CONTEXT\.md$|(^|\/)[^/]*items_seed\.sql$|(^|\/)build-tier1-items-sql\.mjs$/;
 // A second, content-based guard: nothing in the published tree may insert Tier 1 items, whatever the file is called.
 const KEY_CONTENT = 'insert into (public\\.)?tier1_items';
+const keepArg = process.argv.find((a) => a.startsWith('--keep-published='));
+const keepPublished = keepArg ? keepArg.slice('--keep-published='.length).split(',').filter(Boolean) : [];
 const git = (args, opts = {}) => execFileSync('git', args, { encoding: 'utf8', ...opts }).trim();
 
 // --allow-dirty: publish the current commit even though other tracked files have uncommitted changes (work in
@@ -47,6 +53,21 @@ try {
   const remove = git(['ls-files'], { env }).split('\n').filter((p) => p && PRIVATE.test(p));
   if (remove.length) {
     execFileSync('git', ['update-index', '--force-remove', '--stdin'], { env, input: remove.join('\n') + '\n' });
+  }
+  for (const p of keepPublished) {
+    let published = '';
+    try {
+      published = git(['ls-tree', 'origin/main', '--', p]);
+    } catch {
+      // not in origin/main
+    }
+    if (published) {
+      const [meta, name] = published.split('	');
+      const [mode, , sha] = meta.split(' ');
+      execFileSync('git', ['update-index', '--add', '--cacheinfo', `${mode},${sha},${name}`], { env });
+    } else {
+      execFileSync('git', ['update-index', '--force-remove', '--', p], { env });
+    }
   }
   const tree = git(['write-tree'], { env });
   const leaked = git(['ls-tree', '-r', '--name-only', tree]).split('\n').filter((p) => PRIVATE.test(p));

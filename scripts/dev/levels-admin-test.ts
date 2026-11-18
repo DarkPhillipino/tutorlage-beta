@@ -88,10 +88,13 @@ for (const m of migration.matchAll(/create or replace function public\.(admin_\w
 check('the migration defines nine admin functions', defined.size === 9, [...defined.keys()].join(', '));
 const called = new Map<string, string[]>();
 for (const m of queries.matchAll(/\.rpc\('(admin_\w+)'(?:,\s*\{([\s\S]*?)\})?\)/g)) {
+  if (m[1] === 'admin_set_credential_proves_subject') continue;   // the tick-box function of 20261118190000, checked just below
   called.set(m[1], [...(m[2] ?? '').matchAll(/\b(p_\w+):/g)].map((x) => x[1]).sort());
 }
 check('the admin app calls all nine, and no other admin function', called.size === 9 && [...called.keys()].every((k) => defined.has(k)), [...called.keys()].join(', '));
 check('every call passes exactly the parameter names the function defines', [...called].every(([name, keys]) => JSON.stringify(keys) === JSON.stringify(defined.get(name))), [...called].filter(([n, k]) => JSON.stringify(k) !== JSON.stringify(defined.get(n))).map(([n]) => n).join(', '));
+const tickMig = read('supabase/migrations/20261118190000_credential_proves_subject_switch.sql');
+check('the tick-box calls its own function (20261118190000) with exactly the parameters it defines', /create or replace function public\.admin_set_credential_proves_subject\(p_code text, p_value boolean\)/.test(tickMig) && /rpc\('admin_set_credential_proves_subject', \{ p_code: code, p_value: value \}\)/.test(queries));
 check('the admin app never writes the level tables directly (only through the functions that audit)', !/\.from\('(tier_definitions|sub_tier_definitions|credential_definitions|tutor_credentials)'\)\s*\.(insert|update|upsert|delete)/.test(queries));
 check('every one of those functions refuses anyone who is not an active admin, and writes the audit row', [...defined.keys()].every((name) => {
   const body = migration.slice(migration.indexOf(`function public.${name}(`)).split(/\n\$\$;/)[0];
@@ -166,7 +169,7 @@ check('the built-in "assigned by Tutorlage" credential cannot be edited or delet
 check('removing a credential and assigning a level both need a written reason', /disabled=\{busy \|\| !removeReason\.trim\(\)\}/.test(card) && /assignReason\.trim\(\)\.length < 3/.test(card));
 check("a frozen tutor is told the level will apply when the freeze lifts", /applies when the freeze lifts/.test(card));
 check('the real pages pass the real database calls to those screens (and the screens import no database code themselves)',
-  /ACTIONS = \{ saveTier, saveLevel, saveCredentialDefinition, deleteCredentialDefinition, recalculateAllLevels \}/.test(levelsPage) && /actions=\{ACTIONS\}/.test(levelsPage) &&
+  /ACTIONS = \{ saveTier, saveLevel, saveCredentialDefinition, deleteCredentialDefinition, recalculateAllLevels, setCredentialProvesSubject \}/.test(levelsPage) && /actions=\{ACTIONS\}/.test(levelsPage) &&
     /ACTIONS = \{ assignTutorLevel, clearTutorAssignedLevel, recordTutorCredential, removeTutorCredential \}/.test(cardLoader) && /actions=\{ACTIONS\}/.test(cardLoader) &&
     !/supabase|levelQueries/.test(levels + card));
 check('the practice page for these screens uses the same screens, with pretend actions', /LevelsBody/.test(read('admin/src/dev/levelsPreview.tsx')) && /TutorLevelCardBody/.test(read('admin/src/dev/levelsPreview.tsx')) && !/supabase/.test(read('admin/src/dev/levelsPreview.tsx')));

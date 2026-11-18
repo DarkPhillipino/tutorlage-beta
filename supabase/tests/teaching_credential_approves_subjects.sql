@@ -77,6 +77,9 @@ begin
       (t3, z, 'authenticated', 'authenticated', 'tc.3.' || uid || '@example.invalid', jsonb_build_object('role', 'tutor', 'first_name', 'Tess', 'surname', 'Three', 'date_of_birth', adult), '{}'),
       (t4, z, 'authenticated', 'authenticated', 'tc.4.' || uid || '@example.invalid', jsonb_build_object('role', 'tutor', 'first_name', 'Tim', 'surname', 'Four', 'date_of_birth', adult), '{}'),
       (t5, z, 'authenticated', 'authenticated', 'tc.5.' || uid || '@example.invalid', jsonb_build_object('role', 'tutor', 'first_name', 'Sue', 'surname', 'Student', 'date_of_birth', adult), '{}');
+    -- these tutors have finished Module 7 and accepted the code, so the suite does not depend on whether the Module 7 rule (20261118140000) is applied yet
+    insert into public.tier1_training (tutor_id, module, result, method, conduct_accepted_at)
+      select x, 7, 'complete', 'scenario_check', now() from unnest(array[t1, t2, t3, t4, t5]) x;
     insert into admin_profiles (id, first_name, surname, email, phone_number, admin_role, is_active) values
       (v_off, 'Vic', 'Officer', 'tc.o.' || uid || '@example.invalid', '', 'verification_officer', true),
       (v_sup, 'Sam', 'Support', 'tc.s.' || uid || '@example.invalid', '', 'support_agent', true);
@@ -134,7 +137,7 @@ begin
     r := r || pg_temp.chk('K2', 'and it is now verified', (select verification_status::text from tutor_subject_competencies where tutor_id = t4), 'verified');
 
     -- ONE place for "may a subject be approved yet" (item 7 will change only this function): both routes obey it
-    r := r || pg_temp.chk('B1', 'the blocker answers null today and no API role may call it',
+    r := r || pg_temp.chk('B1', 'the blocker answers null for a tutor who finished Module 7 and no API role may call it',
       coalesce((select public.subject_approval_blocker(t1)), 'null') || '/' || has_function_privilege('anon', 'public.subject_approval_blocker(uuid)', 'execute')::text || '/' || has_function_privilege('authenticated', 'public.subject_approval_blocker(uuid)', 'execute')::text || '/' || has_function_privilege('service_role', 'public.subject_approval_blocker(uuid)', 'execute')::text,
       'null/false/false/false');
     update tutor_subject_competencies set verification_status = 'pending' where tutor_id = t5;

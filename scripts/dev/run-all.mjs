@@ -11,20 +11,44 @@
 //  - it does NOT run the database suites (supabase/tests/*.sql: they need the rolled-back runner on dev) and does not open a browser
 //    (the browser checks are separate: `npm run test:browsers`, on a finished build).
 import { spawnSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const testFiles = readdirSync(new URL('./', import.meta.url)).filter((f) => f.endsWith('-test.ts')).sort();
+const allTestFiles = readdirSync(new URL('./', import.meta.url)).filter((f) => f.endsWith('-test.ts')).sort();
+
+// The admin app (admin/) may or may not be in this tree: the public repository may stop carrying it (PM, 18 Nov 2026). With admin/ present EVERYTHING runs, as before. Without it, the
+// admin type check, the admin build and every script test that reads or imports anything under admin/ are SKIPPED, said so in the output, and the rest must still pass. A test counts as
+// an admin test when its source mentions a path under admin/ (an import such as '../../admin/src/...', or a read of 'admin/...').
+const hasAdmin = existsSync(`${root}admin/package.json`);
+const ADMIN_PATH = /(\.\.\/\.\.\/admin\/|['"`]admin\/)/;
+const isAdminTest = (f) => ADMIN_PATH.test(readFileSync(new URL(f, import.meta.url), 'utf8'));
+const skippedTests = hasAdmin ? [] : allTestFiles.filter(isAdminTest);
+const testFiles = allTestFiles.filter((f) => !skippedTests.includes(f));
+// The app's type check covers scripts/ too, so without admin/ the admin tests are left out of it as well (a temporary config that extends the real one, removed afterwards).
+const NOADMIN_TSCONFIG = 'tsconfig.regress-noadmin.json';
+const appTypeCheck = hasAdmin
+  ? 'npx --no-install tsc --noEmit'
+  : `npx --no-install tsc --noEmit -p ${NOADMIN_TSCONFIG}`;
+if (!hasAdmin) {
+  const base = JSON.parse(readFileSync(`${root}tsconfig.json`, 'utf8'));
+  writeFileSync(`${root}${NOADMIN_TSCONFIG}`, JSON.stringify({ extends: './tsconfig.json', exclude: [...(base.exclude ?? []), ...skippedTests.map((f) => `scripts/dev/${f}`)] }, null, 2));
+  process.on('exit', () => rmSync(`${root}${NOADMIN_TSCONFIG}`, { force: true }));
+}
 
 const allItems = [
   ...testFiles.map((f) => ({ name: `test ${f}`, cmd: `npx --no-install tsx scripts/dev/${f}`, cwd: root })),
-  { name: 'type check: app (src, server, scripts)', cmd: 'npx --no-install tsc --noEmit', cwd: root },
-  { name: 'type check: admin app', cmd: 'npx --no-install tsc --noEmit', cwd: `${root}admin` },
+  { name: 'type check: app (src, server, scripts)', cmd: appTypeCheck, cwd: root },
+  ...(hasAdmin ? [{ name: 'type check: admin app', cmd: 'npx --no-install tsc --noEmit', cwd: `${root}admin` }] : []),
   // `npm run build` = vite build + scripts/postbuild.ts (the per-address pages, 404.html, sitemap.xml, robots.txt).
   { name: 'production build: app', cmd: 'npm run build', cwd: root },
-  { name: 'production build: admin app', cmd: 'npm run build', cwd: `${root}admin` },
+  ...(hasAdmin ? [{ name: 'production build: admin app', cmd: 'npm run build', cwd: `${root}admin` }] : []),
 ];
+if (!hasAdmin) {
+  console.log(`SKIPPED: admin/ is not in this tree, so the admin type check, the admin build and ${skippedTests.length} script test(s) that use it are not run:`);
+  for (const f of skippedTests) console.log(`  skipped  test ${f}`);
+  console.log('');
+}
 // Optional: `npm run regress -- legal build` runs only the items whose name contains one of the words (a partial run; the summary says so).
 const only = process.argv.slice(2);
 const items = only.length ? allItems.filter((i) => only.some((w) => i.name.includes(w))) : allItems;
@@ -51,6 +75,7 @@ for (const item of items) {
 const failedItems = results.filter((r) => !r.pass);
 console.log(`\n${failedItems.length === 0 ? 'ALL PASS' : 'FAILED'}: ${results.length - failedItems.length} of ${results.length} items passed `
   + (only.length ? `(PARTIAL RUN: only items matching "${only.join('", "')}"; ${allItems.length - results.length} items not run).`
-    : `(${testFiles.length} script tests, 2 type checks, 2 builds). Database suites and browser checks (npm run test:browsers) are not part of this run.`));
+    : (hasAdmin ? `(${testFiles.length} script tests, 2 type checks, 2 builds). ` : `(WITHOUT admin/: ${testFiles.length} script tests, 1 type check, 1 build; SKIPPED ${skippedTests.length} admin script tests, the admin type check and the admin build). `)
+      + 'Database suites and browser checks (npm run test:browsers) are not part of this run.'));
 for (const r of failedItems) console.log(`  failed: ${r.name}`);
 process.exit(failedItems.length === 0 ? 0 : 1);

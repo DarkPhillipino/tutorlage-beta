@@ -43,7 +43,7 @@ if (migrationName) {
     [...values].map((v) => v.toLowerCase()).sort().join('|') === [...CAPS_BAND_SUBJECTS].sort().join('|'));
   check('each name is in the exact DBE spelling with capitals', values.every((v) => v === v.trim() && /^[A-Z][A-Za-z ]+$/.test(v)));
   check('it only inserts: no update, delete, drop, alter, truncate or grant anywhere in the code', !/\b(update|delete|drop|alter|truncate|grant|revoke)\b/i.test(code.replace(/raise exception[^;]*;/gi, '')));
-  check('it only touches the subjects table', (code.match(/\bpublic\.[a-z_0-9]+/gi) ?? []).every((t) => t.toLowerCase() === 'public.subjects'));
+  check('it only touches the subjects table', ((code.match(/\bpublic\.[a-z_0-9]+/gi) ?? []) as string[]).every((t) => t.toLowerCase() === 'public.subjects'));
   check('it can run twice: it skips a name that exists in any capitals and has ON CONFLICT DO NOTHING', /where not exists \(select 1 from public\.subjects s where lower\(btrim\(s\.name\)\) = lower\(v\.name\)\)/i.test(code) && /on conflict \(name\) do nothing/i.test(code));
   check('it stops itself if a name is missing afterwards', /if n <> 6 then\s*raise exception/i.test(code));
   check('it does not add the six to the Tier 1 list (that route is Grade 12 results and has no tests for them)', !/tier1/i.test(code));
