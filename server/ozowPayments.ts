@@ -12,9 +12,12 @@
 //   2. the payer goes to Ozow's page and back to OUR Worker's return route (server/walletOnline.ts, GET or POST: the pages do not say which), which sends them on to the site.
 //   3. Ozow POSTs a form-encoded notification to our Worker; verifyWebhook checks its Hash (13 fields in Ozow's order, private key appended, lowercased, SHA512, constant-time).
 //   4. checkPayment (the 5-minute backstop and "Check now") asks GET /GetTransactionByReference. Same answer shapes go to the database.
-// THE ONE PLACE A STATUS WORD IS TRANSLATED: Ozow's Payments API says "Complete" for a paid payment (the One API says "Successful"; Ozow's statuses page lists them side by side). The
-// database credits only "successful", so internalStatus() turns EXACTLY "Complete" (any case) into "Successful" and passes every other word through untouched: "PendingInvestigation" and
-// anything we have never seen then lands in the database's "a status we do not know" branch and goes to a person, never to the wallet.
+// THE ONE PLACE A STATUS WORD IS TRANSLATED. Ozow's statuses page (hub.ozow.com/integration-methods/statuses.md) lists the Payments API words next to the One API's. The database knows the One API's
+// words, so exactly TWO Payments API words are translated, each any case: "Complete" (paid) becomes "Successful" (the only word that ever credits), and "Created" (the payment request exists and the
+// payer has not finished: Ozow says "wait for a final status") becomes "Incomplete", the database's word for the same thing, which it records quietly as "not finished yet" with no note to a person
+// (18 Nov 2026: the first real payment sat on Created, and "created" was wrongly sent to a person as an unknown word). Every other word passes through untouched and the database already knows
+// Pending (FNB), Cancelled, Abandoned, Voided and Error. "PendingInvestigation" is deliberately NOT translated: Ozow says it needs manual action (check the bank statement), so it lands in the
+// database's "a status we do not know" branch and goes to a person, never to the wallet; so does any word we have never seen.
 // Secrets (OZOW_API_KEY, OZOW_PRIVATE_KEY, OZOW_SITE_CODE) are Worker secrets, read once in server/index.ts. The private key signs the request and checks the notification; it is NEVER sent,
 // never put in a URL, a log line, a reply or a note. Nothing here copies Ozow's error text: only the HTTP status and a short code of our own.
 import crypto from 'node:crypto';
@@ -23,7 +26,10 @@ import { cleanBit } from './walletOnline';
 
 export const OZOW_PAYMENTS_PROVIDER = 'ozow_payments'; // the value of the setting wallet_online_provider, the attempt's provider, and the p_provider the database sees
 export const OZOW_PAYMENTS_WEBHOOK_PATH = 'ozow-payments'; // POST /api/wallet/webhook/ozow-payments
-export const OZOW_PAYMENTS_RETURN_PATH = '/api/wallet/ozow-return'; // GET or POST ?topup=<id>: sends the payer on to the site
+export const OZOW_PAYMENTS_RETURN_PATH = '/api/wallet/ozow-return'; // GET or POST ?topup=<id>&r=<hint>: sends the payer on to the site
+// The three return addresses differ ONLY by this hint (18 Nov 2026), so the page can word "it looks like you cancelled" at once. It is a hint for WORDING and nothing else: the route that receives it
+// never reads or writes a top-up and never calls Ozow, and the page never treats it as proof of anything. Ozow's page does not say which address "return to merchant" uses.
+export const RETURN_HINTS = { success: 'success', cancel: 'cancelled', error: 'error' } as const;
 export const OZOW_PAYMENTS_PRODUCTION_BASE = 'https://api.ozow.com';
 export const OZOW_PAYMENTS_STAGING_BASE = 'https://stagingapi.ozow.com';
 export const OZOW_PAYMENTS_STAGING_HOST = 'stagingapi.ozow.com';
@@ -75,7 +81,7 @@ export function ozowPaymentsConfigFromEnv(env: Record<string, string | undefined
   const workerOrigin = (get('OZOW_NOTIFY_ORIGIN') || DEFAULT_WORKER_ORIGIN).replace(/\/+$/, '');
   if (!validOrigin(workerOrigin, (h) => h.endsWith('.workers.dev') || h === 'tutorlage.com' || h.endsWith('.tutorlage.com'))) {
     problems.push('OZOW_NOTIFY_ORIGIN must be the Worker address only, starting https:// (a workers.dev or tutorlage.com address)');
-  } else if (`${workerOrigin}${OZOW_PAYMENTS_RETURN_PATH}?topup=00000000-0000-0000-0000-000000000000`.length > MAX_URL_LENGTH) {
+  } else if (`${workerOrigin}${OZOW_PAYMENTS_RETURN_PATH}?topup=00000000-0000-0000-0000-000000000000&r=${RETURN_HINTS.cancel}`.length > MAX_URL_LENGTH) {
     problems.push(`OZOW_NOTIFY_ORIGIN is too long: Ozow allows addresses of at most ${MAX_URL_LENGTH} characters`);
   }
   if (get('OZOW_SITE_CODE') && !/^[A-Za-z0-9_-]{1,50}$/.test(get('OZOW_SITE_CODE'))) problems.push('OZOW_SITE_CODE has characters a site code does not have');
@@ -154,9 +160,12 @@ type Obj = Record<string, unknown>;
 const asObj = (v: unknown): Obj | null => (v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Obj) : null);
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
-// "Complete" is a paid Payments API payment; the database's paid word is "successful". Exactly one word is translated; see the header.
+// "Complete" is a paid Payments API payment (the database's paid word is "successful") and "Created" is not finished yet ("incomplete"). Exactly these two words are translated; see the header.
 export function internalStatus(raw: string): string {
-  return raw.trim().toLowerCase() === 'complete' ? 'Successful' : raw.trim();
+  const word = raw.trim().toLowerCase();
+  if (word === 'complete') return 'Successful';
+  if (word === 'created') return 'Incomplete';
+  return raw.trim();
 }
 
 // A short note for the audit row: Ozow's own status word, its sub-status and message, letters and numbers and a few marks only (never an address or anything long).
@@ -262,8 +271,9 @@ export function createOzowPaymentsProvider(config: OzowPaymentsConfig, fetchFn: 
 
     async createPayment(input: CreatePaymentInput): Promise<CreatePaymentOutcome> {
       const topupReturn = `${config.workerOrigin}${OZOW_PAYMENTS_RETURN_PATH}?topup=${input.topupId}`;
+      const returnUrl = (hint: string) => `${topupReturn}&r=${hint}`;
       const reference = input.reference.replace(/[^A-Za-z0-9 -]/g, '').slice(0, 20); // bankReference: the payer's own bank shows this as "their reference"; letters, numbers, spaces and dashes, at most 20
-      if (!reference || input.reference.length > 50 || topupReturn.length > MAX_URL_LENGTH || !Number.isInteger(input.amountRand) || input.amountRand <= 0) {
+      if (!reference || input.reference.length > 50 || returnUrl(RETURN_HINTS.cancel).length > MAX_URL_LENGTH || !Number.isInteger(input.amountRand) || input.amountRand <= 0) {
         return { kind: 'refused', detail: 'the payment could not be described to Ozow in the allowed shape' }; // nothing was sent
       }
       const fields: Record<string, string | boolean> = {
@@ -273,9 +283,9 @@ export function createOzowPaymentsProvider(config: OzowPaymentsConfig, fetchFn: 
         amount: twoDecimals(input.amountRand),
         transactionReference: input.reference, // our TL- reference; Ozow refuses a reference this site used in the last 24 hours, and we never create a second payment for a top-up
         bankReference: reference,
-        cancelUrl: topupReturn,
-        errorUrl: topupReturn,
-        successUrl: topupReturn,
+        cancelUrl: returnUrl(RETURN_HINTS.cancel),
+        errorUrl: returnUrl(RETURN_HINTS.error),
+        successUrl: returnUrl(RETURN_HINTS.success),
         notifyUrl: `${config.workerOrigin}/api/wallet/webhook/${OZOW_PAYMENTS_WEBHOOK_PATH}`,
         isTest: config.isTest,
       };

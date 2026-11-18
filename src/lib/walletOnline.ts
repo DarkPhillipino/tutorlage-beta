@@ -49,6 +49,11 @@ export const ONLINE_COPY = {
   waitingBody: 'Still waiting. We will tell you here and in your bell the moment it arrives.',
   waitingNoRead: 'We could not read your payment just now. Your money is safe.',
   checkedNothing: 'We checked just now. Nothing has arrived yet.',
+  // The return address's hint (r=cancelled, r=error, r=success): words only, shown while the top-up is still waiting; never proof of anything.
+  hintCancelledTitle: 'It looks like the payment was cancelled',
+  hintErrorTitle: 'Your bank reported a problem',
+  hintNotPaidBody: 'Nothing was taken from you. If you did pay, your money will be added here as soon as your bank confirms it.',
+  hintSuccessBody: 'Thank you. We are confirming your payment with your bank. This usually takes a few seconds.',
   notFoundTitle: 'We could not find this payment',
   notFoundBody: 'Open your wallet to see all your top-ups. If money left your account, contact support with the Help button at the top of the page.',
   otherTitle: 'This is not an online payment',
@@ -298,4 +303,40 @@ export async function pollReturn(deps: PollDeps): Promise<ReturnView | null> {
     await deps.sleep(interval);
     if (deps.isCancelled()) return null;
   }
+}
+
+// ---- the hint in the return address (18 Nov 2026) ------------------------------------------------------------------------------------------------
+// The Worker's return route puts which of the three addresses Ozow used into the page address as r=success, r=cancelled or r=error. It is a hint for WORDING while the top-up is still
+// waiting, so a payer who pressed "return to merchant" after cancelling is not left looking at "Checking your payment". It is never proof of anything: money, and every state that
+// says money moved, come only from the top-up row, which only a verified bank message or our own status check can change; an unknown word is dropped; and what this returns for any
+// view that is not "still waiting" is nothing at all.
+export type ReturnHint = 'success' | 'cancelled' | 'error';
+export function parseReturnHint(value: unknown): ReturnHint | null {
+  return value === 'success' || value === 'cancelled' || value === 'error' ? value : null;
+}
+export interface HintWords { title: string; body: string; tone: 'wait' | 'bad' }
+export function hintWords(view: ReturnView, hint: ReturnHint | null): HintWords | null {
+  if (!hint || (view.kind !== 'checking' && view.kind !== 'waiting')) return null;
+  if (hint === 'cancelled') return { title: ONLINE_COPY.hintCancelledTitle, body: ONLINE_COPY.hintNotPaidBody, tone: 'bad' };
+  if (hint === 'error') return { title: ONLINE_COPY.hintErrorTitle, body: ONLINE_COPY.hintNotPaidBody, tone: 'bad' };
+  return { title: ONLINE_COPY.checkingTitle, body: ONLINE_COPY.hintSuccessBody, tone: 'wait' };
+}
+
+// When the page opens and the payer's own row still says "waiting for the bank", ask the Worker ONCE to look (the same signed-in call as "Check now", so the Worker's own limits apply and it
+// asks Ozow, never the browser), so a payment that is already paid shows in seconds instead of waiting for the bank's message or the background catch-up. Any failure is ignored: the page
+// keeps reading the row, and "Check now" is still there. A row that is already settled, or not found, or not an online one, is never checked.
+export async function checkOnceWhenWaiting(deps: { read: () => Promise<Topup | null | undefined>; check: () => Promise<unknown> }): Promise<'checked' | 'skipped'> {
+  let row: Topup | null | undefined;
+  try {
+    row = await deps.read();
+  } catch {
+    return 'skipped';
+  }
+  if (!row || row.method !== 'online' || row.status !== 'awaiting_payment') return 'skipped';
+  try {
+    await deps.check();
+  } catch {
+    // ignored on purpose
+  }
+  return 'checked';
 }

@@ -416,6 +416,24 @@ const applyCalls = (r: Rig) => r.db.calls.filter((c) => c.name === 'wallet_onlin
     const off = await makeRig({ returnOrigin: null });
     check('return: with the Payments API not set up the route answers 503 and sends nobody anywhere', (await off.get(`/api/wallet/ozow-return?topup=${id}`)).status === 503);
     check('return: the outcome is never taken from the browser coming back: nothing the browser carries reaches the database', r.db.calls.length === 0);
+    // ---- the hint (18 Nov 2026): which of our three return addresses Ozow used, passed on for the page's WORDING only ----
+    for (const hint of ['success', 'cancelled', 'error']) {
+      const res = await r.get(`/api/wallet/ozow-return?topup=${id}&r=${hint}`);
+      check(`return: the hint "${hint}" is passed on to the site's page, still 303 to the site's own address`, res.status === 303 && res.headers.get('location') === `https://tutorlage.com/wallet/topup-return?topup=${id}&r=${hint}`);
+    }
+    const viaPostHint = await r.post(`/api/wallet/ozow-return?topup=${id}&r=cancelled`, { headers: { 'Content-Type': FORM, Origin: 'https://pay.ozow.com' }, body: 'Status=Complete&Hash=abc' });
+    check('return: a form POST with the hint carries it on too, and what Ozow put in the body is ignored', viaPostHint.status === 303 && viaPostHint.headers.get('location') === `https://tutorlage.com/wallet/topup-return?topup=${id}&r=cancelled`);
+    const SHAPE = /^https:\/\/tutorlage\.com\/wallet\/topup-return\?topup=[0-9a-f-]{36}(&r=(success|cancelled|error))?$/;
+    for (const bad of ['r=paid', 'r=Complete', 'r=CANCELLED', 'r=', 'r=cancelled%20', 'r=cancelled&r=success', 'r[]=error', 'r=%3Cscript%3E', 'r=https://evil.example.com', 'r=success/../x']) {
+      const res = await r.get(`/api/wallet/ozow-return?topup=${id}&${bad}`);
+      const loc = res.headers.get('location') ?? '';
+      check(`return: the odd hint "${bad}" is dropped (or is exactly one of the three words): the page address is only our own page, the id, and at most one known hint`, res.status === 303 && SHAPE.test(loc), loc);
+    }
+    const noId = await r.get('/api/wallet/ozow-return?r=cancelled');
+    check('return: a hint without a good top-up id goes to the wallet page and carries nothing', noId.status === 303 && noId.headers.get('location') === 'https://tutorlage.com/wallet');
+    const evil = await r.get(`/api/wallet/ozow-return?topup=${id}&r=cancelled&next=https://evil.example.com&redirect=//evil.example.com`);
+    check('return: nothing else in the address can move the redirect off our own site', evil.headers.get('location') === `https://tutorlage.com/wallet/topup-return?topup=${id}&r=cancelled`);
+    check('return: a stranger cannot make us call Ozow or touch a row through this route: after all these requests there was no database call and no call to Ozow', r.db.calls.length === 0 && r.pay.calls.length === 0, `${r.db.calls.length}/${r.pay.calls?.length}`);
   }
 
   // =============================================================== the public environment answer ==============================================

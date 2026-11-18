@@ -101,6 +101,7 @@ export const WEBHOOK_ROUTES: ReadonlyArray<{ path: string; provider: string }> =
   { path: 'ozow', provider: 'ozow' },
   { path: 'ozow-payments', provider: 'ozow_payments' },
 ];
+const RETURN_HINT_WORDS: ReadonlySet<string> = new Set(['success', 'cancelled', 'error']); // the three words server/ozowPayments.ts RETURN_HINTS puts in the three return addresses
 export const OZOW_RETURN_ROUTE = '/api/wallet/ozow-return'; // the payer's browser comes back here from the Payments API's page; see mountOnlineWebhook
 export const MAX_WEBHOOK_BYTES = 64 * 1024;
 
@@ -533,8 +534,11 @@ export function mountOnlineReturn(app: Application, opts: { rateLimit: MountOpti
       return;
     }
     const id = typeof req.query.topup === 'string' ? req.query.topup : '';
+    // The one other thing used: a hint of which of our three addresses Ozow used (r = success, cancelled or error), kept only if it is exactly one of those words and the id is good, and passed
+    // on for the PAGE'S WORDING only. Nothing here reads or writes a top-up or calls Ozow: a stranger can make this route do nothing but redirect.
+    const hint = typeof req.query.r === 'string' && RETURN_HINT_WORDS.has(req.query.r) ? req.query.r : '';
     res.set('Cache-Control', 'no-store');
-    res.redirect(303, UUID_SHAPE.test(id) ? `${origin}/wallet/topup-return?topup=${id}` : `${origin}/wallet`);
+    res.redirect(303, UUID_SHAPE.test(id) ? `${origin}/wallet/topup-return?topup=${id}${hint ? `&r=${hint}` : ''}` : `${origin}/wallet`);
   };
   app.get(OZOW_RETURN_ROUTE, opts.rateLimit(120, 60_000), go);
   app.post(OZOW_RETURN_ROUTE, opts.rateLimit(120, 60_000), go);

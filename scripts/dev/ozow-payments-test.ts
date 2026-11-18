@@ -111,8 +111,18 @@ const noKeys = (text: string) => paymentsSecretsToHide().every((s) => !text.incl
 
   // =============================================================== the one translated word ====================================================
   check('status: Ozow\'s "Complete" is the one paid word and becomes the database\'s "Successful"', internalStatus('Complete') === 'Successful' && internalStatus('complete') === 'Successful' && internalStatus(' COMPLETE ') === 'Successful');
-  check('status: every other word passes through untouched, so nothing else can be credited (PendingInvestigation, Completed, Successful from nowhere is already the paid word and stays so)',
-    ['PendingInvestigation', 'Pending', 'Cancelled', 'Error', 'Abandoned', 'Completed', 'Completely', 'Incomplete', 'Voided', 'Expired', '', 'weird'].every((w) => internalStatus(w) === w) && internalStatus('Successful') === 'Successful');
+  check('status: Ozow\'s "Created" (request made, the payer has not finished) becomes the database\'s "Incomplete", so it is recorded quietly as not finished and no person is told (18 Nov 2026: the first real payment)',
+    internalStatus('Created') === 'Incomplete' && internalStatus('created') === 'Incomplete' && internalStatus(' CREATED ') === 'Incomplete');
+  check('status: every other word passes through untouched, so nothing else can be credited (PendingInvestigation stays unknown on purpose: a person checks the bank statement; Completed, Successful from nowhere is already the paid word and stays so)',
+    ['PendingInvestigation', 'Pending', 'Cancelled', 'Error', 'Abandoned', 'Completed', 'Completely', 'Incomplete', 'Voided', 'Expired', 'Createdx', '', 'weird'].every((w) => internalStatus(w) === w) && internalStatus('Successful') === 'Successful');
+  // Every status word Ozow documents for the Payments API, and what the database does with the word we hand it (the list is the database's own, in wallet_online_apply):
+  // quiet "not finished" = pending, incomplete; "this attempt failed" = error; "ended without a payment" = voided, cancelled, abandoned, expired; paid = successful; anything else goes to a person.
+  const DB_QUIET = ['pending', 'incomplete'];
+  const DB_ENDED = ['voided', 'cancelled', 'abandoned', 'expired'];
+  const handed = (w: string) => internalStatus(w).toLowerCase();
+  check('status map: Created and Pending are STILL WAITING (quiet); Cancelled, Abandoned and Voided end without a payment; Error is a failed attempt; Complete is the only paid word; PendingInvestigation goes to a person',
+    DB_QUIET.includes(handed('Created')) && DB_QUIET.includes(handed('Pending')) && ['Cancelled', 'Abandoned', 'Voided'].every((w) => DB_ENDED.includes(handed(w))) && handed('Error') === 'error'
+    && handed('Complete') === 'successful' && ![...DB_QUIET, ...DB_ENDED, 'error', 'successful'].includes(handed('PendingInvestigation')));
 
   // =============================================================== error codes, expiry, links =================================================
   check('error codes: Ozow\'s wording (errors/payments-api) becomes a short code of ours; unknown wording is "rejected"', errorCodeOf('The HashCheck value has failed') === 'hash_failed' && errorCodeOf('Duplicate transaction reference not allowed.') === 'duplicate_reference'
@@ -136,8 +146,9 @@ const noKeys = (text: string) => paymentsSecretsToHide().every((s) => !text.incl
     check('create: country ZA, currency ZAR, the amount is TEXT with two decimals ("35.00"), isTest is the JSON boolean false', body.countryCode === 'ZA' && body.currencyCode === 'ZAR' && body.amount === '35.00' && body.isTest === false && body.siteCode === FAKE_PAYMENTS.siteCode);
     check('create: the transaction reference is our TL- reference, the bank reference is the same (letters, numbers and dashes, at most 20), the payer sees nothing private', body.transactionReference === 'TL-ABC234' && body.bankReference === 'TL-ABC234');
     check('create: the expiry is the database\'s moment, to the minute, in UTC', body.expiryDateUtc === '2026-11-17 14:30');
-    check('create: the notification address is the Worker\'s Payments API webhook; the three return addresses are the Worker\'s return route with the top-up id; all within Ozow\'s 150 characters',
-      body.notifyUrl === `${DEFAULT_WORKER_ORIGIN}/api/wallet/webhook/ozow-payments` && body.successUrl === `${DEFAULT_WORKER_ORIGIN}/api/wallet/ozow-return?topup=${TOPUP}` && body.cancelUrl === body.successUrl && body.errorUrl === body.successUrl
+    check('create: the notification address is the Worker\'s Payments API webhook; the three return addresses are the Worker\'s return route with the top-up id and ONE hint each (success, cancelled, error), nothing else differs; all within Ozow\'s 150 characters',
+      body.notifyUrl === `${DEFAULT_WORKER_ORIGIN}/api/wallet/webhook/ozow-payments` && body.successUrl === `${DEFAULT_WORKER_ORIGIN}/api/wallet/ozow-return?topup=${TOPUP}&r=success`
+      && body.cancelUrl === `${DEFAULT_WORKER_ORIGIN}/api/wallet/ozow-return?topup=${TOPUP}&r=cancelled` && body.errorUrl === `${DEFAULT_WORKER_ORIGIN}/api/wallet/ozow-return?topup=${TOPUP}&r=error`
       && [body.notifyUrl, body.successUrl, body.cancelUrl, body.errorUrl].every((u: string) => u.length <= 150));
     check('create: the hashCheck is the one Ozow\'s algorithm (the test\'s independent copy) computes over what was sent with our private key: the fake Ozow accepted it', ozow.requestFor('TL-ABC234') !== undefined && body.hashCheck === ozowRequestHash(body, FAKE_PAYMENTS.privateKey));
     check('create: the private key is NOT in the body, a header, or the address', !call.body.includes(FAKE_PAYMENTS.privateKey) && !JSON.stringify(call.headers).includes(FAKE_PAYMENTS.privateKey) && !call.path.includes(FAKE_PAYMENTS.privateKey) && !JSON.stringify(call.query).includes(FAKE_PAYMENTS.privateKey));
@@ -303,7 +314,7 @@ const noKeys = (text: string) => paymentsSecretsToHide().every((s) => !text.incl
   check('the file never logs, never writes a file, never reads an environment variable by itself (settings come in through ozowPaymentsConfigFromEnv\'s argument)', !/console\.|writeFile|appendFile|process\.env/.test(code));
   check('the private key is used in exactly one place, the hash (hashOver) and nowhere near a request: not in a header, a URL or a body', (code.match(/privateKey/g) ?? []).length <= 12 && !/headers:[^}]*privateKey|\$\{[^}]*privateKey[^}]*\}/.test(code) && !/Authorization/.test(code));
   check('every hash comparison is constant-time (timingSafeEqual) and no "===" compares a Hash', /timingSafeEqual/.test(code) && !/Hash'\)\s*===|===\s*got\('Hash'\)/.test(code));
-  check('the status translation is one word and one place: exactly one comparison with "complete"', (code.match(/'complete'/g) ?? []).length === 1 && /return raw\.trim\(\)\.toLowerCase\(\) === 'complete' \? 'Successful'/.test(code));
+  check('the status translation is two words in one place: exactly one comparison with "complete" (the paid word) and one with "created" (still waiting), nothing else is translated', (code.match(/=== 'complete'/g) ?? []).length === 1 && (code.match(/=== 'created'/g) ?? []).length === 1 && /if \(word === 'complete'\) return 'Successful';/.test(code) && /if \(word === 'created'\) return 'Incomplete';/.test(code));
   check('no wording in the new file offers "free" lessons or sessions', !/free (lesson|session)/i.test(src));
 
   process.stdout.write(failures === 0 ? '\nALL OK\n' : `\n${failures} FAILED\n`);

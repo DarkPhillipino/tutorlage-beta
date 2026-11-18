@@ -6,12 +6,15 @@ import { walletDb } from '../lib/walletHooks';
 import { onlineRequest } from '../lib/walletOnlineHooks';
 import {
   ONLINE_COPY,
+  checkOnceWhenWaiting,
   checkOnlineTopup,
   decideReturn,
   fetchTopupById,
+  hintWords,
   isTopupId,
   paidBody,
   paidTitle,
+  parseReturnHint,
   pollReturn,
   type ReturnView,
 } from '../lib/walletOnline';
@@ -25,6 +28,8 @@ export default function TopupReturn() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const topupId = searchParams.get('topup') ?? '';
+  // Which of the three return addresses the bank used (success, cancelled, error): WORDING only, while the row still says waiting. Never read as proof of anything.
+  const hint = parseReturnHint(searchParams.get('r'));
   const [view, setView] = useState<ReturnView>({ kind: 'checking' });
   // "Check now": busy while asking, then a short note (what was found, or why it was refused).
   const [checkBusy, setCheckBusy] = useState(false);
@@ -42,6 +47,8 @@ export default function TopupReturn() {
     }
     let cancelled = false;
     setView({ kind: 'checking' });
+    // At once, if the row still says waiting, ask the Worker to look ONCE (the same call as "Check now"), so a payment that is already paid shows in seconds. Failures are ignored.
+    void checkOnceWhenWaiting({ read: () => fetchTopupById(walletDb, userId, topupId), check: () => checkOnlineTopup(onlineRequest, topupId) });
     void pollReturn({
       read: () => fetchTopupById(walletDb, userId, topupId),
       sleep: (ms) => new Promise((resolve) => window.setTimeout(resolve, ms)),
@@ -93,6 +100,12 @@ export default function TopupReturn() {
     icon = <Clock className="w-10 h-10 text-slate-400 mx-auto mb-4" aria-hidden="true" />;
     title = ONLINE_COPY.signInTitle;
     body = ONLINE_COPY.signInBody;
+  } else if (hintWords(view, hint)) {
+    const words = hintWords(view, hint)!;
+    tone = words.tone;
+    title = words.title;
+    body = words.body;
+    if (words.tone === 'wait') icon = <Loader2 className="w-10 h-10 text-slate-400 animate-spin mx-auto mb-4" aria-hidden="true" />;
   } else if (view.kind === 'paid') {
     tone = 'good';
     title = paidTitle;
@@ -163,7 +176,7 @@ export default function TopupReturn() {
                     {checkBusy ? 'Checking…' : ONLINE_COPY.checkNow}
                   </button>
                 )}
-                {view.kind !== 'checking' && (
+                {(view.kind !== 'checking' || hintWords(view, hint)?.tone === 'bad') && (
                   <button
                     onClick={toWallet}
                     className={`px-5 py-2.5 font-bold rounded-xl text-sm transition-all cursor-pointer ${view.kind === 'waiting' ? 'bg-slate-100 text-[#0F172A] hover:bg-slate-200' : 'bg-[#15803D] text-white hover:bg-[#166534]'}`}

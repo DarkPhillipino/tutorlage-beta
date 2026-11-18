@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { WALLET_COPY, fetchTopups, topupStatusLine, type Topup, type WalletClient } from '../../src/lib/wallet';
 import {
-  CARD_IS_MAIN, ONLINE_COPY, POLL_INTERVAL_MS, POLL_MAX_MS, checkOnlineTopup, createOnlineTopup, decideMainWay, decideReturn, fetchMainWay, fetchOnlineAvailable,
+  CARD_IS_MAIN, ONLINE_COPY, POLL_INTERVAL_MS, POLL_MAX_MS, checkOnlineTopup, createOnlineTopup, decideMainWay, decideReturn, checkOnceWhenWaiting, hintWords, parseReturnHint, fetchMainWay, fetchOnlineAvailable,
   fetchOnlineEnvironment, fetchTopupById, isTopupId, onlineTestNote, paidBody, paidTitle, pollReturn, safeRedirectUrl, startOnlinePayment, type OnlineGet, type OnlineRequest, type ReturnView,
 } from '../../src/lib/walletOnline';
 
@@ -316,6 +316,34 @@ async function main() {
   check('phase 2: the Worker has the two routes and answers start-online with redirect_url', /\/api\/wallet\/topups\/:id\/start-online/.test(worker) && /\/api\/wallet\/topups\/:id\/check/.test(worker) && /redirect_url: made\.redirectUrl/.test(worker));
   check('phase 2: the Worker\'s error codes the page maps (busy, closed, not_found, not_configured, start_failed, wait, check_failed) all exist', ['busy', 'closed', 'not_found', 'not_configured', 'start_failed', 'wait', 'check_failed'].every((c) => worker.includes(`'${c}'`)));
   check('phase 2: the return address the Worker gives the processor is /wallet/topup-return?topup=<id>', /returnPath: `\/wallet\/topup-return\?topup=\$\{topupId\}`/.test(worker));
+
+  // ---- the hint in the return address and the one immediate check (18 Nov 2026) --------------------------------------------------------------------
+  {
+    const row = (status: Topup['status'], method: Topup['method'] = 'online'): Topup => ({ id: ID, reference: 'TL-ABC234', amountRand: 200, status, method, receivedRand: null, comment: null, createdAt: '2026-11-18T10:00:00Z', decidedAt: null, proofSentAt: null });
+    check('hint: only success, cancelled and error are read; anything else (any case, empty, a list, a number, null) is no hint', parseReturnHint('success') === 'success' && parseReturnHint('cancelled') === 'cancelled' && parseReturnHint('error') === 'error'
+      && ['paid', 'Complete', 'CANCELLED', '', 'cancelled ', null, undefined, 5, ['error'], { r: 'error' }].every((w) => parseReturnHint(w) === null));
+    const waitingViews: ReturnView[] = [{ kind: 'checking' }, { kind: 'waiting', readFailed: false }, { kind: 'waiting', readFailed: true }];
+    const settledViews: ReturnView[] = [{ kind: 'paid', amountRand: 200 }, { kind: 'not_completed' }, { kind: 'cancelled' }, { kind: 'not_found' }, { kind: 'other' }];
+    check('hint: while the top-up still waits, "cancelled" and "error" change the WORDS only: nothing was taken, and if you did pay it will be added', waitingViews.every((vw) => {
+      const c = hintWords(vw, 'cancelled'); const e = hintWords(vw, 'error');
+      return !!c && !!e && c.tone === 'bad' && e.tone === 'bad' && c.title === ONLINE_COPY.hintCancelledTitle && e.title === ONLINE_COPY.hintErrorTitle && c.body.includes('Nothing was taken') && c.body.includes('If you did pay') && !/received|added to your wallet|Payment received/.test(c.title + e.title);
+    }));
+    check('hint: "success" never says money arrived: it says we are confirming it', waitingViews.every((vw) => { const s = hintWords(vw, 'success'); return !!s && s.tone === 'wait' && s.body.includes('confirming') && s.title === ONLINE_COPY.checkingTitle && (s.title as string) !== paidTitle; }));
+    check('hint: a settled view (paid, not completed, cancelled, not found, other) is NEVER touched by a hint: the row alone decides', settledViews.every((vw) => (['success', 'cancelled', 'error'] as const).every((h) => hintWords(vw, h) === null)));
+    check('hint: no hint, no words', waitingViews.every((vw) => hintWords(vw, null) === null));
+    check('hint: the hint never changes the row: a paid row is "paid" and a waiting row is "checking" whatever hint came with the address (decideReturn does not take one)', decideReturn(row('successful'), 0).kind === 'paid' && decideReturn(row('awaiting_payment'), 0).kind === 'checking' && decideReturn.length <= 3);
+    const asked: string[] = [];
+    const once = async (r: Topup | null | undefined | 'throw', fail = false) => {
+      asked.length = 0;
+      const out = await checkOnceWhenWaiting({ read: async () => { if (r === 'throw') throw new Error('x'); return r; }, check: async () => { asked.push('check'); if (fail) throw new Error('boom'); return { ok: true }; } });
+      return `${out}/${asked.length}`;
+    };
+    check('immediate check: a row that still waits for the bank is checked ONCE', (await once(row('awaiting_payment'))) === 'checked/1');
+    check('immediate check: a failing check is ignored (the page keeps reading the row)', (await once(row('awaiting_payment'), true)) === 'checked/1');
+    check('immediate check: a settled row, a row that is not online, a missing row, a failed read are never checked', (await Promise.all([once(row('successful')), once(row('unsuccessful')), once(row('cancelled')), once(row('awaiting_payment', 'eft')), once(row('proof_sent')), once(null), once(undefined), once('throw')])).every((x) => x.endsWith('/0') && x.startsWith('skipped')));
+    const page = code('src/pages/TopupReturn.tsx');
+    check('the return page asks the signed-in check call, once, on open, and still never writes: no insert, update, delete, upsert or credit call, and the hint is read from the address only for wording', /checkOnceWhenWaiting\(/.test(page) && (page.match(/checkOnlineTopup\(/g) ?? []).length === 2 && /parseReturnHint\(searchParams\.get\('r'\)\)/.test(page) && !/\.(insert|update|delete|upsert)\(|rpc\(|wallet_credit/.test(page));
+  }
 
   console.log(failed === 0 ? '\nALL OK' : `\n${failed} FAILED`);
   process.exit(failed === 0 ? 0 : 1);

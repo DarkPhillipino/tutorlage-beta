@@ -250,7 +250,7 @@ test('"Pay by bank transfer" instead, after the online payment could not start, 
 
 test('the return page: "Checking your payment", then (the bank has confirmed) "Payment received" with the amount in rand; it only READS', async ({ page, browserName, problems }) => {
   await signInFake(page);
-  const seen = await mock(page, { byId: (read) => (read < 2 ? onlineRow('awaiting_payment') : onlineRow('successful')) });
+  const seen = await mock(page, { byId: (read) => (read < 3 ? onlineRow('awaiting_payment') : onlineRow('successful')) }); // the first read is the one the on-open check makes, so the page's own second look is read 3
   await page.goto(`/wallet/topup-return?topup=${ONLINE_ID}`);
   await expect(page.getByRole('heading', { name: 'Checking your payment' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('Please wait while we check that your payment has reached us.')).toBeVisible();
@@ -264,7 +264,7 @@ test('the return page: "Checking your payment", then (the bank has confirmed) "P
   const writes = seen.supabase.filter((s) => /^(POST|PATCH|PUT|DELETE) \/rest\/v1\/(?!profiles)/.test(s) || /\/rpc\/(?!my_|wallet_open)/.test(s));
   expect(writes, 'no write and no function call that could credit').toEqual([]);
   expect(seen.supabase.filter((s) => s.includes('/rest/v1/wallet_topups')).every((s) => s.startsWith('GET ') && s.includes(`id=eq.${ONLINE_ID}`) && s.includes(`profile_id=eq.${ME}`))).toBe(true);
-  expect(seen.worker, 'the Worker is not asked at all unless the person presses Check now').toEqual([]);
+  expect(seen.worker.map((c) => `${c.method} ${c.path}`), 'the Worker is asked ONCE, on open, while the row still waits (the same signed-in call as Check now); never again unless the person presses Check now').toEqual([`POST /api/wallet/topups/${ONLINE_ID}/check`]);
   expect(problems.pageErrors).toEqual([]);
 });
 
@@ -302,7 +302,8 @@ test('"Check now" asks the Worker (no body), reads the row again and shows the m
   const seen = await mock(page, {
     byId: () => onlineRow(paid ? 'successful' : 'awaiting_payment'),
     check: (n) => {
-      if (n === 1) return { status: 429, body: { error: 'x', code: 'wait', retry_after_seconds: 9 } };
+      if (n === 1) return { status: 200, body: { result: 'checked', status: 'created', transactions: 1 } }; // the automatic check on open: nothing yet
+      if (n === 2) return { status: 429, body: { error: 'x', code: 'wait', retry_after_seconds: 9 } };
       paid = true;
       return { status: 200, body: { result: 'checked', status: 'successful', transactions: 1 } };
     },
@@ -317,7 +318,7 @@ test('"Check now" asks the Worker (no body), reads the row again and shows the m
   await checkNow.click();
   await expect(page.getByRole('heading', { name: 'Payment received' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('R200 has been added to your wallet.')).toBeVisible();
-  expect(seen.worker.map((c) => `${c.method} ${c.path}`)).toEqual([`POST /api/wallet/topups/${ONLINE_ID}/check`, `POST /api/wallet/topups/${ONLINE_ID}/check`]);
+  expect(seen.worker.map((c) => `${c.method} ${c.path}`)).toEqual([1, 2, 3].map(() => `POST /api/wallet/topups/${ONLINE_ID}/check`));
   expect(seen.worker.every((c) => c.body === null && /^Bearer /.test(c.authorization ?? ''))).toBe(true);
 });
 
@@ -440,4 +441,56 @@ test('with the choice closed, the wallet page and the old transfer lines are unc
   await expect(page.locator('[data-topup="proof_sent"]')).toContainText('waiting for a person to check it');
   await expect(page.getByRole('button', { name: 'Continue to your bank' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Check now' })).toHaveCount(0);
+});
+
+// ---------------------------------------------------------------- the hint in the return address (18 Nov 2026) ---------------------------------------------
+
+test('the return page with r=cancelled while the top-up still waits: says at once it looks cancelled and nothing was taken, offers the wallet, and does not write anything', async ({ page, browserName, problems }) => {
+  await signInFake(page);
+  const seen = await mock(page, { byId: () => onlineRow('awaiting_payment') });
+  await page.goto(`/wallet/topup-return?topup=${ONLINE_ID}&r=cancelled`);
+  await expect(page.getByRole('heading', { name: 'It looks like the payment was cancelled' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Nothing was taken from you. If you did pay, your money will be added here as soon as your bank confirms it.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Go to your wallet' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Payment received' })).toHaveCount(0);
+  if (browserName === 'chromium') await axeClean(page, 'return page, cancelled hint');
+  const writes = seen.supabase.filter((s) => /^(POST|PATCH|PUT|DELETE) \/rest\/v1\/(?!profiles)/.test(s) || /\/rpc\/(?!my_|wallet_open)/.test(s));
+  expect(writes, 'the hint writes nothing and calls no function that could change a row').toEqual([]);
+  expect(problems.pageErrors).toEqual([]);
+});
+
+test('the return page with r=error says the bank reported a problem; with r=success it says we are confirming and never "received"; an unknown r is ignored', async ({ page }) => {
+  await signInFake(page);
+  await mock(page, { byId: () => onlineRow('awaiting_payment') });
+  await page.goto(`/wallet/topup-return?topup=${ONLINE_ID}&r=error`);
+  await expect(page.getByRole('heading', { name: 'Your bank reported a problem' })).toBeVisible({ timeout: 15_000 });
+  await page.goto(`/wallet/topup-return?topup=${ONLINE_ID}&r=success`);
+  await expect(page.getByText('Thank you. We are confirming your payment with your bank. This usually takes a few seconds.')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Checking your payment' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Payment received' })).toHaveCount(0);
+  await page.goto(`/wallet/topup-return?topup=${ONLINE_ID}&r=paid`);
+  await expect(page.getByText('Please wait while we check that your payment has reached us.')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Your bank reported a problem' })).toHaveCount(0);
+});
+
+test('a hint never beats the row: with r=cancelled but the database saying the top-up is paid, the page says "Payment received"; the row alone decides', async ({ page }) => {
+  await signInFake(page);
+  await mock(page, { byId: () => onlineRow('successful') });
+  await page.goto(`/wallet/topup-return?topup=${ONLINE_ID}&r=cancelled`);
+  await expect(page.getByRole('heading', { name: 'Payment received' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'It looks like the payment was cancelled' })).toHaveCount(0);
+});
+
+test('on open, a waiting top-up is checked ONCE through the signed-in call (no body); a settled one is never checked', async ({ page }) => {
+  await signInFake(page);
+  const seen = await mock(page, { byId: () => onlineRow('awaiting_payment'), check: () => ({ status: 200, body: { result: 'checked', status: 'created', transactions: 1 } }) });
+  await page.goto(`/wallet/topup-return?topup=${ONLINE_ID}&r=cancelled`);
+  await expect(page.getByRole('heading', { name: 'It looks like the payment was cancelled' })).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(1500);
+  expect(seen.worker.map((c) => `${c.method} ${c.path}`)).toEqual([`POST /api/wallet/topups/${ONLINE_ID}/check`]);
+  expect(seen.worker.every((c) => c.body === null && /^Bearer /.test(c.authorization ?? ''))).toBe(true);
+  const settled = await mock(page, { byId: () => onlineRow('successful') });
+  await page.goto(`/wallet/topup-return?topup=${ONLINE_ID}`);
+  await expect(page.getByRole('heading', { name: 'Payment received' })).toBeVisible({ timeout: 15_000 });
+  expect(settled.worker, 'a paid top-up is not checked').toEqual([]);
 });
