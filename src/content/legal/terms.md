@@ -76,6 +76,8 @@ Nothing in these Terms makes Tutorlage, a tutor and a learner each other's emplo
 
 A request stays open for up to **48 hours**, or until **30 minutes after the start time you asked for**, whichever comes first. If no tutor accepts by then, the request expires and **the price on hold goes straight back to your wallet**. You pay nothing.
 
+Where the app tells you why no tutor is shown, or suggests times when one may be free, that message is **a guide, not a promise**: it does not mean a tutor will be available at those times or will accept your request.
+
 ## 8. Cancelling and refunds
 
 Until a session starts, you can cancel it yourself from your sessions list and the full price goes back to your wallet at once. A request no tutor has accepted yet can be cancelled the same way, and the held price goes straight back. Once a session has started, we decide refunds case by case, fairly, and we set no fixed deadlines for asking: email support@tutorlage.com as early as you can. Refunds are paid into your wallet as credit, and you can ask us to return unused wallet money to your bank account. The Refund Policy has the detail.
@@ -117,7 +119,7 @@ These rules apply to everyone, and to tutors in particular (see Part B):
   - the parent or guardian's name and phone number are shared with the tutor for this reason.
 - **Online only, for now.** Sessions are online only until we say otherwise. A parent or guardian must be reachable during any session with a learner under 18.
 - **Tutorlage's video room.** A learner under 18 can enter the video room of a booked session, and only that. Only the session's tutor, the learner and the learner's parents or guardians are admitted to it, and the tutor cannot remove the learner or a guardian from it. Tutors can also open a room for adults. Calls are carried live between the people in the room and are never recorded by us (see the Privacy Policy, §8).
-- **A learner under 18's camera is never used.** From the day a learner's account is created, Tutorlage never switches on or shows a learner under 18's camera, before, during or after a session. A learner under 18 takes part in a video room with sound only; the tutor and the others hear them but do not see them. The rule is applied by the room itself, not left to the learner.
+- **A learner under 18's camera is never used.** From the day a learner's account is created, Tutorlage never switches on or shows a learner under 18's camera, before, during or after a session. A learner under 18 takes part in a video room with sound only; the tutor and the others hear them but do not see them, and their video is never shown or sent. The rule is applied by the room itself, not left to the learner.
 - **Please do not meet outside a lesson.** Tutorlage lessons happen online, in a scheduled session. **We strongly advise against meeting a tutor, or a learner, anywhere else or at any other time.** We do not arrange, supervise or approve such meetings and, to the extent the law allows, we are not responsible for what happens at one (§15). A tutor who asks to meet, to move to a private chat, or to send you gifts or money is breaking our rules: say no and tell us at safety@tutorlage.com.
 - **Parents and guardians: please watch over lessons.** For a learner under 18, we strongly advise a parent or guardian to be present, or within sight and hearing, for every lesson, in a shared part of the home rather than behind a closed door, and to read the session notes afterwards. Any learner or parent can end a lesson at any time and report it.
 - **Keep personal details to a minimum.** Do not give a tutor a home address, a school timetable or other personal details a lesson does not need.
@@ -248,12 +250,12 @@ These apply to you as well as Part A if you tutor on Tutorlage.
 
 1. **Prices.** Each level has a price per hour set by Tutorlage. You may accept requests at your level or below. You earn the session price less Tutorlage's commission for that level. The commission is a fixed percentage for each level, and we will tell you the percentage for your level whenever you ask at support@tutorlage.com.
 2. **Moving up or down.** Your level moves up or down automatically, based on set criteria, which you can see in the app along with your progress towards the next level:
-   - hours taught;
+   - hours taught (on Tutorlage, plus hours you taught outside Tutorlage that an administrator has recorded after you gave us proof; hours taught outside Tutorlage count towards this criterion only, not towards the others);
    - your rating;
    - how many learners book you again;
    - reviews;
    - learner progress, where measured: the change in your learners' school marks in the subject you taught them, from report cards or marks their parents (or adult learners) give us. A mark counts only after Tutorlage has checked it against the document. You see the change, never the report card.
-3. **Credentials.** A verified qualification may set your starting level. That starting level is not lost when your statistics change. It may be suspended (frozen) if there is a serious complaint about you.
+3. **Credentials.** A verified qualification may set your starting level. That starting level is not lost when your statistics change. It may be suspended (frozen) if there is a serious complaint about you. Your level also depends on your credentials and your reviews, not on your hours alone.
 4. **Asking for a review.** Because these changes are automatic, you may ask us to explain how your level was worked out, and ask a person to review it, at support@tutorlage.com. We will reply within 10 business days.
 
 ## B4. Your earnings and how you are paid

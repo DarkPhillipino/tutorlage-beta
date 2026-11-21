@@ -21,7 +21,7 @@ This policy explains what personal information Tutorlage collects, why, who it i
 | **Payments** | Your wallet's history (top-ups, holds, refunds and payments) with the reference, amount and outcome of each; for a top-up by bank transfer, the proof of payment you upload. **Where card payments are available they are taken by Paystack on its own page, and we never see or hold a card number** | People who pay |
 | **Tutors' payout details** | Bank, branch code, account number and account holder's name, which you give us so that we can pay you. Only the people who pay you can open them, and each time is logged. We do not ask for your ID or passport number here | Tutors |
 | **Consent and acceptance records** | Which version of our Terms, Privacy Policy and notices you accepted, how and when; a guardian's consent for a learner and any withdrawal | Everyone |
-| **Communications** | Emails to support@ and safety@, in-app problem reports, notifications we send you | Anyone who contacts us |
+| **Communications** | Emails to support@ and safety@, in-app problem reports, notifications we send you (in the app and, once we switch it on, by email: for example that a top-up was approved, or that your tutor has not joined yet; we keep a record that the email was sent, never its text) | Anyone who contacts us |
 | **What you type in the Suggestions box** | The text (up to 1,000 characters), your role and the date. Our team reads it and may keep an internal note on it that you cannot see. Please do not put other people's personal details in a suggestion | Anyone who sends one |
 | **Join-list details** | What you type into the "Join the list" form on our tutor page: first name, surname, WhatsApp number, email address, date of birth, the subjects and grades you could teach, when you could teach, the weeks you are not available, whether you have passed a teaching practicum, whether you have a police clearance (yes or not yet; not the document), how many parents you could tell about us, your tutoring history, how you heard of us, whether you have a device, data and a bank account, and your consent choices | People who join the list |
 | **Technical data** | IP address, browser and device details, and times of access, recorded in our service providers' logs when you use the site and sign in | Everyone, including visitors |
@@ -99,7 +99,7 @@ We will ask your consent before using your information for a purpose not listed 
   - tutors and learners see each other's names, and the subject, level and time;
   - for a session a parent or guardian booked, **the tutor sees the parent or guardian's name and phone number**, so the parent can be reached during the session;
   - a tutor's name and level are visible to signed-in users who are matched with them.
-- **Other people in a video room.** In Tutorlage's video room the others in the room see your name, and your camera and microphone are carried live to them. We do not record or keep the audio or video. **A learner under 18's camera is never used:** from the day their account is created they take part with sound only, and the room does not show anyone's picture of them. A tutor who opens a room for adults lets people in from a waiting area, and sees the names of the people waiting.
+- **Other people in a video room.** In Tutorlage's video room the others in the room see your name, and your microphone, and your camera if you are 18 or older, are carried live to them. We do not record or keep the audio or video. **A learner under 18's camera is never used:** from the day their account is created they take part with sound only, and their video is never shown or sent. A tutor who opens a room for adults lets people in from a waiting area, and sees the names of the people waiting.
 - **Our service providers ("operators")**, who process information only on our instructions and must keep it secure:
 
 | Provider | What they do for us | Where |
@@ -107,7 +107,7 @@ We will ask your consent before using your information for a purpose not listed 
 | **Supabase** | Database, file storage and sign-in | Ireland (EU) |
 | **Paystack** | Processes card payments for bookings, where card payments are available. It receives the card details and the payment amount on its own page; we receive only the outcome and a reference | Where Paystack processes information is set out in its own privacy notice |
 | **Cloudflare** | Runs our server, and relays video calls: it passes the call's encrypted data between the people in a room, and does not record or keep it, so that people in a call cannot see each other's network addresses | Global network, US company |
-| **Resend** | Sends account emails | United States |
+| **Resend** | Sends account emails and, once switched on, notice emails (a top-up approved, a tutor has not joined) | United States |
 | **GitHub** (Microsoft) | Hosts our website, which means it receives visitors' IP addresses | United States |
 | **Google** | "Sign in with Google", if you choose it; our feedback forms during the closed test | United States |
 
