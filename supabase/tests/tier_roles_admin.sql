@@ -24,7 +24,8 @@ begin
 
   -- T0 the definitions the migration seeds
   select count(*) into n from credential_definitions
-   where (code, entry_sub_tier_id) in (('teaching_degree','2C'),('teaching_degree_2y','2D'),('teaching_degree_3y','3A'),('teaching_degree_4y','3B'),('higher_certificate_education','2A'));
+   -- 18 Nov 2026 (item 6, migration 20261118230000): qualified-teacher credentials start one level higher than the migration first seeded them (2C/2D/3A/3B became 2D/3A/3B/3C)
+   where (code, entry_sub_tier_id) in (('teaching_degree','2D'),('teaching_degree_2y','3A'),('teaching_degree_3y','3B'),('teaching_degree_4y','3C'),('higher_certificate_education','2A'));
   select entry_sub_tier_id into s from credential_definitions where code = 'admin_assigned';
   r := r || format('%s T0 seeded: %s of 5 credential kinds at their levels, "level assigned by Tutorlage" has no level of its own (%s) (want 5, empty)',
     case when n = 5 and s is null then 'ok  ' else 'FAIL' end, n, coalesce(s, 'empty')) || E'\n';
@@ -72,13 +73,13 @@ begin
   r := r || format('%s T4 refused: no reason (%s), unknown level (%s), unknown tutor (%s)',
     case when s = 'Give the reason for this level' and s2 = 'No such level' and x = 0 then 'ok  ' else 'FAIL' end, s, s2, case when x = 0 then 'refused' else 'ACCEPTED' end) || E'\n';
 
-  -- T5 a credential: the degree puts the tutor at 2C; the higher level still wins; removing the assignment leaves 2C
+  -- T5 a credential: the degree puts the tutor at 2D (it was 2C before item 6, 18 Nov 2026); the higher level still wins; removing the assignment leaves 2D
   select id into doc from (select gen_random_uuid() as id) q;
   insert into tutor_verification_documents (id, tutor_id, document_type, document_url) values (doc, t1, 'teaching_qualification', t1 || '/test.pdf');
   perform set_config('request.jwt.claims', jsonb_build_object('sub', ad, 'role', 'authenticated')::text, true);
   set local role authenticated;
   cid := public.admin_record_credential(t1, 'teaching_degree', current_date - 400, doc, 'B.Ed, 4 years');
-  perform public.admin_assign_tier(t1, '2D', 'Letters seen');
+  perform public.admin_assign_tier(t1, '3A', 'Letters seen');
   reset role;
   select current_sub_tier_id into s from tutor_profiles where id = t1;
   perform set_config('request.jwt.claims', jsonb_build_object('sub', ad, 'role', 'authenticated')::text, true);
@@ -86,8 +87,8 @@ begin
   perform public.admin_clear_assigned_tier(t1, 'Back to the credential');
   reset role;
   select current_sub_tier_id into s2 from tutor_profiles where id = t1;
-  r := r || format('%s T5 credential 2C then assignment 2D: level %s; assignment cleared: level %s, floor %s (want 2D, then 2C, 2C)',
-    case when s = '2D' and s2 = '2C' and (select credential_floor_sub_tier_id from tutor_profiles where id = t1) = '2C' then 'ok  ' else 'FAIL' end,
+  r := r || format('%s T5 credential 2D then assignment 3A: level %s; assignment cleared: level %s, floor %s (want 3A, then 2D, 2D)',
+    case when s = '3A' and s2 = '2D' and (select credential_floor_sub_tier_id from tutor_profiles where id = t1) = '2D' then 'ok  ' else 'FAIL' end,
     s, s2, (select credential_floor_sub_tier_id from tutor_profiles where id = t1)) || E'\n';
 
   -- T6 refusals when recording: someone else's document; a credential with no level of its own; an unknown credential
