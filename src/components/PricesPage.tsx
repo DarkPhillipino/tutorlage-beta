@@ -433,8 +433,8 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-      {/* Left Column: Search Card */}
-      <div className="lg:col-span-4 w-full">
+      {/* Left Column: Search Card. P5-a (21 Nov 2026): sticky from lg up, scrolls by itself if taller than the screen; stacked below lg as before. */}
+      <div className="lg:col-span-4 w-full lg:w-auto lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6.5rem)] lg:overflow-y-auto lg:p-1 lg:-m-1">
         <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
 
           <button
