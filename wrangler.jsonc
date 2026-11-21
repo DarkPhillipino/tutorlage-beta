@@ -52,5 +52,10 @@
   // and a small Workers KV store for "was it fine last time" (binding PULSE_STATE; no id here: wrangler creates the store on the first deploy,
   // or run `npx wrangler kv namespace create PULSE_STATE` and put the id it prints in this binding). Without the store nothing is mailed.
   "triggers": { "crons": ["*/10 * * * *"] },
-  "kv_namespaces": [{ "binding": "PULSE_STATE" }]
+  "kv_namespaces": [{ "binding": "PULSE_STATE" }],
+  // Shared rate limit (job P, 21 Nov 2026; server/rateLimit.ts and server/rateLimitCounter.ts): one Durable Object per visitor address + route
+  // counts the calls for EVERY copy of the Worker, so the limit is real. SQLite-backed (new_sqlite_classes), which the free plan allows. If the
+  // counter errors or is slow (over 400 ms) the request goes through on the old in-memory limit and a log line says so. Nothing to set by hand.
+  "durable_objects": { "bindings": [{ "name": "RATE_LIMITER", "class_name": "RateLimitCounter" }] },
+  "migrations": [{ "tag": "v1-rate-limit-counter", "new_sqlite_classes": ["RateLimitCounter"] }]
 }

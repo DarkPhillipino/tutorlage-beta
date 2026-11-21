@@ -13,11 +13,23 @@ import type { IceServer } from './iceServers';
 import { createWalletOnline, mountOnlineRoutes, mountOnlineReturn, mountOnlineWebhook } from './walletOnline';
 import { emailForPaystack, plainPaystackMessage } from './paystackEmail';
 import { cardCheckoutDecision } from './cardCheckout';
+import { callerAddress, createRateLimit } from './rateLimit';
 import { createOzowProvider, ozowConfigFromEnv } from './ozow';
 import { OZOW_PAYMENTS_ONLY_SECRET_NAMES, OZOW_PAYMENTS_PROVIDER, createOzowPaymentsProvider, ozowPaymentsConfigFromEnv } from './ozowPayments';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PORT = Number(process.env.PORT) || 8787;
+
+// On Cloudflare the connection comes from Cloudflare's own network, so req.ip isn't the visitor and every
+// visitor would share one limit. There the visitor's address is read from the header Cloudflare sets
+// (RATE_LIMIT_IP_HEADER=cf-connecting-ip, in wrangler.jsonc). Only set it on a host that overwrites that
+// header itself; anywhere else a client could send any value to dodge the limit.
+const RATE_LIMIT_IP_HEADER = process.env.RATE_LIMIT_IP_HEADER?.trim().toLowerCase() || null;
+
+// Rate limiter (job P, 21 Nov 2026): the in-memory sliding window each Worker copy keeps, now also counted in a shared Durable Object so
+// the limit holds across copies. Same numbers as before, never looser; fails open if the shared counter is down. See server/rateLimit.ts.
+// Defined up here because the online top-up routes are mounted before the main routes.
+const rateLimit = createRateLimit({ ipHeader: RATE_LIMIT_IP_HEADER });
 // The same project URL the frontend uses; SUPABASE_URL wins if a host sets it separately.
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
 // Bypasses row-level security. Server-side only — never prefix with VITE_.
@@ -174,32 +186,6 @@ if (CONFIG_ERROR) {
   app.use((_req: Request, res: Response) => {
     res.status(503).json({ error: 'Payments are not set up on this server yet.' });
   });
-}
-
-// On Cloudflare the connection comes from Cloudflare's own network, so req.ip isn't the visitor and every
-// visitor would share one limit. There the visitor's address is read from the header Cloudflare sets
-// (RATE_LIMIT_IP_HEADER=cf-connecting-ip, in wrangler.jsonc). Only set it on a host that overwrites that
-// header itself; anywhere else a client could send any value to dodge the limit.
-const RATE_LIMIT_IP_HEADER = process.env.RATE_LIMIT_IP_HEADER?.trim().toLowerCase() || null;
-
-// Minimal in-memory sliding-window rate limiter — no new dependency needed
-// for a single-process proxy this size. Keyed by IP (see TRUST_PROXY above). On Cloudflare each copy of
-// the Worker keeps its own counts, so the limit is per copy, not global.
-function rateLimit(maxRequests: number, windowMs: number) {
-  const hits = new Map<string, number[]>();
-  return (req: Request, res: Response, next: NextFunction) => {
-    const forwarded = RATE_LIMIT_IP_HEADER ? req.headers[RATE_LIMIT_IP_HEADER] : undefined;
-    const key = (typeof forwarded === 'string' && forwarded) || req.ip || 'unknown';
-    const now = Date.now();
-    const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
-    if (recent.length >= maxRequests) {
-      res.status(429).json({ error: 'Too many requests — please slow down and try again shortly.' });
-      return;
-    }
-    recent.push(now);
-    hits.set(key, recent);
-    next();
-  };
 }
 
 // A reference/code used in a URL or logged value — safe charset only, no
@@ -1541,8 +1527,7 @@ const signupByLink = createSignupByLink({
   sendMail: mailerFromEnv(process.env, (url, init) => fetch(url, init)),
 });
 function callerKey(req: Request): string {
-  const forwarded = RATE_LIMIT_IP_HEADER ? req.headers[RATE_LIMIT_IP_HEADER] : undefined;
-  return `ip:${(typeof forwarded === 'string' && forwarded) || req.ip || 'unknown'}`;
+  return `ip:${callerAddress(req, RATE_LIMIT_IP_HEADER)}`;
 }
 app.post('/api/signup/tutor-by-link/check', rateLimit(30, 60_000), async (req, res) => {
   const reply = await signupByLink.check(req.body, callerKey(req));

@@ -160,7 +160,7 @@ async function main() {
     /app\.post\('\/api\/signup\/tutor-by-link\/check', rateLimit\(30, 60_000\)/.test(code) && /app\.post\('\/api\/signup\/tutor-by-link', rateLimit\(8, 60_000\)/.test(code)
     && code.indexOf('/api/signup/tutor-by-link') > code.indexOf('Access-Control-Allow-Origin') && code.indexOf('/api/signup/tutor-by-link') > code.indexOf('const MAX_BODY_BYTES'));
   check('index.ts creates the account with email_confirm: true through the admin API and takes the visitor address from the Cloudflare header the other limits use, never from the body',
-    /auth\.admin\.createUser\(\{ email, password, email_confirm: true, user_metadata: metadata \}\)/.test(code) && /RATE_LIMIT_IP_HEADER \? req\.headers\[RATE_LIMIT_IP_HEADER\]/.test(code) && !/function callerKey\(req: Request\): string \{[^}]*req\.body/.test(code));
+    /auth\.admin\.createUser\(\{ email, password, email_confirm: true, user_metadata: metadata \}\)/.test(code) && /callerAddress\(req, RATE_LIMIT_IP_HEADER\)/.test(code) && /ipHeader \? req\.headers\[ipHeader\]/.test(readFileSync('server/rateLimit.ts', 'utf8')) && !/function callerKey\(req: Request\): string \{[^}]*req\.body/.test(code));
   check('index.ts answers with no caching', (code.match(/Cache-Control', 'no-store'\)\.status\(reply\.status\)/g) ?? []).length === 2);
 
   if (failed > 0) {

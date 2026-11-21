@@ -7,7 +7,16 @@
 import './worker-env';
 import './index';
 import { httpServerHandler } from 'cloudflare:node';
+import { env as workerEnv } from 'cloudflare:workers';
 import { runScheduledPulseFromEnv } from './pulseSchedule';
+import { durableObjectLimiter, setSharedLimiter, type CounterNamespaceLike } from './rateLimit';
+import { RateLimitCounter } from './rateLimitCounter';
+
+// Shared rate limit (job P, 21 Nov 2026): the Durable Object namespace RATE_LIMITER (wrangler.jsonc) counts calls for every Worker copy. The class
+// must be exported from this entry file for Cloudflare to find it. Without the binding the limit stays in memory per copy, as before.
+export { RateLimitCounter };
+const counters = (workerEnv as Record<string, unknown>).RATE_LIMITER as CounterNamespaceLike | undefined;
+if (counters) setSharedLimiter(durableObjectLimiter(counters));
 
 const handler = httpServerHandler({ port: Number(process.env.PORT) || 8787 });
 
