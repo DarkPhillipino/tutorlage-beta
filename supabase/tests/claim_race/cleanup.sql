@@ -7,6 +7,7 @@ begin
     begin delete from public.notifications where profile_id = any (ids); exception when others then raise notice 'notifications: %', sqlerrm; end;
     begin delete from public.sessions where student_id = any (ids) or tutor_id = any (ids); exception when others then raise notice 'sessions: %', sqlerrm; end;
     begin delete from public.session_requests where student_id = any (ids); exception when others then raise notice 'requests: %', sqlerrm; end;
+    begin delete from public.payment_cards where profile_id = any (ids); exception when others then raise notice 'cards: %', sqlerrm; end;
     begin delete from auth.users where id = any (ids); exception when others then raise notice 'users: %', sqlerrm; end;
   end if;
   begin delete from public.schools_institutions where name = 'ZZ Race test school'; exception when others then raise notice 'school: %', sqlerrm; end;
