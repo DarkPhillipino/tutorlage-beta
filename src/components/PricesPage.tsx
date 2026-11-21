@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, MapPin, Clock, ChevronDown, ShieldCheck, Search, Loader2, UserX, Tag, X, AlertTriangle, Users, CreditCard, GraduationCap, BookOpen } from 'lucide-react';
 import { BookingFormState, PriceLevel, SchoolCurriculum, SuggestionItem } from '../types';
 import { fetchTutors, createSessionRequest, fetchPriceLadder, fetchAvailablePriceLevels, fetchSchoolCurricula } from '../lib/queries';
+import { fetchNoTutorReason } from '../lib/noTutorQuery';
+import type { NoTutorReason } from '../lib/noTutorReason';
+import { NoTutorMessage } from './NoTutorMessage';
 import {
   CURRICULUM_QUESTION,
   CURRICULUM_REQUIRED,
@@ -123,7 +126,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // free but tutors do teach this: asked again without the time, so the page can say "no tutor is free at that time" instead of
   // offering the waiting list. If the counts cannot be read the plain tutor search below supplies the number.
   const [counts, setCounts] = useState<
-    { status: 'loading' } | { status: 'failed' } | { status: 'ok'; levels: PriceLevel[]; noneAtThatTime: boolean }
+    { status: 'loading' } | { status: 'failed' } | { status: 'ok'; levels: PriceLevel[]; noneAtThatTime: boolean; reason: NoTutorReason | null }
   >({ status: 'loading' });
   const timeKey = formState.scheduleType === 'now' ? 'now' : `${formState.scheduledDate}T${formState.scheduledTime}`;
 
@@ -138,14 +141,31 @@ export const PricesPage: React.FC<PricesPageProps> = ({
     })
       .then(async (levels) => {
         let noneAtThatTime = false;
+        let reason: NoTutorReason | null = null;
         if (levels.length === 0) {
+          // P5-b: ask the database WHY (no tutor for the subject, all booked, or open at other times). If it cannot answer (the function
+          // is not there yet, or the call fails) the page behaves as before: it only tells "nobody at that time" from "nobody at all".
           try {
-            noneAtThatTime = (await fetchAvailablePriceLevels(search)).length > 0;
+            reason = await fetchNoTutorReason({
+              subject: appliedSubject,
+              gradeLevel,
+              start: requestStartIso(formState.scheduleType, formState.scheduledDate, formState.scheduledTime),
+              hours: formState.durationHours,
+            });
           } catch (err) {
-            console.error('fetchAvailablePriceLevels (any time) failed:', err);
+            console.error('fetchNoTutorReason failed:', err);
+          }
+          if (reason) {
+            noneAtThatTime = reason.kind === 'other_time' || reason.kind === 'fully_booked';
+          } else {
+            try {
+              noneAtThatTime = (await fetchAvailablePriceLevels(search)).length > 0;
+            } catch (err) {
+              console.error('fetchAvailablePriceLevels (any time) failed:', err);
+            }
           }
         }
-        if (!cancelled) setCounts({ status: 'ok', levels, noneAtThatTime });
+        if (!cancelled) setCounts({ status: 'ok', levels, noneAtThatTime, reason });
       })
       .catch((err) => {
         console.error('fetchAvailablePriceLevels failed:', err);
@@ -669,12 +689,18 @@ export const PricesPage: React.FC<PricesPageProps> = ({
             ) : tutorCount === 0 && !addressed ? (
               <div className="text-center py-16 px-4">
                 <UserX className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm font-bold text-[#0F172A]">
-                  {noTutorFreeAtThatTime ? NO_TUTOR_FREE_TITLE : 'No tutor can take this request yet'}
-                </p>
-                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                  {noTutorFreeAtThatTime ? NO_TUTOR_FREE_HINT : noTutorsMessage}
-                </p>
+                {counts.status === 'ok' && counts.reason && counts.reason.kind !== 'ok' && (counts.reason.kind !== 'other_time' || counts.reason.windows.length > 0) ? (
+                  <NoTutorMessage reason={counts.reason} />
+                ) : (
+                  <>
+                    <p className="text-sm font-bold text-[#0F172A]">
+                      {noTutorFreeAtThatTime ? NO_TUTOR_FREE_TITLE : 'No tutor can take this request yet'}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                      {noTutorFreeAtThatTime ? NO_TUTOR_FREE_HINT : noTutorsMessage}
+                    </p>
+                  </>
+                )}
                 {/* Tutors do teach this, they are just busy then: waiting for one to appear would be wrong, so no waiting-list offer. */}
                 {!noTutorFreeAtThatTime && FEATURES.tutorWaitlist && waitlistLearnerId && appliedSubject.trim() !== '' && (
                   <WaitlistPrompt
