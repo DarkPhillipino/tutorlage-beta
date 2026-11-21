@@ -38,7 +38,11 @@ begin
       create function pg_temp.tok(p_id uuid) returns text language sql as $f$ select signup_token from public.founding_tutors_list where id = p_id $f$ $mk$;
 
     setting_before := (select setting_value from public.system_settings where setting_key = 'signup_link_confirms');
-    r := r || pg_temp.chk('S1', 'the setting exists and is OFF by default', (setting_before ->> 'on'), 'false');
+    r := r || pg_temp.chk('S1', 'the setting exists (its live state is shown in S1b)', (setting_before is not null)::text, 'true');
+    r := r || 'S1b the live value of the switch before this run (info, not judged): ' || coalesce(setting_before ->> 'on', 'null') || E'
+';
+    -- the run does not depend on the switch's live state: it starts from OFF (rolled back with everything else)
+    update public.system_settings set setting_value = '{"on": false}'::jsonb where setting_key = 'signup_link_confirms';
 
     -- A: a good row (released, messaged 3 days ago, complete). B: still "joined". C: lapsed (messaged 20 days ago). D: account exists (an Auth user has the email). E: no surname. F: no date of birth.
     -- G: under 18. H: backfill row. I: released and never marked as messaged (the clock has not started: still good). J: a good row for the caller-limit test.

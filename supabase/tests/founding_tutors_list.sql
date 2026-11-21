@@ -186,8 +186,9 @@ begin
   r := r || pg_temp.chk('S10', 'founding_gate_on() answers false', public.founding_gate_on()::text, 'false');
   -- only meaningful in the run that follows the migration straight away (a tutor who signs up later has no entry until an admin adds one)
   select count(*)::text into t from tutor_profiles tp where not exists (select 1 from founding_tutors_list f where f.user_id = tp.id)
-    and tp.id not in (v_nl, v_w, v_r, v_v, v_vl);
-  r := r || pg_temp.chk('B1', 'BACKFILL: every tutor profile that existed before this test has a list entry (a tutor who signed up after the apply shows here)', t, '0');
+    and tp.id not in (v_nl, v_w, v_r, v_v, v_vl)
+    and tp.created_at <= coalesce((select to_timestamp(m.version, 'YYYYMMDDHH24MISS') from supabase_migrations.schema_migrations m where m.version = '20261111083158'), now());
+  r := r || pg_temp.chk('B1', 'BACKFILL: every tutor profile that existed when the migration was applied has a list entry (a tutor who signed up after the apply has none until an admin adds one, and is not counted)', t, '0');
   select count(*)::text into t from founding_tutors_list f where f.source = 'backfill'
     and (f.status not in ('verified', 'released') or f.full_name is not null or f.email is not null or f.whatsapp is not null or f.delete_after is not null or f.user_id is null);
   r := r || pg_temp.chk('B2', 'BACKFILL rows hold only the account link and a verified or released status: no name, email or number copied, no delete date', t, '0');
@@ -343,8 +344,9 @@ begin
     'ERR: Your place has not opened yet. / ERR: Your place has not opened yet. / done / done');
   r := r || pg_temp.chk('G10', 'agreeing to the documents wording is refused for a waiting tutor too',
     pg_temp.pfx(pg_temp.do_as(v_w, 'select public.record_my_documents_consent(''v1'')'), 'ERR:'), 'ERR:');
-  r := r || pg_temp.chk('G11', 'an admin still adds a document for a tutor (the gate is for the tutor''s own call)',
-    pg_temp.do_as(v_vo, format('insert into public.tutor_verification_documents (tutor_id, document_type, document_url) values (%L, ''identity_doc'', %L)', v_nl, v_nl || '/by-admin.png')), 'done');
+  -- since 20261116192634 verification staff READ and REVIEW (update) documents; nobody on staff adds one (the tutor uploads their own), so the officer's insert is refused by row-level security
+  r := r || pg_temp.chk('G11', 'verification staff cannot add a document for a tutor (they read and review; the tutor uploads their own)',
+    pg_temp.pfx(pg_temp.do_as(v_vo, format('insert into public.tutor_verification_documents (tutor_id, document_type, document_url) values (%L, ''identity_doc'', %L)', v_nl, v_nl || '/by-admin.png')), 'ERR: new row violates row-level security'), 'ERR: new row violates row-level security');
   r := r || pg_temp.chk('G12', 'a waiting tutor cannot accept a request (accepting already needs is_verified, and a waiting tutor is not verified)',
     (select (not tp.is_verified)::text from tutor_profiles tp where tp.id = v_w), 'true');
   update tutor_profiles set is_verified = true where id = v_w;

@@ -10,7 +10,8 @@ const check = (name: string, ok: boolean, detail = '') => {
   if (!ok) failures += 1;
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` - ${detail}` : ''}`);
 };
-const read = (f: string) => fs.readFileSync(f, 'utf8');
+// Line endings do not matter: a Windows checkout of the public tree has CRLF, Linux CI has LF, and the patterns below were written for LF.
+const read = (f: string) => fs.readFileSync(f, 'utf8').replaceAll(String.fromCharCode(13), '');
 
 const SITE = 'https://tutorlage.com';
 const note = (n: number, over: Partial<NoticeClaim> = {}): NoticeClaim => ({
