@@ -107,7 +107,7 @@ export function sitemapXml(pages: PageMeta[]): string {
 export function robotsTxt(pages: PageMeta[]): string {
   // Private and one-use pages are not crawled at all; "/room" also covers every "/room/<code>" address.
   const hidden = pages.filter((p) => !p.index && !p.path.startsWith('/signin/') && !p.path.startsWith('/forgot-password')).map((p) => `Disallow: ${p.path}`);
-  return ['User-agent: *', 'Allow: /', ...hidden, 'Disallow: /signin/', 'Disallow: /forgot-password', '', `Sitemap: ${SITE_ORIGIN}/sitemap.xml`, ''].join('\n');
+  return ['User-agent: *', 'Allow: /', ...hidden, 'Disallow: /signin/', 'Disallow: /forgot-password', 'Disallow: /t/', '', `Sitemap: ${SITE_ORIGIN}/sitemap.xml`, ''].join('\n');
 }
 
 function main() {

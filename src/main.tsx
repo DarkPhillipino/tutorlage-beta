@@ -39,6 +39,7 @@ loadCurrencySymbols();
 // not the whole app. lazyRoute retries once and then reloads once if a page's code cannot be fetched (lost signal, or a republish).
 const Landing = lazyRoute(() => import('./pages/Landing.tsx'));
 const NotFound = lazyRoute(() => import('./pages/NotFound.tsx'));
+const TutorPublicPage = lazyRoute(() => import('./pages/TutorPublicPage.tsx'));
 const Login = lazyRoute(() => import('./pages/Login.tsx'));
 const SignIn = lazyRoute(() => import('./pages/SignIn.tsx'));
 const CreateAccount = lazyRoute(() => import('./pages/CreateAccount.tsx'));
@@ -113,6 +114,7 @@ createRoot(document.getElementById('root')!).render(
           {/* The start page for visitors, the app for signed-in people (the checks the app needs are in pages/guarded.tsx). */}
           <Route path="/" element={<HomeRoute />} />
           {/* Any other address: a plain "we can't find that page" (it used to open the app, or bounce a visitor to sign-in). */}
+          <Route path="/t/:code" element={<TutorPublicPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         </Suspense>

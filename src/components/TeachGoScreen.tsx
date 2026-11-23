@@ -9,6 +9,7 @@ import { pickNextSubTier, isNextTierStep, LAST_TIER_SHOWN_AS_NEXT_STEP } from '.
 import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
 import { TutorDocumentsReminder } from './TutorOnboardingGate';
+import { PublicPageCard } from './PublicPageCard';
 
 interface TeachGoScreenProps {
   tutorId: string;
@@ -234,6 +235,9 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
               </Link>
             </div>
           )}
+
+          {/* WAVE-MARKED (job P slice 1, 24 Nov 2026): the tutor's public page switch and "Copy my profile link". The only change to this screen for that job. */}
+          <PublicPageCard />
 
           {/* Tips (illustrative, not data-driven) */}
           <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-slate-200">
