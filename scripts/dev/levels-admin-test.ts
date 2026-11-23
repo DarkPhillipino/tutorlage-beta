@@ -88,13 +88,14 @@ for (const m of migration.matchAll(/create or replace function public\.(admin_\w
 check('the migration defines nine admin functions', defined.size === 9, [...defined.keys()].join(', '));
 const called = new Map<string, string[]>();
 for (const m of queries.matchAll(/\.rpc\('(admin_\w+)'(?:,\s*\{([\s\S]*?)\})?\)/g)) {
-  if (m[1] === 'admin_set_credential_proves_subject') continue;   // the tick-box function of 20261118190000, checked just below
+  if (m[1] === 'admin_set_credential_proves_subject' || m[1] === 'admin_credential_suggestions') continue;   // the tick-box function of 20261118190000, checked just below
   called.set(m[1], [...(m[2] ?? '').matchAll(/\b(p_\w+):/g)].map((x) => x[1]).sort());
 }
 check('the admin app calls all nine, and no other admin function', called.size === 9 && [...called.keys()].every((k) => defined.has(k)), [...called.keys()].join(', '));
 check('every call passes exactly the parameter names the function defines', [...called].every(([name, keys]) => JSON.stringify(keys) === JSON.stringify(defined.get(name))), [...called].filter(([n, k]) => JSON.stringify(k) !== JSON.stringify(defined.get(n))).map(([n]) => n).join(', '));
 const tickMig = read('supabase/migrations/20261118190000_credential_proves_subject_switch.sql');
 check('the tick-box calls its own function (20261118190000) with exactly the parameters it defines', /create or replace function public\.admin_set_credential_proves_subject\(p_code text, p_value boolean\)/.test(tickMig) && /rpc\('admin_set_credential_proves_subject', \{ p_code: code, p_value: value \}\)/.test(queries));
+check('the suggestion call (P4-4, 20261123180000) uses exactly the parameter the function defines, and only verified documents are offered as proof', /function public\.admin_credential_suggestions\(p_document uuid\)/.test(read('supabase/migrations/20261123180000_p4_credentials_need_documents.sql')) && /rpc\('admin_credential_suggestions', \{ p_document: documentId \}\)/.test(queries) && /d\.status === 'verified'/.test(read('admin/src/components/TutorLevelCardBody.tsx')));
 check('the admin app never writes the level tables directly (only through the functions that audit)', !/\.from\('(tier_definitions|sub_tier_definitions|credential_definitions|tutor_credentials)'\)\s*\.(insert|update|upsert|delete)/.test(queries));
 check('every one of those functions refuses anyone who is not an active admin, and writes the audit row', [...defined.keys()].every((name) => {
   const body = migration.slice(migration.indexOf(`function public.${name}(`)).split(/\n\$\$;/)[0];
@@ -133,7 +134,7 @@ const info: TutorLevelInfo = {
   credentials: [{ id: 'c1', code: 'teaching_degree', label: 'Qualified teacher with a teaching degree or PGCE', level: '2C', obtainedOn: '2024-11-30', note: 'B.Ed, 4 years', documentId: null, status: 'verified' }],
 };
 const docs: VerificationDocument[] = [
-  { id: 'd1', tutorId: 't', documentType: 'proof_of_experience', documentUrl: 'https://www.superprof.co.za/x', status: 'pending', adminNotes: null, uploadedAt: '2026-10-12T08:00:00Z', reviewedAt: null, issuedOn: null },
+  { id: 'd1', tutorId: 't', documentType: 'proof_of_experience', documentUrl: 'https://www.superprof.co.za/x', status: 'verified', adminNotes: null, uploadedAt: '2026-10-12T08:00:00Z', reviewedAt: null, issuedOn: null },
 ];
 const cardHtml = renderToStaticMarkup(
   React.createElement(TutorLevelCardBody, {
@@ -148,7 +149,7 @@ const cardHtml = renderToStaticMarkup(
 );
 check("the tutor's Level section shows the level, the starting level credentials give, and the recorded credential with its level and note", /Level now: <\/span><span[^>]*>2C · R280\/hr/.test(cardHtml) && /starting level of/.test(cardHtml) && /B\.Ed, 4 years/.test(cardHtml) && /Level 2C · R280\/hr · obtained 2024-11-30/.test(cardHtml));
 check('a frozen tutor is told the level applies when the freeze lifts, with the reason', /Their rates are frozen \(Average rating dropped below 4\.70 threshold\.\)/.test(cardHtml) && /applies when the freeze lifts/.test(cardHtml));
-check('only credentials that start a tutor at a level can be recorded (not the built-in one), and the tutor\'s own documents can be linked as proof', !/Level assigned by Tutorlage \(level/.test(cardHtml) && /Proof of experience · pending/.test(cardHtml));
+check('only credentials that start a tutor at a level can be recorded (not the built-in one), and the tutor\'s own documents can be linked as proof', !/Level assigned by Tutorlage \(level/.test(cardHtml) && /Proof of experience · verified/.test(cardHtml));
 check('with no assigned level there is no "remove the assigned level" button', !/Remove the assigned level/.test(cardHtml));
 check('Record credential and Assign level start disabled until something is chosen', (cardHtml.match(/disabled=""[^>]*>(Record credential|Assign level)/g) ?? []).length === 2);
 
@@ -170,7 +171,7 @@ check('removing a credential and assigning a level both need a written reason', 
 check("a frozen tutor is told the level will apply when the freeze lifts", /applies when the freeze lifts/.test(card));
 check('the real pages pass the real database calls to those screens (and the screens import no database code themselves)',
   /ACTIONS = \{ saveTier, saveLevel, saveCredentialDefinition, deleteCredentialDefinition, recalculateAllLevels, setCredentialProvesSubject \}/.test(levelsPage) && /actions=\{ACTIONS\}/.test(levelsPage) &&
-    /ACTIONS = \{ assignTutorLevel, clearTutorAssignedLevel, recordTutorCredential, removeTutorCredential \}/.test(cardLoader) && /actions=\{ACTIONS\}/.test(cardLoader) &&
+    /ACTIONS = \{ assignTutorLevel, clearTutorAssignedLevel, recordTutorCredential, removeTutorCredential, suggestCredentials \}/.test(cardLoader) && /actions=\{ACTIONS\}/.test(cardLoader) &&
     !/supabase|levelQueries/.test(levels + card));
 check('the practice page for these screens uses the same screens, with pretend actions', /LevelsBody/.test(read('admin/src/dev/levelsPreview.tsx')) && /TutorLevelCardBody/.test(read('admin/src/dev/levelsPreview.tsx')) && !/supabase/.test(read('admin/src/dev/levelsPreview.tsx')));
 check('the admin app\'s copy of the tutor rules still matches the tutor app\'s', read('src/lib/tutorOnboarding.ts') === read('admin/src/lib/tutorOnboarding.ts'));

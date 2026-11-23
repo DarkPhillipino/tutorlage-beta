@@ -95,11 +95,12 @@ begin
     -- documents and credentials, recorded the way the app does it (admin_record_credential)
     d1 := pg_temp.mkdoc(t1, 'teaching_qualification', 'verified');
     d2 := pg_temp.mkdoc(t2, 'teaching_qualification', 'pending');
-    d3 := pg_temp.mkdoc(t3, 'proof_of_experience', 'verified');
+    d3 := pg_temp.mkdoc(t3, 'marking_appointment_letter', 'verified');   -- P4-4: an exam-marker credential is proved by the marking letter
     d5 := pg_temp.mkdoc(t5, 'university_transcript', 'verified');
     r := r || pg_temp.chk('C0a', 'officer records the SACE credential for the teacher', (pg_temp.run_as(v_off, format('select (public.admin_record_credential(%L::uuid, %L, current_date, %L::uuid, %L) is not null)::text', t1, 'sace_registered_teacher', d1, 'seen')) ), 'true');
     r := r || pg_temp.chk('C0b', 'officer records the student-teacher credential (level stays 1A)', pg_temp.run_as(v_off, format('select (public.admin_record_credential(%L::uuid, %L, current_date, %L::uuid, %L) is not null)::text', t5, 'student_teacher_enrolled', d5, 'enrolment seen')), 'true');
-    perform pg_temp.run_as(v_off, format('select public.admin_record_credential(%L::uuid, %L, current_date, %L::uuid, %L)::text', t2, 'sace_registered_teacher', d2, 'doc not checked yet'));
+    -- P4-4: the function now refuses a credential on a document nobody has checked, so this fixture (a credential whose document is still pending) is written as the owner
+    insert into public.tutor_credentials (tutor_id, credential_code, document_id, status, obtained_on, note, verified_by, verified_at) values (t2, 'sace_registered_teacher', d2, 'verified', current_date, 'doc not checked yet', v_off, now());
     perform pg_temp.run_as(v_off, format('select public.admin_record_credential(%L::uuid, %L, current_date, %L::uuid, %L)::text', t3, 'exam_marker', d3, 'marker'));
     select id into cr1 from tutor_credentials where tutor_id = t1; select id into cr5 from tutor_credentials where tutor_id = t5;
     r := r || pg_temp.chk('C0c', 'the student teacher is still level 1A', (select current_sub_tier_id from tutor_profiles where id = t5), '1A');

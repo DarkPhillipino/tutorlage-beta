@@ -75,7 +75,7 @@ begin
 
   -- T5 a credential: the degree puts the tutor at 2D (it was 2C before item 6, 18 Nov 2026); the higher level still wins; removing the assignment leaves 2D
   select id into doc from (select gen_random_uuid() as id) q;
-  insert into tutor_verification_documents (id, tutor_id, document_type, document_url) values (doc, t1, 'teaching_qualification', t1 || '/test.pdf');
+  insert into tutor_verification_documents (id, tutor_id, document_type, document_url, status) values (doc, t1, 'teaching_qualification', t1 || '/test.pdf', 'verified');   -- P4-4: a credential needs a VERIFIED document
   perform set_config('request.jwt.claims', jsonb_build_object('sub', ad, 'role', 'authenticated')::text, true);
   set local role authenticated;
   cid := public.admin_record_credential(t1, 'teaching_degree', current_date - 400, doc, 'B.Ed, 4 years');
@@ -154,7 +154,11 @@ begin
   perform set_config('request.jwt.claims', jsonb_build_object('sub', ad, 'role', 'authenticated')::text, true);
   set local role authenticated;
   perform public.admin_save_credential_definition('other_platform_pro', 'Top-rated on another tutoring platform', '1D', null, 'Seen on their profile');
-  cid := public.admin_record_credential(t2, 'other_platform_pro', current_date, null, 'Profile seen');
+  reset role;
+  insert into tutor_verification_documents (id, tutor_id, document_type, document_url, status) values (gen_random_uuid(), t2, 'proof_of_experience', t2 || '/profile.pdf', 'verified');   -- P4-4
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', ad, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  cid := public.admin_record_credential(t2, 'other_platform_pro', current_date, (select id from tutor_verification_documents where tutor_id = t2 and document_type::text = 'proof_of_experience' limit 1), 'Profile seen');
   select current_sub_tier_id into s from tutor_profiles where id = t2;
   perform public.admin_save_credential_definition('other_platform_pro', 'Top-rated on another tutoring platform', '2A', null, 'Seen on their profile');
   reset role;

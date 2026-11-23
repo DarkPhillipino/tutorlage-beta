@@ -122,15 +122,18 @@ begin
   select code into cred from public.credential_definitions where entry_sub_tier_id is not null and code <> 'admin_assigned' order by code limit 1;
   execute format($mk$
     create function pg_temp.four(p_u uuid, p_t uuid) returns text language plpgsql as $f$
-    declare a text; b text; c text; d text; rid text;
+    declare a text; b text; c text; d text; rid text; doc uuid;
     begin
       a := pg_temp.verdict(p_u, format('select public.admin_assign_tier(%%L, ''2C'', ''test reason here'')::text', p_t));
-      rid := pg_temp.run_as(p_u, format('select public.admin_record_credential(%%L, %%L, current_date, null, ''n'')::text', p_t, %L));
+      -- P4-4 (23 Nov 2026): a credential needs a verified document of an accepted kind, so the fixture adds one (as the owner, before the role is switched)
+      insert into public.tutor_verification_documents (tutor_id, document_type, document_url, status)
+        select p_t, (select coalesce(accepted_document_types[1], 'proof_of_experience') from public.credential_definitions where code = %L)::public.doc_type, 'fixture/' || gen_random_uuid(), 'verified' returning id into doc;
+      rid := pg_temp.run_as(p_u, format('select public.admin_record_credential(%%L, %%L, current_date, %%L, ''n'')::text', p_t, %L, doc));
       b := pg_temp.classify(rid);
       c := pg_temp.verdict(p_u, format('select public.admin_remove_credential(%%L, ''test reason here'')::text', case when rid ~ '^[0-9a-f-]{36}$' then rid else gen_random_uuid()::text end));
       d := pg_temp.verdict(p_u, format('select public.admin_clear_assigned_tier(%%L, ''test reason here'')::text', p_t));
       return a || ' ' || b || ' ' || c || ' ' || d;
-    end $f$ $mk$, cred);
+    end $f$ $mk$, cred, cred);
   r := r || pg_temp.chk('S1', 'a credential that starts a tutor at a level exists to use in the test', (cred is not null)::text, 'true');
 
   -- ---- who may run what (five = save tier, save level, save credential, delete credential, recalculate all; four = assign, record, remove, clear) --
