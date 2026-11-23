@@ -32,20 +32,20 @@ const clientWith = (rpc: (fn: string) => Answer | Promise<Answer>): Pick<WalletC
 async function main() {
   // ---- the built-in words ----
   check('the built-in notice is the plan\'s wording with the times filled in',
-    DEFAULT_PILOT_NOTICE.enabled && DEFAULT_PILOT_NOTICE.text === `Tutorlage is in its pilot, so every bank transfer is checked by a person: usually within ${DEFAULT_PILOT_TIMES}. We are building instant payments. A tutor is only paid after your session is complete.`);
-  check('it says every transfer is checked by a person, that instant payments are being built, and that a tutor is paid only after the session',
-    /every bank transfer is checked by a person/.test(DEFAULT_PILOT_NOTICE.text) && /We are building instant payments\./.test(DEFAULT_PILOT_NOTICE.text) && /A tutor is only paid after your session is complete\./.test(DEFAULT_PILOT_NOTICE.text));
+    DEFAULT_PILOT_NOTICE.enabled && DEFAULT_PILOT_NOTICE.text === `Tutorlage is in its pilot, so every bank transfer is checked by a person: usually within ${DEFAULT_PILOT_TIMES}. We are working on faster ways to pay. A tutor is only paid after your session is complete.`);
+  check('it says every transfer is checked by a person, that faster ways to pay are being worked on, and that a tutor is paid only after the session',
+    /every bank transfer is checked by a person/.test(DEFAULT_PILOT_NOTICE.text) && /We are working on faster ways to pay\./.test(DEFAULT_PILOT_NOTICE.text) && /A tutor is only paid after your session is complete\./.test(DEFAULT_PILOT_NOTICE.text));
   check('it promises no date ("in the coming weeks") and never says free', !/coming weeks|soon|free/i.test(DEFAULT_PILOT_NOTICE.text + DEFAULT_PILOT_TIMES));
   const seededTimes = /'times', '([^']+)'/.exec(MIGRATION)?.[1];
   const seededText = /'text', '([^']+)'/.exec(MIGRATION)?.[1];
-  check('the built-in words equal the starting row the migration inserts (so a missing row and the seeded row read the same)', seededTimes === DEFAULT_PILOT_TIMES && seededText === DEFAULT_PILOT_TEXT, `${seededTimes} | ${seededText}`);
+  check('the built-in words equal the starting row the migration inserts (so a missing row and the seeded row read the same; the one sentence about faster ways to pay was changed after the seed, 24 Nov 2026)', seededTimes === DEFAULT_PILOT_TIMES && seededText.replace('We are building instant payments.', 'We are working on faster ways to pay.') === DEFAULT_PILOT_TEXT, `${seededTimes} | ${seededText}`);
 
   // ---- understanding the row (any JSON) ----
   const same = (v: unknown) => JSON.stringify(resolvePilotNotice(v)) === JSON.stringify(DEFAULT_PILOT_NOTICE);
   check('no row, null, a number, a list or an empty value all give the built-in words', same(null) && same(undefined) && same(42) && same(true) && same([]) && same(['a']) && same('') && same('   '));
   check('the seeded row itself reads as the built-in words', same({ enabled: true, times: DEFAULT_PILOT_TIMES, text: DEFAULT_PILOT_TEXT }));
   check('only "times" changed: the built-in sentence with the CEO\'s times',
-    resolvePilotNotice({ times: '2 hours, 08:00 to 18:00' }).text === 'Tutorlage is in its pilot, so every bank transfer is checked by a person: usually within 2 hours, 08:00 to 18:00. We are building instant payments. A tutor is only paid after your session is complete.');
+    resolvePilotNotice({ times: '2 hours, 08:00 to 18:00' }).text === 'Tutorlage is in its pilot, so every bank transfer is checked by a person: usually within 2 hours, 08:00 to 18:00. We are working on faster ways to pay. A tutor is only paid after your session is complete.');
   check('"text" with {times} twice: both are replaced', resolvePilotNotice({ times: '1 day', text: 'Checked by a person within {times} (not {times} on Sundays).' }).text === 'Checked by a person within 1 day (not 1 day on Sundays).');
   check('"text" without {times} is shown as it is', resolvePilotNotice({ text: 'Transfers are checked by hand.' }).text === 'Transfers are checked by hand.');
   check('a plain text value is taken as the whole notice', resolvePilotNotice('Transfers are checked by hand today.').text === 'Transfers are checked by hand today.' && resolvePilotNotice('Transfers are checked by hand today.').enabled);

@@ -9,8 +9,8 @@ import { BUSINESS_INFO, SAFETY_EMAIL, SUPPORT_EMAIL, isBusinessInfoComplete } fr
 const PILLARS = [
   {
     icon: Send,
-    title: 'Matched, not browsed',
-    body: "Send one request and a tutor who teaches your subject at your level accepts it. No scrolling through profiles or messaging five tutors to find one who's free.",
+    title: 'Matched to a tutor who fits',
+    body: "Send one request and a tutor who teaches your subject at your level accepts it.",
   },
   {
     icon: Calendar,

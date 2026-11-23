@@ -14,7 +14,7 @@ import type { WalletClient } from './wallet';
 // the starting row in supabase/migrations/20261105120000_platform_suggestions.sql (pilot-notice-test.ts checks that).
 export const DEFAULT_PILOT_TIMES = '6 hours (08:00 to 20:00; a transfer sent later is checked by 10:00 the next morning)';
 export const DEFAULT_PILOT_TEXT =
-  'Tutorlage is in its pilot, so every bank transfer is checked by a person: usually within {times}. We are building instant payments. A tutor is only paid after your session is complete.';
+  'Tutorlage is in its pilot, so every bank transfer is checked by a person: usually within {times}. We are working on faster ways to pay. A tutor is only paid after your session is complete.';
 
 const MAX_TEXT = 600;
 const MAX_TIMES = 200;
