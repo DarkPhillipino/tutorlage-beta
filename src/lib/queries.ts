@@ -1094,6 +1094,7 @@ export async function fetchAvailableRequests(tutorId: string): Promise<Available
           commissionPct != null
             ? (Math.round(chargedAmount * 100) - Math.round(chargedAmount * commissionPct)) / 100
             : null,
+        commissionPct: commissionPct ?? null,
         currencyCode: row.currency_code,
       };
     });
@@ -1184,6 +1185,7 @@ async function fetchAvailableRequestsFromTable(tutorId: string): Promise<Availab
           commissionPct != null
             ? (Math.round(chargedAmount * 100) - Math.round(chargedAmount * commissionPct)) / 100
             : null,
+        commissionPct: commissionPct ?? null,
         currencyCode: row.currency_code,
       };
     });

@@ -5,6 +5,7 @@ import { fetchUpcomingTutorSessions } from '../lib/queries';
 import { describeWhen } from '../lib/sessionTiming';
 import { FEATURES } from '../lib/features';
 import { SessionRoomControl } from './UpcomingSessionsPanel';
+import { AddToCalendarButton } from './AddToCalendarButton';
 
 interface TutorNextSessionsProps {
   tutorId: string;
@@ -57,6 +58,7 @@ export const TutorNextSessions: React.FC<TutorNextSessionsProps> = ({ tutorId, r
               <div className="text-xs text-slate-500">
                 {describeWhen(s.scheduledStart)} · {s.durationHours}h
               </div>
+              <AddToCalendarButton lesson={{ id: s.id, subjectName: s.subjectName, otherName: s.studentName, scheduledStart: s.scheduledStart, durationHours: s.durationHours }} />
             </div>
             {FEATURES.videoRooms && (
               <SessionRoomControl sessionId={s.id} scheduledStart={s.scheduledStart} durationHours={s.durationHours} isTutor />

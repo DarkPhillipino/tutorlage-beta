@@ -18,6 +18,7 @@ import { useWalletIds } from '../lib/walletHooks';
 import { WALLET_COPY } from '../lib/wallet';
 import type { MyTutor } from '../lib/keepOrSwap';
 import { KeepOrSwapChoice } from './KeepOrSwapChoice';
+import { AddToCalendarButton } from './AddToCalendarButton';
 import { MyTutorsPanel, type BookAgainLearner } from './MyTutorsPanel';
 
 interface UpcomingSessionsPanelProps {
@@ -232,6 +233,7 @@ export const UpcomingSessionsPanel: React.FC<UpcomingSessionsPanelProps> = ({ st
                   {freeSessionIds.has(s.id) && <span data-free-session className="ml-2 text-[10px] font-bold text-[#15803D] bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">{FREE_SESSION_LEARNER_BADGE}: you won't be charged</span>}
                   {walletSessionIds.has(s.id) && <span data-wallet-session className="ml-2 text-[10px] font-bold text-[#15803D] bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">{WALLET_COPY.sessionBadge}</span>}
                 </div>
+                <AddToCalendarButton lesson={{ id: s.id, subjectName: s.subjectName, otherName: s.tutorName, scheduledStart: s.scheduledStart, durationHours: s.durationHours }} />
                 {s.meetingUrl ? (
                   <div className="space-y-1">
                     <a

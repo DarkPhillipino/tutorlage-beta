@@ -206,6 +206,7 @@ export interface AvailableSessionRequest {
   // (backlog 7a), and it becomes the resulting sessions.gross_amount.
   chargedAmount: number;
   tutorPayout: number | null; // what the tutor earns if they accept (price less the level's commission)
+  commissionPct: number | null; // the level's commission in percent (the wallet share is worked from it exactly, as the database books it)
   currencyCode: string;
 }
 

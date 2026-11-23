@@ -78,8 +78,15 @@ export function shortfallSentence(price: number, available: number): string {
 
 // The tutor's share of a wallet session as the database books it: whole-rand commission, the tutor gets the rest. `cardTutorPayout` is what
 // the old card formula shows the tutor (price less commission to the cent), from which the commission to the cent is worked back.
-export function walletTutorShare(chargedAmount: number, cardTutorPayout: number): number {
+export function walletTutorShare(chargedAmount: number, cardTutorPayout: number, commissionPct?: number | null): number {
   const price = Math.round(chargedAmount);
+  // With the level's commission in hand the share is worked exactly as the database does it (commission = round(price x pct / 100), halves up, in whole
+  // rands): the older line below works the commission back from the card figure, which is rounded to the cent first, and differed by R1 at 16.5 percent
+  // for prices of R203, R403 and so on (found by scripts/dev/tutor-share-test.ts, 23 Nov 2026).
+  if (commissionPct != null && Number.isFinite(commissionPct)) {
+    const hundredths = Math.round(commissionPct * 100);
+    return price - Math.floor((price * hundredths + 5000) / 10000);
+  }
   return price - Math.round(chargedAmount - cardTutorPayout);
 }
 

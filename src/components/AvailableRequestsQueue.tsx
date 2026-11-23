@@ -216,7 +216,7 @@ export const AvailableRequestsQueue: React.FC<AvailableRequestsQueueProps> = ({ 
                       </div>
                     ) : r.tutorPayout != null && (
                       <div className="text-[10px] font-bold text-[#15803D] mt-0.5">
-                        You earn {getCurrencySymbol(r.currencyCode)}{formatRate(walletIds.has(r.id) ? walletTutorShare(r.chargedAmount, r.tutorPayout) : r.tutorPayout)}
+                        You earn {getCurrencySymbol(r.currencyCode)}{formatRate(walletIds.has(r.id) ? walletTutorShare(r.chargedAmount, r.tutorPayout, r.commissionPct) : r.tutorPayout)}
                       </div>
                     )}
                     {walletIds.has(r.id) && !freeIds.has(r.id) && (

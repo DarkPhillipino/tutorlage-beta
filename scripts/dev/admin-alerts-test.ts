@@ -40,14 +40,14 @@ type Row = Record<string, unknown>;
 interface Call { table: string; cols: string; filters: string[] }
 interface World {
   tutors: string[]; disputes: string[]; payments: string[]; subjects: string[]; schoolResults: string[]; tier1: string[]; topups: string[]; payouts: string[];
-  mismatch: string[]; bank: string[]; errors: string[]; closures: string[]; stale: string[];
+  mismatch: string[]; bank: string[]; errors: string[]; closures: string[]; stale: string[]; rejected: string[]; drift: string[];
   // the paying-customer state ('ok' | 'warn' | 'end') and the scheduled-job problem refs the two new database functions answer with
   paying: string; cron: string[];
   // known errors that were reported again recently: what the spike question gets back (id and running count)
   spikes: { id: string; occurrences: number }[];
   fail: Partial<Record<string, { code?: string; message?: string; status?: number }>>;   // table -> error
 }
-const newWorld = (): World => ({ tutors: [], disputes: [], payments: [], subjects: [], schoolResults: [], tier1: [], topups: [], payouts: [], mismatch: [], bank: [], errors: [], closures: [], stale: [], paying: 'ok', cron: [], spikes: [], fail: {} });
+const newWorld = (): World => ({ tutors: [], disputes: [], payments: [], subjects: [], schoolResults: [], tier1: [], topups: [], payouts: [], mismatch: [], bank: [], errors: [], closures: [], stale: [], rejected: [], drift: [], paying: 'ok', cron: [], spikes: [], fail: {} });
 const ids = (list: string[]): Row[] => list.map((id) => ({ id }));
 
 function fakeClient(world: World, opts: { session?: boolean } = {}) {
@@ -60,6 +60,8 @@ function fakeClient(world: World, opts: { session?: boolean } = {}) {
       const error = world.fail[`rpc:${fn}`];
       if (error) return { data: null, error };
       if (fn === 'admin_paying_customers') return { data: { count: 9600, state: world.paying, warn_at: 9500, end_at: 10000 }, error: null };
+      if (fn === 'admin_tutor_drift') return { data: world.drift.map((ref) => ({ tutor_id: 't', kind: 'not_ready', ref })), error: null };
+      if (fn === 'admin_rejected_payment_alert') return { data: world.rejected.map((ref) => ({ rejected_count: 5, threshold: 5, window_minutes: 60, ref })), error: null };
       if (fn === 'admin_cron_problems') return { data: world.cron.map((ref) => ({ job_name: ref.split(':')[0], problem: 'failed', ref })), error: null };
       return { data: fn === 'admin_stale_requests' ? world.stale.map((id) => ({ request_id: id, hours_waiting: 30 })) : [], error: null };
     },
@@ -124,9 +126,9 @@ async function main() {
   }
   const idsFor = (role: AdminRole) => watchersForRole(role).map((w) => w.id).sort().join(',');
   check('support agent: disputes, account closures and requests waiting', idsFor('support_agent') === 'closure_stuck,dispute,stale_request', idsFor('support_agent'));
-  check('verification officer: tutors, subjects, school results, Tier 1, account closures', idsFor('verification_officer') === 'closure_stuck,school_result,stale_request,subject_approval,tier1_record,tutor_verification', idsFor('verification_officer'));
-  check('finance manager: the five money alerts, requests waiting and the promo limit', idsFor('finance_manager') === 'paying_customers,payment_attention,stale_request,wallet_bank_changed,wallet_mismatch,wallet_payout,wallet_topup', idsFor('finance_manager'));
-  check('super admin: all 16 (the 11 of phase 5 + a closure alert + the error-spike alert + requests waiting + the promo limit + a scheduled job)', watchersForRole('super_admin').length === 16 && WATCHER_IDS.length === 16);
+  check('verification officer: tutors, subjects, school results, Tier 1, account closures', idsFor('verification_officer') === 'closure_stuck,school_result,stale_request,subject_approval,tier1_record,tutor_drift,tutor_verification', idsFor('verification_officer'));
+  check('finance manager: the five money alerts, rejected payment notifications, requests waiting and the promo limit', idsFor('finance_manager') === 'paying_customers,payment_attention,rejected_payments,stale_request,wallet_bank_changed,wallet_mismatch,wallet_payout,wallet_topup', idsFor('finance_manager'));
+  check('super admin: all 18 (the drift alert + the 11 of phase 5 + a closure alert + the error-spike alert + requests waiting + the promo limit + a scheduled job + rejected payment notifications)', watchersForRole('super_admin').length === 18 && WATCHER_IDS.length === 18);
   check('no role, no alerts', watchersForRole(null).length === 0 && watchersForRole(undefined).length === 0);
   check('the three wallet entries the CEO asked for are there (proof sent, payout requested, balance mismatch/wallet alert)', ['wallet_topup', 'wallet_payout', 'wallet_mismatch', 'wallet_bank_changed'].every((id) => WATCHER_IDS.includes(id as WatcherId)));
   check('every alert is on the Notifications menu entry for all four roles', /to: '\/notifications', label: 'Notifications', icon: Bell, roles: \['support_agent', 'verification_officer', 'finance_manager', 'super_admin'\]/.test(layout));
@@ -318,6 +320,48 @@ async function main() {
   check('a NEW failure of the same job (a new run) is announced', r.toasts.length === 1, JSON.stringify(r.toasts));
   check('only a super admin gets the scheduled-job alert', ['support_agent', 'verification_officer', 'finance_manager'].every((role) => !watchersForRole(role as AdminRole).some((w) => w.id === 'cron_problem')));
 
+  // ---- rejected payment notifications (Job L, 21 Nov 2026) ------------------------------------------------------------------------------------------
+  const wrj = newWorld();
+  const rj = harness('finance_manager', wrj);
+  await rj.round();
+  rj.clock += CHECK_EVERY_MS;
+  r = await rj.round();
+  check('no run of rejected messages: no notification', r.toasts.length === 0);
+  wrj.rejected = ['rejected:2026112114'];
+  rj.clock += CHECK_EVERY_MS;
+  r = await rj.round();
+  check('a run of rejected messages: one notification, opens the wallets page, says nothing was credited, quotes no message', r.toasts.length === 1 && r.toasts[0].title === 'Payment notifications refused' && r.toasts[0].route === '/payouts?wallet=wallets' && /Nothing was credited/.test(r.toasts[0].body) && !/rejected:/.test(r.toasts[0].body), JSON.stringify(r.toasts));
+  check('it asked the database function with no arguments', rj.calls.some((c) => c.table === 'rpc:admin_rejected_payment_alert' && c.filters[0] === '{}'));
+  rj.clock += CHECK_EVERY_MS;
+  r = await rj.round();
+  check('the same hour is not announced again', r.toasts.length === 0);
+  wrj.rejected = ['rejected:2026112115'];
+  rj.clock += CHECK_EVERY_MS;
+  r = await rj.round();
+  check('the run still going in the NEXT hour is announced once more', r.toasts.length === 1, JSON.stringify(r.toasts));
+  check('only finance managers and super admins get it', ['support_agent', 'verification_officer'].every((role) => !watchersForRole(role as AdminRole).some((w) => w.id === 'rejected_payments')) && ['finance_manager', 'super_admin'].every((role) => watchersForRole(role as AdminRole).some((w) => w.id === 'rejected_payments')));
+
+  // ---- the nightly drift check (P4-6 watcher, 23 Nov 2026) ----------------------------------------------------------------------------------------------
+  const wdr = newWorld();
+  const dr = harness('verification_officer', wdr);
+  await dr.round();
+  dr.clock += CHECK_EVERY_MS;
+  let rd = await dr.round();
+  check('no open finding: no notification', rd.toasts.length === 0);
+  wdr.drift = ['drift:t1:not_ready:20261123'];
+  dr.clock += CHECK_EVERY_MS;
+  rd = await dr.round();
+  check('a new finding: one notification that opens the verification page and says nothing was suspended', rd.toasts.length === 1 && rd.toasts[0].route === '/verification' && /Nothing was suspended/.test(rd.toasts[0].body), JSON.stringify(rd.toasts));
+  check('it asked the read-only database function with no arguments', dr.calls.some((c) => c.table === 'rpc:admin_tutor_drift' && c.filters[0] === '{}'));
+  dr.clock += CHECK_EVERY_MS;
+  rd = await dr.round();
+  check('the same finding is never announced again', rd.toasts.length === 0);
+  wdr.drift = ['drift:t1:not_ready:20261123', 'drift:t2:not_ready:20261124'];
+  dr.clock += CHECK_EVERY_MS;
+  rd = await dr.round();
+  check('a second tutor is announced once, the first is not repeated', rd.toasts.length === 1, JSON.stringify(rd.toasts));
+  check('only verification officers and super admins get it', ['support_agent', 'finance_manager'].every((role) => !watchersForRole(role as AdminRole).some((w) => w.id === 'tutor_drift')) && ['verification_officer', 'super_admin'].every((role) => watchersForRole(role as AdminRole).some((w) => w.id === 'tutor_drift')));
+
   // ---- quiet: summaries --------------------------------------------------------------------------------------------------------------------------------
   const wq = newWorld();
   const q = harness('super_admin', wq);
@@ -399,7 +443,7 @@ async function main() {
   r = await fl.round();
   check('one question failing (a table not switched on yet) says nothing and does not stop the others', r.failed.includes('new_error') && r.toasts.length === 1 && r.toasts[0].tag === 'w:dispute');
   const offline = newWorld();
-  offline.fail = Object.fromEntries(['tutor_verification_documents', 'platform_disputes', 'session_requests', 'tutor_subject_competencies', 'school_results', 'tier1_academic_records', 'wallet_topups', 'payout_requests', 'notifications', 'client_errors', 'rpc:admin_stale_requests', 'rpc:admin_paying_customers', 'rpc:admin_cron_problems'].map((t) => [t, { message: 'Failed to fetch' }]));
+  offline.fail = Object.fromEntries(['tutor_verification_documents', 'platform_disputes', 'session_requests', 'tutor_subject_competencies', 'school_results', 'tier1_academic_records', 'wallet_topups', 'payout_requests', 'notifications', 'client_errors', 'rpc:admin_stale_requests', 'rpc:admin_rejected_payment_alert', 'rpc:admin_tutor_drift', 'rpc:admin_paying_customers', 'rpc:admin_cron_problems'].map((t) => [t, { message: 'Failed to fetch' }]));
   const off = harness('super_admin', offline);
   r = await off.round();
   check('everything failing (offline): nothing shown, NOTHING remembered (the next round is still a first look)', r.toasts.length === 0 && r.checked.length === 0 && storageAlertStore(off.storage).loadState('admin-1').lastCheckedAt === null);
@@ -560,7 +604,11 @@ async function main() {
   check('the window keeps running when hidden (no background throttling)', /backgroundThrottling: false/.test(main));
   check('the sign-in is encrypted with Windows before it is written, and nothing is written when Windows cannot encrypt', /safeStorage\.encryptString\(value\)/.test(main) && /safeStorage\.decryptString/.test(main) && /!safeStorage\.isEncryptionAvailable\(\)\) return false/.test(main));
   // (the smoke check looks for the sign-in screen's password FIELD by name; that is the only mention)
-  check('no password, token or key is handled in the desktop program (it stores opaque text it is given, encrypted)', !/password|apikey|service_role|sb_secret/i.test((main + pre).replace(/hasPasswordField|input\[type="password"\]/g, '')));
+  // 18 Nov 2026 (J2, the self-updating program): the program now READS the signed-in admin's access token, handed over by the page for ONE call (the update check), and the public
+  // publishable key (the word 'apikey' is the name of the request header Supabase wants). It must still handle no password or secret key, and the token must never be written to
+  // disk or to the update log, nor reach a notification.
+  check('no password or secret key is handled in the desktop program (it stores opaque text it is given, encrypted)', !/password|service_role|sb_secret/i.test((main + pre).replace(/hasPasswordField|input\[type="password"\]/g, '')));
+  check('the only token the program touches is the admin\'s access token for the update check, and it is never stored, logged or shown', /const token = args && typeof args\.accessToken/.test(main) && !/(writeJson|secureSet|updateLog|showToast|console\.log|smokeSay)\([^)]*\b(token|anonKey)\b/.test(main) && (main.match(/\baccessToken\b/g) ?? []).length <= 4);
   check('every call from the page is checked: the sender must be our own address', /function guarded\(handler\)[\s\S]*?!fromOurPage\(event\)\) throw/.test(main) && (main.match(/ipcMain\.handle\(/g) ?? []).length === (main.match(/guarded\(/g) ?? []).length - 1, `${(main.match(/ipcMain\.handle\(/g) ?? []).length} handlers`);
   check('the page can reach only the listed calls and no Node', ['secureStorage', 'notify', 'isMuted', 'getStatus', 'setMuted', 'sendTest', 'onNavigate', 'onCheckNow', 'onStatusChange'].every((n) => pre.includes(n)) && !/require\('(fs|child_process|node:fs)'\)/.test(pre) && /contextIsolation: true, nodeIntegration: false, sandbox: true/.test(main));
   const routeLine = main.split('\n').find((l) => l.startsWith('const validRoute')) ?? '';
