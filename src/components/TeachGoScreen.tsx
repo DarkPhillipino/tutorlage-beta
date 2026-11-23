@@ -5,6 +5,7 @@ import { TutorDashboardData, SubTierDefinition } from '../types';
 import { fetchTutorDashboard, fetchSubTierDefinitions, updateTutorProfile } from '../lib/queries';
 import { AvailableRequestsQueue } from './AvailableRequestsQueue';
 import { TutorNextSessions } from './TutorNextSessions';
+import { pickNextSubTier, isNextTierStep, LAST_TIER_SHOWN_AS_NEXT_STEP } from '../lib/nextLevel';
 import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
 import { TutorDocumentsReminder } from './TutorOnboardingGate';
@@ -45,9 +46,13 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
         setTutor(data);
         if (data?.tier) {
           const subTiers = await fetchSubTierDefinitions(data.tier.id);
-          const currentCode = data.currentSubTierId.slice(-1);
-          const currentIndex = subTiers.findIndex((s) => s.subTierCode === currentCode);
-          setNextSubTier(subTiers[currentIndex + 1] ?? null);
+          let next = pickNextSubTier(data.currentSubTierId, data.tier.id, subTiers, null);
+          if (!next && data.tier.id < LAST_TIER_SHOWN_AS_NEXT_STEP) {
+            // From the last level of a tier the next step is the first level of the next tier (it used to say "Top tier reached" here).
+            const above = await fetchSubTierDefinitions(data.tier.id + 1).catch(() => []);
+            next = pickNextSubTier(data.currentSubTierId, data.tier.id, subTiers, above[0] ?? null);
+          }
+          setNextSubTier(next);
         }
       })
       .catch(() => setTutor(null))
@@ -166,7 +171,9 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
             <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-slate-200">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-[#0F172A]">
-                  Unlock {tutor.tier?.publicName} {nextSubTier.subTierCode}
+                  {tutor.tier && isNextTierStep({ tierId: tutor.tier.id }, nextSubTier)
+                    ? `Unlock level ${nextSubTier.id}`
+                    : <>Unlock {tutor.tier?.publicName} {nextSubTier.subTierCode}</>}
                 </span>
                 <span className="text-xs font-black text-[#15803D]">{progressPct}%</span>
               </div>
