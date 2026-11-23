@@ -1,5 +1,3 @@
-import { supabase } from './supabaseClient';
-
 // A tiny in-memory symbol cache, populated once at app startup (see
 // loadCurrencySymbols(), called from main.tsx) — avoids threading an async
 // currency lookup through every rate-formatting call site for what's really
@@ -11,6 +9,8 @@ import { supabase } from './supabaseClient';
 let currencySymbols: Record<string, string> = { ZAR: 'R' };
 
 export async function loadCurrencySymbols(): Promise<void> {
+  // Loaded on demand (start-page code split): this runs once the database client exists, see main.tsx.
+  const { supabase } = await import('./supabaseClient');
   const { data, error } = await supabase.from('currencies').select('code, symbol');
   if (error) {
     console.error('loadCurrencySymbols failed:', error);

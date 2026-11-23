@@ -1,4 +1,3 @@
-import { supabase } from './supabaseClient';
 import { judgeRecoveryLink, parseAuthRedirect, type RecoveryLinkVerdict } from './authHelpers';
 
 // A password-reset email link brings the person back with a short-lived session in the address fragment
@@ -70,6 +69,8 @@ export async function checkRecoveryLink(): Promise<RecoveryLinkVerdict> {
   // to another address before the tokens have been read.
   let initializeError: unknown = null;
   try {
+    // Loaded on demand (start-page code split); a reset link in the address already made the app load the client at start-up (needsSupabaseNow).
+    const { supabase } = await import('./supabaseClient');
     initializeError = (await supabase.auth.initialize()).error;
   } catch (caught) {
     initializeError = caught;

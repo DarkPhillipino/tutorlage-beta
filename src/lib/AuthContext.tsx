@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from './supabaseClient';
-import { fetchProfile } from './queries';
+import { needsSupabaseNow, whenSupabaseReady } from './supabaseReady';
 import { UserProfile } from '../types';
 
 interface AuthContextValue {
@@ -19,17 +18,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // START-PAGE CODE SPLIT (24 Nov 2026): the database library is loaded here only when the visit needs it (a saved sign-in, or an e-mail link in the address; see needsSupabaseNow).
+  // A signed-out visitor on a public page is shown as signed out at once, with nothing downloaded; the moment ANY page loads the client (a sign-in or sign-up page), this provider hears it
+  // (whenSupabaseReady) and starts reading the sign-in state exactly as before, so a sign-in made on those pages is still noticed.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+    let cancelWait: (() => void) | null = null;
+    const start = () => {
+      import('./supabaseClient').then(({ supabase }) => {
+        if (cancelled) return;
+        supabase.auth.getSession().then(({ data }) => {
+          if (cancelled) return;
+          setSession(data.session);
+          setLoading(false);
+        });
+        const { data: subscription } = supabase.auth.onAuthStateChange((_event, newSession) => {
+          setSession(newSession);
+        });
+        unsubscribe = () => subscription.subscription.unsubscribe();
+      });
+    };
+    if (needsSupabaseNow()) {
+      start();
+    } else {
       setLoading(false);
-    });
-
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-    });
-
-    return () => subscription.subscription.unsubscribe();
+      cancelWait = whenSupabaseReady(start);
+    }
+    return () => {
+      cancelled = true;
+      cancelWait?.();
+      unsubscribe?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -37,8 +57,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProfile(null);
       return;
     }
-    fetchProfile(session.user.id, session.user.email ?? '')
-      .then((fetchedProfile) => {
+    let live = true;
+    Promise.all([import('./queries'), import('./supabaseClient')])
+      .then(async ([{ fetchProfile }, { supabase }]) => {
+        const fetchedProfile = await fetchProfile(session.user.id, session.user.email ?? '');
+        if (!live) return;
         if (!fetchedProfile) {
           // A valid session with no matching profiles row (e.g. the account
           // was deleted after the session was issued) previously left the
@@ -53,10 +76,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         setProfile(fetchedProfile);
       })
-      .catch(() => setProfile(null));
+      .catch(() => {
+        if (live) setProfile(null);
+      });
+    return () => {
+      live = false;
+    };
   }, [session?.user?.id]);
 
   const signOut = async () => {
+    const { supabase } = await import('./supabaseClient');
     await supabase.auth.signOut();
   };
 

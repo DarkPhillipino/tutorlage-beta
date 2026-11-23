@@ -9,6 +9,7 @@ import {PageLoading} from './components/PageLoading.tsx';
 import {RouteMeta} from './components/RouteMeta.tsx';
 import {lazyRoute} from './lib/lazyRoute.ts';
 import {loadCurrencySymbols} from './lib/currencies.ts';
+import {whenSupabaseReady} from './lib/supabaseReady.ts';
 import {BASE_PATH} from './lib/siteUrl.ts';
 import {installGlobalErrorLogging, setErrorSender} from './lib/errorLog.ts';
 import {sendClientError} from './lib/errorLogSender.ts';
@@ -34,7 +35,10 @@ countCodeOpenFromUrl();
 
 // Fire-and-forget: components render with the built-in ZAR fallback until
 // this resolves, so it doesn't need to block first paint.
-loadCurrencySymbols();
+// Start-page code split: it waits until something has loaded the database client (a visitor with no saved sign-in on a public page may never need it).
+whenSupabaseReady(() => {
+  void loadCurrencySymbols();
+});
 
 // Every page loads on demand (release gate PERF-BUNDLE-01): the first download carries the router, sign-in state and the page asked for,
 // not the whole app. lazyRoute retries once and then reloads once if a page's code cannot be fetched (lost signal, or a republish).

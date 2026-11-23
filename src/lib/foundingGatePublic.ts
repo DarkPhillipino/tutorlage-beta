@@ -15,12 +15,29 @@ export async function fetchFoundingGatePublic(db: { rpc(fn: string): PromiseLike
   }
 }
 
+// A bare-bones stand-in for supabase.rpc for the one public question above (no sign-in needed, so the public key is enough).
+function plainRpc(): { rpc(fn: string): PromiseLike<{ data: unknown; error: unknown }> } {
+  const url = String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/+$/, '');
+  const key = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '');
+  return {
+    rpc: async (fn: string) => {
+      if (!url || !key) return { data: null, error: new Error('not configured') };
+      const response = await fetch(`${url}/rest/v1/rpc/${fn}`, {
+        method: 'POST',
+        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (!response.ok) return { data: null, error: new Error(`status ${response.status}`) };
+      return { data: await response.json(), error: null };
+    },
+  };
+}
+
 export function loadFoundingGateOn(): Promise<boolean> {
   if (answer && Date.now() - answer.at < ANSWER_LIFETIME_MS) return answer.promise;
-  // The database client is loaded on demand (this file stays tiny and can be tested without it).
-  const promise = import('./supabaseClient')
-    .then(({ supabase }) => fetchFoundingGatePublic(supabase as unknown as { rpc(fn: string): PromiseLike<{ data: unknown; error: unknown }> }))
-    .catch(() => false);
+  // START-PAGE CODE SPLIT (24 Nov 2026): this one question is open to everybody, so it is asked with a plain request to the database's own web address (the same call the database library
+  // would make: POST /rest/v1/rpc/founding_gate_public with the public key), and the start page no longer downloads the database library just to read one switch. Any doubt is false.
+  const promise = fetchFoundingGatePublic(plainRpc()).catch(() => false);
   answer = { at: Date.now(), promise };
   return promise;
 }
