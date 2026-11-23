@@ -156,6 +156,17 @@ async function makeRig(o: { noProvider?: boolean; noJobSecret?: boolean; staging
   };
   return rig;
 }
+// Every value the body carries under a key that names money (amount, value, total, price, sum, cents). Test fix 23 Nov 2026: this check used to search the WHOLE body
+// for the characters "999", which fails by chance (about 1 run in 180) when the random top-up id in the return address happens to contain 999.
+function amountLikeValues(node: unknown, out: unknown[] = []): unknown[] {
+  if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (/amount|value|total|price|sum|cents|currency/i.test(k) && (v === null || typeof v !== 'object')) out.push(v);
+      else amountLikeValues(v, out);
+    }
+  }
+  return out;
+}
 const bodyOf = (r: Rig, t: any, over: Record<string, unknown> = {}) => r.tx(t, over);
 const eventsOf = (r: Rig, outcome: string) => r.db.events.filter((e) => e.outcome === outcome);
 
@@ -167,7 +178,7 @@ const eventsOf = (r: Rig, outcome: string) => r.db.events.filter((e) => e.outcom
     const res = await r.start(t);
     const payment = r.ozow.paymentFor(t.reference);
     check('start: a signed-in payer starts the top-up and gets Ozow\'s link back, exactly as Ozow gave it', res.status === 200 && res.json.redirect_url === `https://pay.ozow.com/${payment?.id}/secure` && res.json.resumed === false && typeof res.json.expires_at === 'string');
-    check('start: the amount sent to Ozow is the database\'s (R50), never the browser\'s (the browser sent 999)', payment?.body.amount.value === 50 && JSON.stringify(payment?.body).indexOf('999') < 0);
+    check('start: the amount sent to Ozow is the database\'s (R50), never the browser\'s (the browser sent 999)', payment?.body.amount.value === 50 && amountLikeValues(payment?.body).every((v) => v === 50 || v === 'ZAR') && !amountLikeValues(payment?.body).includes(999));
     check('start: the Idempotency-Key is the database\'s topup-<id> and the reference is the top-up\'s own', r.ozow.calls.find((c) => c.path === '/payments')?.headers['Idempotency-Key'] === `topup-${t.id}` && payment?.body.merchantReference === t.reference);
     check('start: the payment id and link are saved (claim, then create, then attach) and the top-up stays open', r.db.calls.map((c) => c.name).join() === 'wallet_online_claim,wallet_online_attach' && r.db.attempts.get(t.id)?.provider_payment_id === payment?.id && t.status === 'awaiting_payment');
     const again = await r.start(t);
