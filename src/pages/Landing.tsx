@@ -102,7 +102,6 @@ export default function Landing() {
           </h1>
           <p className="text-base sm:text-lg text-slate-700 leading-relaxed max-w-2xl mb-8">
             Tutorlage matches school learners and university students with tutors for online sessions. Tell us the subject, grade and time you need.
-            There are no profiles to search through and no tutors to message one by one.
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
             <Link to="/login" className={`${linkButton} bg-[#15803D] hover:bg-[#166534] text-white`}>
