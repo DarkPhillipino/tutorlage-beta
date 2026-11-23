@@ -20,12 +20,12 @@ const PILLARS = [
   {
     icon: Tag,
     title: 'One clear price',
-    body: 'Sessions start from R50 an hour. You choose a level and see the price before you send a request. If no tutor accepts in time, the price goes straight back to your wallet.',
+    body: 'Sessions start from R50 an hour. You choose a level and see the price before you send a request. If no tutor accepts in time, the price goes straight back to your credit.',
   },
   {
     icon: Wallet,
-    title: 'Pay from your wallet',
-    body: 'You pay from a Tutorlage wallet that you top up by bank transfer. Card payments may be added later.',
+    title: 'Pay from your credit',
+    body: 'You pay from lesson credit that you top up by bank transfer. Card payments may be added later.',
   },
   {
     icon: ShieldCheck,

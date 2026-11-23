@@ -1,21 +1,21 @@
 > **The short version.**
-> - Sessions are paid from your Tutorlage wallet. When you send a request, its price is put **on hold**. Nobody is paid yet.
-> - If no tutor accepts, the held price goes straight back to your wallet (§2).
-> - Until a session starts, you can cancel it yourself and the full price goes back to your wallet at once (§4).
+> - Sessions are paid from your lesson credit. When you send a request, its price is put **on hold**. Nobody is paid yet.
+> - If no tutor accepts, the held price goes straight back to your credit (§2).
+> - Until a session starts, you can cancel it yourself and the full price goes back to your credit at once (§4).
 > - We refund in full when the tutor cancels or does not turn up, when something on our side stops the session, when you were charged by mistake, or when a report about the tutor is upheld (§3).
 > - Every other case is decided one by one, fairly. There are no fixed deadlines for asking (§5).
-> - Refunds go back to your wallet. If you would rather have the money in your bank account, ask us (§8).
+> - Refunds go back to your credit. If you would rather have the money in your bank account, ask us: we pay it back when a session was not delivered, when the fault is ours or when the law gives you the right (§8).
 
 ## 1. How you pay, and why it matters for refunds
 
-- You add money to your Tutorlage wallet by bank transfer (EFT) and use it to pay for sessions. The Terms of Service (section 6) explain how.
-- When you send a request, the price is **put on hold** in your wallet. Nobody is paid at that point.
+- You add credit to your Tutorlage account by bank transfer (EFT) and use it to pay for sessions (lesson credit). The Terms of Service (section 6) explain how.
+- When you send a request, the price is **put on hold** in your credit. Nobody is paid at that point.
 - When a tutor accepts, the held price becomes the money for that session.
-- The tutor's share is paid into the tutor's wallet only **after the session is complete**. A session with an open problem report is not completed. Until then your money has not gone to anyone, which is why refunds are simple.
+- The tutor's share is paid into the tutor's earnings only **after the session is complete**. A session with an open problem report is not completed. Until then your money has not gone to anyone, which is why refunds are simple.
 
 ## 2. If no tutor accepts your request
 
-- A request stays open for up to 48 hours, or until 30 minutes after the start time you asked for, whichever comes first. If no tutor accepts by then, the request expires and **the held price goes straight back to your wallet**. You pay nothing.
+- A request stays open for up to 48 hours, or until 30 minutes after the start time you asked for, whichever comes first. If no tutor accepts by then, the request expires and **the held price goes straight back to your credit**. You pay nothing.
 - The same happens if you cancel a request before a tutor has accepted it, or a tutor declines it and it cannot be given to another tutor.
 
 ## 3. When we always refund in full
@@ -27,8 +27,8 @@
 
 ## 4. Cancelling yourself, any time before a session starts
 
-- Until a session starts, you (or the parent or guardian who booked it) can cancel it yourself from your sessions list. The full price goes back to your wallet at once, and the tutor is told.
-- A request that no tutor has accepted yet can be cancelled from the same list, under "Waiting for a tutor". The held price goes straight back to your wallet.
+- Until a session starts, you (or the parent or guardian who booked it) can cancel it yourself from your sessions list. The full price goes back to your credit at once, and the tutor is told.
+- A request that no tutor has accepted yet can be cancelled from the same list, under "Waiting for a tutor". The held price goes straight back to your credit.
 - Once a session has started, the cancel button stops working. You can still ask us for help (§5 and §7).
 
 ## 5. Every other case: decided one by one
@@ -53,14 +53,14 @@ We may refund in full, refund part (the rest goes to the tutor for the time they
 
 ## 8. How refunds are paid
 
-- Refunds are paid **into your Tutorlage wallet as credit**, for the full amount you paid. They show in your wallet history straight away, and you can use the credit for any session.
-- If you would rather have the money in your bank account, email support@tutorlage.com. We send unused wallet money back by bank transfer, by hand, to the account it came from unless you tell us otherwise, and we tell you when it has been sent.
+- Refunds for a session that was not delivered, cancelled or ended early go **back into your credit**, for the full amount you paid. They show in your credit history straight away, and you can use the credit for any session.
+- If you would rather have the money in your bank account, ask us at support@tutorlage.com: we will pay it back when the session was not delivered, when something went wrong that is our fault, or when the law gives you that right. Unused credit is not paid out in cash on request while your account is open. When we pay money back to your bank account, we send it by bank transfer, by hand, and we tell you when it has been sent.
 - A refund or return of money that we have agreed is never left waiting more than 30 days.
 
 ## 9. If you close your account
 
-- Sessions already booked are cancelled and refunded to your wallet first.
-- Your whole wallet balance is then returned to you by bank transfer, by hand. The closing screen shows the balance, and we do not delete an account's balance.
+- Sessions already booked are cancelled and refunded to your credit first.
+- Your whole credit balance is then returned to you by bank transfer, by hand. The closing screen shows the balance, and we do not delete an account's balance.
 
 ## 10. If you disagree with our decision
 

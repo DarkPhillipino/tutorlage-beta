@@ -29,7 +29,7 @@ export const CLOSE_COPY = {
   payoutOwed: (amount: string) => `You are owed ${amount}. Closing keeps your bank details until it is paid. You can still go ahead.`,
   // Wallet (wallet phase 6): closing never deletes money. The finance admin returns it by hand.
   walletBalance: (amount: string) =>
-    `Your wallet holds ${amount}. Closing does not delete it. We send it back, by hand, to the bank account it came from: write to support after you close.`,
+    `Your credit holds ${amount}. Closing does not delete it. We send it back, by hand, to the bank account it came from: write to support after you close.`,
   walletPayoutOpen: (amount: string) => `Your payout request of ${amount} stays open and is paid as normal.`,
   walletUnconfirmed: (amount: string) =>
     `You sent a bank transfer of ${amount} that we have not confirmed yet. If it reached us, we send that money back to you too.`,

@@ -19,7 +19,7 @@ import { WALLET_COPY, rand0, type Topup, type TopupStatus, type WalletClient } f
 // The two names of the choice are the PM's wording of 9 Nov 2026 (the design's own were "Pay now with your bank" and "Pay by bank transfer and send proof").
 export const ONLINE_COPY = {
   chooseHeading: 'How would you like to pay?',
-  onlineTitle: 'Pay by bank, instant',
+  onlineTitle: 'Pay by bank',
   onlineBody: 'You pay on your own bank\'s page, then come straight back here. Your money usually arrives within minutes.',
   manualTitle: 'Bank transfer, checked by a person',
   manualBody: 'You pay from your banking app and send us the proof. A person checks it before the money is added.',
@@ -55,17 +55,17 @@ export const ONLINE_COPY = {
   hintNotPaidBody: 'Nothing was taken from you. If you did pay, your money will be added here as soon as your bank confirms it.',
   hintSuccessBody: 'Thank you. We are confirming your payment with your bank. This usually takes a few seconds.',
   notFoundTitle: 'We could not find this payment',
-  notFoundBody: 'Open your wallet to see all your top-ups. If money left your account, contact support with the Help button at the top of the page.',
+  notFoundBody: 'Open your credit to see all your top-ups. If money left your account, contact support with the Help button at the top of the page.',
   otherTitle: 'This is not an online payment',
-  otherBody: 'Open your wallet to see where this top-up stands.',
+  otherBody: 'Open your credit to see where this top-up stands.',
   notCompletedTitle: 'Payment not completed',
   cancelledTitle: 'Payment cancelled',
-  goToWallet: 'Go to your wallet',
+  goToWallet: 'Go to your credit',
   signInTitle: 'Sign in to see your payment',
-  signInBody: 'If you have paid, your money is added to your wallet as soon as your bank confirms it. Sign in to see it.',
+  signInBody: 'If you have paid, your money is added to your credit as soon as your bank confirms it. Sign in to see it.',
   signIn: 'Sign in',
   // The booking page when the bank is the MAIN way to pay (see decideMainWay below).
-  addByBank: 'Add money by bank',
+  addByBank: 'Add credit by bank',
   cardInstead: 'Pay with a card instead',
 } as const;
 
@@ -74,11 +74,11 @@ export const ONLINE_COPY = {
 // "the bank's"). It must never be shown on a live payment, and nothing here can make it show without the Worker's `test: true`.
 export function onlineTestNote(provider: string): string {
   const name = /^[a-z][a-z0-9]{1,19}$/.test(provider) ? `${provider[0].toUpperCase()}${provider.slice(1)}'s` : 'the bank\'s';
-  return `Test mode: you will pay on ${name} practice bank page with the demo login. No real money is taken, and the money added to your wallet is pretend money.`;
+  return `Test mode: you will pay on ${name} practice bank page with the demo login. No real money is taken, and the money added to your credit is pretend money.`;
 }
 
 export const paidTitle = 'Payment received';
-export const paidBody = (amountRand: number): string => `${rand0(amountRand)} has been added to your wallet.`;
+export const paidBody = (amountRand: number): string => `${rand0(amountRand)} has been added to your credit.`;
 export const waitBody = (seconds: number): string => `Please wait ${seconds} second${seconds === 1 ? '' : 's'}, then try again.`;
 
 // ---- is the online choice open for this person? every doubt answers "no" ------------------------------------------------------------------------

@@ -17,12 +17,12 @@ interface WalletPayBoxProps {
 
 // The wallet's part of the booking page (CEO, 2 Nov 2026): enough money -> what will happen to it (the button under it says "Pay R180 from
 // your wallet"); not enough, or empty -> the balance, how much is missing and the "Add money" button. The request is not created while short.
-export const WalletPayBox: React.FC<WalletPayBoxProps> = ({ price, promoLine = null, state, onAddMoney, onRetry, addLabel = 'Add money' }) => {
+export const WalletPayBox: React.FC<WalletPayBoxProps> = ({ price, promoLine = null, state, onAddMoney, onRetry, addLabel = 'Add credit' }) => {
   if (state.status === 'loading' || state.status === 'closed') {
     return (
       <div role="status" data-wallet-pay className="flex items-center justify-center mb-5 text-slate-400">
         <Loader2 className="w-4 h-4 animate-spin mr-2" />
-        <span className="text-xs font-semibold">Checking your wallet…</span>
+        <span className="text-xs font-semibold">Checking your credit…</span>
       </div>
     );
   }
@@ -30,7 +30,7 @@ export const WalletPayBox: React.FC<WalletPayBoxProps> = ({ price, promoLine = n
     return (
       <div role="alert" data-wallet-pay className="mb-5 max-w-sm text-center">
         <AlertTriangle className="w-6 h-6 text-rose-400 mx-auto mb-1" />
-        <p className="text-xs font-bold text-[#0F172A]">Couldn't check your wallet</p>
+        <p className="text-xs font-bold text-[#0F172A]">Couldn't check your credit</p>
         <p className="text-[11px] text-slate-500">Check your connection and try again.</p>
         <button type="button" onClick={onRetry} className="mt-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-[#0F172A] font-bold text-[11px] rounded-lg cursor-pointer">
           Try again
@@ -43,7 +43,7 @@ export const WalletPayBox: React.FC<WalletPayBoxProps> = ({ price, promoLine = n
     <div role="status" data-wallet-pay data-wallet-enough={enough ? 'yes' : 'no'} className="mb-5 max-w-sm space-y-2">
       <div className="inline-flex items-center gap-1.5 text-sm font-extrabold text-[#0F172A]">
         <Wallet className="w-4 h-4 text-[#15803D]" />
-        Your wallet: {rand0(state.available)}
+        Your credit: {rand0(state.available)}
       </div>
       {state.held > 0 && <p className="text-[11px] text-slate-500">{rand0(state.held)} is on hold for your other requests.</p>}
       {promoLine && <p data-promo-applied className="text-xs font-extrabold text-[#15803D]">{promoLine}</p>}

@@ -144,7 +144,7 @@ async function main() {
   const prices = code('src/components/PricesPage.tsx');
   check('booking: the quote is asked only on the wallet path', /usePromoQuote\(walletMode, price\)/.test(prices));
   check('booking: the wallet check, the button, the shortfall and the top-up suggestion all use the discounted price',
-    /payPrice = promo \? promo\.payRand : price/.test(prices) && /available >= payPrice/.test(prices) && /Pay \$\{rand0\(payPrice\)\} from your wallet/.test(prices) && /shortfall\(payPrice, wallet\.state\.available\)/.test(prices));
+    /payPrice = promo \? promo\.payRand : price/.test(prices) && /available >= payPrice/.test(prices) && /Pay \$\{rand0\(payPrice\)\} from your credit/.test(prices) && /shortfall\(payPrice, wallet\.state\.available\)/.test(prices));
   check('booking: the line is shown through the wallet box', /promoLine=\{promo \? promoQuoteLine\(promo\) : null\}/.test(prices));
   check('booking: the card path is untouched (the heading names the full price only)', /getCurrencySymbol\(selectedLevel\.currencyCode\)\}\$\{formatRate\(chargedAmount \?\? 0\)\}`/.test(prices));
   const hooks = code('src/lib/promoHooks.ts');

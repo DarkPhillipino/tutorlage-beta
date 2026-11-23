@@ -47,7 +47,7 @@ export const BankMainCheckout: React.FC<BankMainCheckoutProps> = ({
           disabled={isSending}
           className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
         >
-          {isSending ? 'Sending your request…' : `Pay ${rand0(price)} from your wallet`}
+          {isSending ? 'Sending your request…' : `Pay ${rand0(price)} from your credit`}
         </button>
       )}
       {cardSection !== null && (

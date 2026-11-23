@@ -133,8 +133,8 @@ function partBSections(text: string): Set<string> {
   check('terms: a change to the Terms is announced in the app and blocks nobody; carrying on means accepting it (CEO, 17 Oct 2026)',
     /notice in the app/.test(t) && /Nobody is signed out or stopped from using Tutorlage because of a change/.test(t) && /If you keep using Tutorlage after a change, you accept the new version/.test(t) && !/ask you to accept the new version the next time you sign in/.test(t));
   check('terms and privacy: a learner under 18\'s camera is never used (CEO, 17 Oct 2026)', /A learner under 18's camera is never used/.test(t) && /A learner under 18's camera is never used/.test(p));
-  check('terms: money is received into Tutorlage\'s bank account, held in the wallet, and the tutor\'s share is credited only when the session is complete (CEO wallet design, 2 Nov 2026)',
-    /Money you add is received into Tutorlage's business bank account/.test(t) && /the tutor's share is credited to the tutor's own Tutorlage wallet/.test(t) && /not credited to the tutor until the session is complete/.test(t)&& /held against that booking until the session/.test(t));
+  check('terms: money is received into Tutorlage\'s bank account, held as lesson credit, and the tutor\'s share is credited only when the session is complete (CEO wallet design, 2 Nov 2026)',
+    /Money you add is received into Tutorlage's business bank account/.test(t) && /the tutor's share is credited to the tutor's earnings/.test(t) && /not credited to the tutor until the session is complete/.test(t)&& /held against that booking until the session/.test(t));
   check('terms: SACE is optional and the police clearance is required (CEO, 14 Oct 2026)', /you \*\*may\*\* also give us your \*\*SACE certificate\*\*; you do not have to/.test(t) && /police clearance certificate\*\* issued in the last 6 months/.test(t));
   check('terms: keep or swap is described (the choice is the learner\'s after the first session)', /keep that tutor/.test(t) && /tutor is not told why/.test(t));
   check('terms: the video room is described, under 18s only in a booked session, never recorded', /video room/.test(t) && /only that/.test(t) && /never recorded/.test(t));
@@ -149,13 +149,16 @@ function partBSections(text: string): Set<string> {
   check('privacy: Cloudflare is named as carrying the video calls, with no recording', /Cloudflare\*\*[^\n]*relays video calls[^\n]*does not record or keep it/.test(p));
   check('privacy: every provider the product uses is listed', ['Supabase', 'Paystack', 'Cloudflare', 'Resend', 'GitHub', 'Google'].every((s) => p.includes(`**${s}**`)));
   check('refunds: the price is put on hold, goes straight back if nobody accepts, and refunds go into the wallet as credit (CEO wallet design, 2 Nov 2026)',
-    /put \*\*on hold\*\*/.test(r) && /goes straight back to your wallet/.test(r) && /into your Tutorlage wallet as credit/.test(r) && !/R1 check|back to the card you paid with/.test(r));
-  check('refunds: unused wallet money can be returned to the bank account on request, by hand', /send unused wallet money back by bank transfer, by hand/.test(r));
+    /put \*\*on hold\*\*/.test(r) && /goes straight back to your credit/.test(r) && /go \*\*back into your credit\*\*/.test(r) && !/R1 check|back to the card you paid with/.test(r));
+  check('refunds: unused credit is not paid out in cash on request while the account is open; money goes back to the bank account when a session was not delivered, the fault is ours or the law gives the right (lesson credit, 23 Nov 2026)',
+    /Unused credit is not paid out in cash on request while your account is open/.test(r) && /when the session was not delivered, when something went wrong that is our fault, or when the law gives you that right/.test(r) && /Your whole credit balance is then returned to you by bank transfer, by hand/.test(r) && !/wallet/i.test(r));
+  check('terms: the Lesson credit paragraph (prepaid, not a bank account or deposit, no interest, not transferable, recorded as money owed, 3 years, no cash out while open, returns, in full on closing) and no "wallet" anywhere (23 Nov 2026)',
+    /prepaid credit for tutoring sessions on Tutorlage/.test(t) && /not a bank account or a deposit/.test(t) && /it earns no interest/.test(t) && /cannot be transferred to another person/.test(t) && /record every rand of lesson credit as money we owe you, separate from our own income/.test(t) && /does not expire for at least three years/.test(t) && /we do not pay lesson credit out in cash on request/.test(t) && /in full when you close your account/.test(t) && !/wallet/i.test(t) && !/deposit|instant/i.test(r));
   check('refunds: the situations that are always refunded, the case-by-case rule and what is not refunded are all stated',
     /When we always refund in full/.test(r) && /Every other case: decided one by one/.test(r) && /no fixed cancellation window/.test(r) && /What we do not refund/.test(r));
   const dl = docs.delivery;
   check('delivery: a service, not goods; confirmed when a tutor accepts; online, joined from the sessions list; wallet top-ups usually within one business day',
-    /a \*\*service\*\*/.test(dl) && /no delivery fees/.test(dl) && /confirmed the moment a tutor accepts/.test(dl) && /Join session/.test(dl) && /usually within one business day/.test(dl));
+    /a \*\*service\*\*/.test(dl) && /no delivery fees/.test(dl) && /confirmed the moment a tutor accepts/.test(dl) && /Join session/.test(dl) && /usually within one business day/.test(dl) && !/wallet/i.test(dl) && !/wallet/i.test(p));
   check('refunds: an agreed refund is never left waiting more than 30 days', /never left waiting more than 30 days/.test(r));
 }
 

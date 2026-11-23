@@ -61,8 +61,8 @@ async function main() {
   check('every top-up state has plain words, and "not received" carries the CEO\'s comment',
     topupStatusLine({ status: 'awaiting_proof', comment: null, receivedRand: null, amountRand: 200 }) === 'Waiting for your proof of payment'
     && topupStatusLine({ status: 'proof_sent', comment: null, receivedRand: null, amountRand: 200 }) === 'Proof sent. A person is checking your transfer.'
-    && topupStatusLine({ status: 'successful', comment: null, receivedRand: 200, amountRand: 200 }) === 'Added to your wallet'
-    && topupStatusLine({ status: 'successful', comment: 'Short by R20', receivedRand: 180, amountRand: 200 }) === 'Added to your wallet: R180 received'
+    && topupStatusLine({ status: 'successful', comment: null, receivedRand: 200, amountRand: 200 }) === 'Added to your credit'
+    && topupStatusLine({ status: 'successful', comment: 'Short by R20', receivedRand: 180, amountRand: 200 }) === 'Added to your credit: R180 received'
     && topupStatusLine({ status: 'unsuccessful', comment: 'No payment with that reference', receivedRand: null, amountRand: 200 }) === 'Not received: No payment with that reference'
     && topupStatusLine({ status: 'cancelled', comment: null, receivedRand: null, amountRand: 200 }) === 'Cancelled');
   check('the ledger reads in words: hold, release (three reasons), charge, refund, top-up, tutor credit, payout lines, adjustment',
@@ -78,14 +78,14 @@ async function main() {
     && /Adjustment by Tutorlage: wrong reference/.test(ledgerLineText({ kind: 'adjustment', note: 'wrong reference' }, null, false)));
   check('the figure beside a ledger line is what moved: available, else the held money (a charge or a payout paid)', ledgerAmount({ availableDelta: -180, heldDelta: 180 }) === -180 && ledgerAmount({ availableDelta: 0, heldDelta: -180 }) === -180 && ledgerAmount({ availableDelta: 200, heldDelta: 0 }) === 200);
   const day = (iso: string) => `D(${iso})`;
-  check('payout states in words', /within one business day/.test(payoutStatusLine({ status: 'requested', paidOn: null, comment: null }, day)) && payoutStatusLine({ status: 'paid', paidOn: '2026-11-05', comment: null }, day) === 'Paid on D(2026-11-05)' && /Could not pay: no such account\. The money is back in your wallet/.test(payoutStatusLine({ status: 'could_not_pay', paidOn: null, comment: 'no such account' }, day)));
+  check('payout states in words', /within one business day/.test(payoutStatusLine({ status: 'requested', paidOn: null, comment: null }, day)) && payoutStatusLine({ status: 'paid', paidOn: '2026-11-05', comment: null }, day) === 'Paid on D(2026-11-05)' && /Could not pay: no such account\. The money is back in your credit/.test(payoutStatusLine({ status: 'could_not_pay', paidOn: null, comment: 'no such account' }, day)));
   check('"Coming: R360 from 2 sessions waiting to be completed" (and one session in the singular)', comingLine({ rand: 360, sessions: 2 }) === 'Coming: R360 from 2 sessions waiting to be completed' && comingLine({ rand: 180, sessions: 1 }) === 'Coming: R180 from 1 session waiting to be completed');
 
   // ---- money: whole rands, the shortfall, the split ----
   check('amounts read as whole rands', rand0(180) === 'R180' && rand0(0) === 'R0' && rand0(187.5) === 'R188' && rand0(-60) === '-R60');
   check('the price rounds like the database (nearest rand): 187.5 -> 188, 180 -> 180', walletPrice(187.5) === 188 && walletPrice(180) === 180 && walletPrice(149.4) === 149);
   check('shortfall: R180 with R120 -> R60; enough or more -> 0; an empty wallet -> the whole price', shortfall(180, 120) === 60 && shortfall(180, 180) === 0 && shortfall(180, 500) === 0 && shortfall(180, 0) === 180);
-  check('the shortfall sentence is the database\'s own wording', shortfallSentence(180, 120) === 'Your wallet has R120. This session is R180. Add R60 or more.' && shortfallSentence(180, 0) === 'Your wallet has R0. This session is R180. Add R180 or more.');
+  check('the shortfall sentence is the database\'s own wording', shortfallSentence(180, 120) === 'Your credit has R120. This session is R180. Add R60 or more.' && shortfallSentence(180, 0) === 'Your credit has R0. This session is R180. Add R180 or more.');
   let splitOk = true;
   for (const price of [90, 120, 150, 180, 187.5, 225, 270, 300, 420]) for (const pct of [12, 17.5, 20, 22.5, 30]) {
     const priceRand = Math.round(price);
@@ -179,8 +179,8 @@ async function main() {
   check('a bad file is refused BEFORE any upload', noUp.calls.length === 0);
 
   // ---- sending a request from the wallet ----
-  const refused = await sendRequestWallet('req-1', fake({ rpc: () => ({ data: null, error: { message: 'Your wallet has R120. This session is R180. Add R60 or more.', details: 'wallet_too_low', hint: '60' } }) }).db).then(() => null, (e) => e as WalletRefusal);
-  check('a wallet too small: the database\'s sentence and the missing rand reach the page', refused instanceof WalletRefusal && refused.message === 'Your wallet has R120. This session is R180. Add R60 or more.' && refused.shortRand === 60);
+  const refused = await sendRequestWallet('req-1', fake({ rpc: () => ({ data: null, error: { message: 'Your credit has R120. This session is R180. Add R60 or more.', details: 'wallet_too_low', hint: '60' } }) }).db).then(() => null, (e) => e as WalletRefusal);
+  check('a wallet too small: the database\'s sentence and the missing rand reach the page', refused instanceof WalletRefusal && refused.message === 'Your credit has R120. This session is R180. Add R60 or more.' && refused.shortRand === 60);
   const other = await sendRequestWallet('req-1', fake({ rpc: () => ({ data: null, error: { message: 'Wallet payments are not open.' } }) }).db).then(() => null, (e) => e as WalletRefusal);
   check('any other refusal passes its sentence on, with no missing amount', other instanceof WalletRefusal && other.message === 'Wallet payments are not open.' && other.shortRand === null);
   const sentCalls = fake({ rpc: () => ({ data: { mode: 'wallet' }, error: null }) });
@@ -207,7 +207,7 @@ async function main() {
   // ---- the screens, read as source ----
   const prices = code('src/components/PricesPage.tsx');
   check('the booking page asks whether the wallet is open and works only in rand', /useWalletOpenAnswer\(\)/.test(prices) && /const walletOpen = walletOpenAnswer === true/.test(prices) && /walletAvailable = walletOpen && !freeOpen && selectedLevel\?\.currencyCode\.trim\(\) === 'ZAR'/.test(prices));
-  check('enough in the wallet: the button reads "Pay R180 from your wallet"', /`Pay \$\{rand0\(payPrice\)\} from your wallet`/.test(prices) && /\{walletEnough && \(\s*<button\s*onClick=\{\(\) => handleSendRequest\(true\)\}/.test(prices) && /data-wallet-toggle/.test(prices) && /See more/.test(prices) && /useState\(false\)/.test(prices));
+  check('enough in the wallet: the button reads "Pay R180 from your credit"', /`Pay \$\{rand0\(payPrice\)\} from your credit`/.test(prices) && /\{walletEnough && \(\s*<button\s*onClick=\{\(\) => handleSendRequest\(true\)\}/.test(prices) && /data-wallet-toggle/.test(prices) && /See more/.test(prices) && /useState\(false\)/.test(prices));
   check('a wallet request is sent through send_request_wallet and returns BEFORE the card check; the free branch is still first', (() => {
     const free = prices.indexOf('await sendMyRequestFree(created.id)');
     const wal = prices.indexOf('await sendMyRequestWallet(created.id)');
@@ -215,16 +215,16 @@ async function main() {
     return free > 0 && wal > free && card > wal && /sendMyRequestWallet\(created\.id\);[\s\S]{0,160}return;/.test(prices);
   })());
   check('while the wallet is short the request is never created (the handler stops before createSessionRequest)', prices.indexOf('if (useWallet && !(walletMode && walletEnough)) return;') > 0 && prices.indexOf('if (useWallet && !(walletMode && walletEnough)) return;') < prices.indexOf('await createSessionRequest('));
-  check('short or empty: the box shows the shortfall sentence and "Add money" prefilled with what is missing', /WalletPayBox/.test(prices) && /suggestedRand=\{wallet\.state\.status === 'ready' \? shortfall\(payPrice, wallet\.state\.available\) : null\}/.test(prices) && /shortfallSentence\(price, state\.available\)/.test(code('src/components/WalletPayBox.tsx')) && /addLabel = 'Add money'/.test(code('src/components/WalletPayBox.tsx')) && />\s*\{addLabel\}\s*</.test(code('src/components/WalletPayBox.tsx')));
+  check('short or empty: the box shows the shortfall sentence and "Add credit" prefilled with what is missing', /WalletPayBox/.test(prices) && /suggestedRand=\{wallet\.state\.status === 'ready' \? shortfall\(payPrice, wallet\.state\.available\) : null\}/.test(prices) && /shortfallSentence\(price, state\.available\)/.test(code('src/components/WalletPayBox.tsx')) && /addLabel = 'Add credit'/.test(code('src/components/WalletPayBox.tsx')) && />\s*\{addLabel\}\s*</.test(code('src/components/WalletPayBox.tsx')));
   check('the card wording, the free wording and the "payments are not open" notice are still there, and the notice stays while the wallet is closed', /data-test-mode/.test(prices) && /FREE_FOR_NOW_NOTICE/.test(prices) && /PAYMENTS_NOT_OPEN && !freeOpen && \(/.test(prices) && /initializePayment/.test(prices));
   // Since the online top-up (Ozow, 9 Nov 2026) index.ts has two marked blocks and one import that mount the online-top-up routes; the rest of it must still not mention the wallet.
   const indexWithoutOnlineTopUps = read('server/index.ts').replace(/\/\/ --- ONLINE TOP-UPS: BEGIN[\s\S]*?\/\/ --- ONLINE TOP-UPS: END ---/g, '').replace(/^import .*walletOnline.*$/gm, '');
   check('the wallet does not touch the Paystack code or the Worker (except the marked online top-up wiring)', !/wallet/i.test(indexWithoutOnlineTopUps) && !/wallet/i.test(read('src/lib/payments.ts')) && !/wallet/i.test(read('src/components/PayoutAccountPanel.tsx')));
   const callback = code('src/pages/PaymentCallback.tsx');
   // (9 Nov 2026, the waiting screen: the address now also carries `&request=<id>`, which says only WHICH request to watch. Still no amount or any other word in it.)
-  check('the confirmation page for a wallet request needs no card check, says the price is on hold and puts no amount in the address (only the request id)', /searchParams\.get\('wallet'\) === '1'/.test(callback) && /on hold in your wallet/.test(callback) && !/wallet=1&(?!request=\$\{created\.id\}`)/.test(prices) && /payment\/callback\?wallet=1&request=\$\{created\.id\}`\)/.test(prices));
+  check('the confirmation page for a wallet request needs no card check, says the price is on hold and puts no amount in the address (only the request id)', /searchParams\.get\('wallet'\) === '1'/.test(callback) && /on hold in your credit/.test(callback) && !/wallet=1&(?!request=\$\{created\.id\}`)/.test(prices) && /payment\/callback\?wallet=1&request=\$\{created\.id\}`\)/.test(prices));
   const add = code('src/components/AddMoneyModal.tsx');
-  check('Add money: amount -> createTopup -> reference and bank details -> the proof; the proof is sent through sendProof; "send later" and "cancel this top-up" exist', /createTopup\(walletDb, parsed\.rand\)/.test(add) && /sendProof\(walletDb, payerId, topup\.topupId, file\)/.test(add) && /I will send the proof later/.test(add) && /cancelTopup\(walletDb/.test(add) && /WALLET_COPY\.proofSentLine/.test(add));
+  check('Add credit: amount -> createTopup -> reference and bank details -> the proof; the proof is sent through sendProof; "send later" and "cancel this top-up" exist', /createTopup\(walletDb, parsed\.rand\)/.test(add) && /sendProof\(walletDb, payerId, topup\.topupId, file\)/.test(add) && /I will send the proof later/.test(add) && /cancelTopup\(walletDb/.test(add) && /WALLET_COPY\.proofSentLine/.test(add));
   check('the file box takes PDF, JPG and PNG only', /accept="application\/pdf,image\/jpeg,image\/png,\.pdf,\.jpg,\.jpeg,\.png"/.test(add));
   const tutorPanel = code('src/components/TutorWalletPanel.tsx');
   check('the tutor sees Available, Coming, the four fields (account number write-only), "Transact" and the CEO\'s 24-hour message; one open request at a time', /comingLine\(coming\)/.test(tutorPanel) && /Transact/.test(tutorPanel) && /WALLET_COPY\.payoutSent\(sent\)/.test(tutorPanel) && /Account number/.test(tutorPanel) && /Branch code/.test(tutorPanel) && /Account holder/.test(tutorPanel) && /setForm\(EMPTY_FORM\)/.test(tutorPanel) && /canTransact = balance\.available > 0 && !!bank && !openPayout/.test(tutorPanel) && /\{!openPayout && \(\s*<button onClick=\{\(\) => setEditing\(true\)\}/.test(tutorPanel));

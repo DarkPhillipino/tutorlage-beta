@@ -20,6 +20,6 @@ export const CARD_CLOSED_COPY = {
   loading: 'Loading your payment options…',
   // When the wallet is not open for this request either (another currency, or the wallet switched off): nothing can be paid yet.
   nothingOpen: 'Payments are not open yet. Booking opens soon.',
-  walletHeading: 'Pay from your Tutorlage wallet',
-  walletHow: 'Add money to your wallet by bank transfer. Once your top-up is confirmed, you can send your request from the wallet.',
+  walletHeading: 'Pay from your credit',
+  walletHow: 'Add lesson credit by bank transfer. Once your top-up is confirmed, you can send your request from the credit.',
 } as const;

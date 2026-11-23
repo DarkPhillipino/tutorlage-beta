@@ -222,7 +222,7 @@ export const WATCH_COPY = {
   confirmingBody: 'We are finishing your booking. This page will show it in a moment.',
   waitingLead: 'Your request is sent. This page updates by itself when a tutor accepts, so you can leave it open.',
   // One line per way of paying.
-  waitingWallet: 'The price is on hold in your wallet. If nobody accepts in time, it goes straight back.',
+  waitingWallet: 'The price is on hold in your credit. If nobody accepts in time, it goes straight back.',
   waitingFree: `${FREE_FOR_NOW_NOTICE} If nobody accepts in time, the request ends.`,
   waitingCard: 'Your request is waiting for a tutor to accept it.',
   bookedTitle: 'Your session is booked',
@@ -264,7 +264,7 @@ export function detailsLine(subjectName: string | null, start: string, hours: nu
 
 // "Your R240 is back in your wallet." for a wallet request; otherwise nothing was charged.
 export function moneyBackSentence(request: WatchRequest): string {
-  return request.paidFromWallet && request.holdRand ? `Your ${rand0(request.holdRand)} is back in your wallet.` : 'You were not charged.';
+  return request.paidFromWallet && request.holdRand ? `Your ${rand0(request.holdRand)} is back in your credit.` : 'You were not charged.';
 }
 
 export function endedTitle(why: EndedWhy): string {
@@ -281,7 +281,7 @@ export function sessionOverSentence(view: Extract<WatchView, { kind: 'session_ov
   if (view.why === 'completed') return WATCH_COPY.sessionDoneBody;
   const lead = view.why === 'cancelled_by_tutor' ? 'Your tutor cancelled this session.' : 'This session was cancelled.';
   const m = payModeOf(view.request, mode);
-  if (m === 'wallet' && view.request.holdRand) return `${lead} Your ${rand0(view.request.holdRand)} went back into your wallet as credit.`;
+  if (m === 'wallet' && view.request.holdRand) return `${lead} Your ${rand0(view.request.holdRand)} went back into your credit.`;
   if (m === 'free') return `${lead} It was free, so nothing was charged.`;
   return `${lead} Your payment is refunded in full.`;
 }

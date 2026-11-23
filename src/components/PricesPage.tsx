@@ -402,7 +402,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
 
       window.location.href = authorizationUrl;
     } catch (e) {
-      setSendError(getErrorMessage(e, useWallet ? 'Could not send your request from your wallet.' : 'Could not start the card check.'));
+      setSendError(getErrorMessage(e, useWallet ? 'Could not send your request from your credit.' : 'Could not start the card check.'));
       // The wallet changed under us (money spent elsewhere): read it again so the page shows the real shortfall.
       if (e instanceof WalletRefusal) wallet.reload();
       sendingRef.current = false;
@@ -820,7 +820,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                               disabled={isSending}
                               className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
                             >
-                              {isSending ? 'Sending your request…' : `Pay ${rand0(payPrice)} from your wallet`}
+                              {isSending ? 'Sending your request…' : `Pay ${rand0(payPrice)} from your credit`}
                             </button>
                           )}
                         </div>
@@ -880,7 +880,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                                 disabled={isSending}
                                 className="px-6 py-3 bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer"
                               >
-                                {isSending ? 'Sending your request…' : `Pay ${rand0(payPrice)} from your wallet`}
+                                {isSending ? 'Sending your request…' : `Pay ${rand0(payPrice)} from your credit`}
                               </button>
                             )}
                           </div>

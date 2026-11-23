@@ -41,7 +41,7 @@ async function decisionTests() {
   const none = await cardCheckoutDecision(dbWith(true), null);
   const before = calls.length;
   check('1e. no person is a refusal and the database is not even asked', none.allowed === false && none.status === 403 && calls.length === before);
-  check('1f. the words said to a refused person name no provider and no test', !/paystack|test|card check/i.test(CARD_NOT_OPEN_MESSAGE) && /wallet/i.test(CARD_NOT_OPEN_MESSAGE));
+  check('1f. the words said to a refused person name no provider and no test', !/paystack|test|card check/i.test(CARD_NOT_OPEN_MESSAGE) && /lesson credit/i.test(CARD_NOT_OPEN_MESSAGE) && !/wallet/i.test(CARD_NOT_OPEN_MESSAGE));
 }
 
 // ---- 2. the booking page's question -------------------------------------------------------------------------------------------------------------

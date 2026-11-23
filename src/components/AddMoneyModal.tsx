@@ -254,11 +254,11 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
         className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Add money to your wallet"
+        aria-label="Add lesson credit"
         data-add-money
       >
         <div className="p-5 bg-[#0A192F] text-white flex items-center justify-between sticky top-0">
-          <h3 className="text-lg font-extrabold tracking-tight">Add money</h3>
+          <h3 className="text-lg font-extrabold tracking-tight">Add lesson credit</h3>
           <button onClick={onClose} aria-label="Close" className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer">
             <X className="w-5 h-5" />
           </button>
@@ -282,7 +282,7 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
                   </p>
                 ) : (
                   <p className="text-xs text-slate-600">
-                    You add money by bank transfer. Choose how much, from {rand0(details.minRand)} to {rand0(details.maxRand)}. We then show you where to pay and the reference to use.
+                    You add lesson credit by bank transfer. Choose how much, from {rand0(details.minRand)} to {rand0(details.maxRand)}. We then show you where to pay and the reference to use.
                   </p>
                 )}
                 <label className="block">
@@ -305,7 +305,7 @@ export const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ isOpen, onClose, p
           ) : step === 'method' ? (
             <>
               <p className="text-xs text-slate-600">
-                Adding <span className="font-bold text-[#0F172A]">{rand0(chosenRand)}</span> to your wallet. {ONLINE_COPY.chooseHeading}
+                Adding <span className="font-bold text-[#0F172A]">{rand0(chosenRand)}</span> to your lesson credit. {ONLINE_COPY.chooseHeading}
               </p>
               <div className="space-y-2" role="group" aria-label={ONLINE_COPY.chooseHeading}>
                 <button

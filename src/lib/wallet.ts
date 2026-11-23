@@ -28,28 +28,28 @@ export const WALLET_COPY = {
   // The waiting time now lives in ONE place, the pilot notice (topup_pilot_notice, 6 hours by default; src/lib/topupNotice.ts), so no second time is promised here.
   proofSentLine: 'If it is taking too long, please contact support by clicking the Help button at the top of the page.',
   proofSentUsually: 'Proof sent. A person is checking your transfer.',
-  moneyIsForLessons: 'Money in your wallet is for lessons. To take it out, contact support.',
+  moneyIsForLessons: 'Credit is for lessons. If something went wrong with a session, contact support.',
   uploadHelp: 'After you pay, upload the proof of payment your bank gives you (PDF, JPG or PNG, up to 5 MB). Send the bank\'s proof as it is, and nothing else.',
   bankIntro: 'Pay this amount from your banking app. Use the reference exactly as shown, so we can find your payment.',
   // A top-up paid on the bank's own page (pay by bank, instant; src/lib/walletOnline.ts). The stored comment is never shown for these.
   onlineWaiting: 'Waiting for your bank',
-  onlinePaid: 'Paid by bank and added to your wallet',
-  onlineNotCompleted: 'The payment did not go through. Nothing was added to your wallet.',
-  onlineCancelled: 'Cancelled. Nothing was added to your wallet.',
+  onlinePaid: 'Paid by bank and added to your credit',
+  onlineNotCompleted: 'The payment did not go through. Nothing was added to your credit.',
+  onlineCancelled: 'Cancelled. Nothing was added to your credit.',
   // The CEO's wording for the tutor (the database's own notice says the same).
   payoutSent: (rand: number) => `Your request was sent. You could receive ${rand0(rand)} within one business day. If you do not, contact support with the Help button at the top of the page.`,
   payoutOpenNote: 'Your payout request is waiting to be paid. You can ask again, and change your bank details, once it is paid.',
   accountNumberNote: 'We keep your full account number private: only the last four digits are shown after you save it.',
-  heldOnRequest: 'The price is put on hold in your wallet. If nobody accepts in time, or the tutor cannot take it, it goes straight back.',
-  walletRandOnly: 'The wallet can only pay for requests in rand (ZAR).',
+  heldOnRequest: 'The price is put on hold in your credit. If nobody accepts in time, or the tutor cannot take it, it goes straight back.',
+  walletRandOnly: 'The credit can only pay for requests in rand (ZAR).',
   // A request or session paid from a wallet, on the lists.
-  waitingNote: 'Your request is waiting for a tutor to accept it. The price is on hold in your wallet. If nobody accepts in time it ends, and the money goes straight back.',
-  sessionBadge: 'Paid from your wallet',
-  cancelNote: 'Cancel this session? The payment goes back into your wallet as credit.',
-  cancelRequestNote: 'Cancel this request? The price on hold goes straight back into your wallet.',
-  tutorQueueNote: "Paid from the learner's wallet. Your share goes into your wallet when the session is complete.",
-  tutorSessionNote: "Paid from the learner's wallet. Your share goes into your wallet when you mark the session complete (or 48 hours after it ends).",
-  tutorCancelNote: "Cancel this session? The learner's payment goes back into their wallet as credit.",
+  waitingNote: 'Your request is waiting for a tutor to accept it. The price is on hold in your credit. If nobody accepts in time it ends, and the money goes straight back.',
+  sessionBadge: 'Paid from your credit',
+  cancelNote: 'Cancel this session? The payment goes back into your credit.',
+  cancelRequestNote: 'Cancel this request? The price on hold goes straight back into your credit.',
+  tutorQueueNote: "Paid from the learner's credit. Your share goes into your earnings when the session is complete.",
+  tutorSessionNote: "Paid from the learner's credit. Your share goes into your earnings when you mark the session complete (or 48 hours after it ends).",
+  tutorCancelNote: "Cancel this session? The learner's payment goes back into their credit.",
 } as const;
 
 export const TOPUP_PROOF_MAX_BYTES = 5 * 1024 * 1024;
@@ -73,7 +73,7 @@ export function shortfall(price: number, available: number): number {
 
 // The same sentence the database gives when a hold is refused (send_request_wallet), so the page can say it before the request exists.
 export function shortfallSentence(price: number, available: number): string {
-  return `Your wallet has ${rand0(available)}. This session is ${rand0(price)}. Add ${rand0(shortfall(price, available))} or more.`;
+  return `Your credit has ${rand0(available)}. This session is ${rand0(price)}. Add ${rand0(shortfall(price, available))} or more.`;
 }
 
 // The tutor's share of a wallet session as the database books it: whole-rand commission, the tutor gets the rest. `cardTutorPayout` is what
@@ -305,7 +305,7 @@ export async function sendRequestWallet(requestId: string, db: WalletClient): Pr
   const { error } = await db.rpc('send_request_wallet', { p_request_id: requestId });
   if (!error) return;
   const missing = error.details === 'wallet_too_low' ? Number(error.hint) : NaN;
-  throw new WalletRefusal(error.message ?? 'Could not send the request from your wallet.', Number.isFinite(missing) ? missing : null);
+  throw new WalletRefusal(error.message ?? 'Could not send the request from your credit.', Number.isFinite(missing) ? missing : null);
 }
 
 // ---- adding money ------------------------------------------------------------------------------------------------------------------------------
@@ -387,7 +387,7 @@ export function topupStatusLine(t: Pick<Topup, 'status' | 'comment' | 'receivedR
     case 'awaiting_payment': return WALLET_COPY.onlineWaiting;
     case 'awaiting_proof': return 'Waiting for your proof of payment';
     case 'proof_sent': return WALLET_COPY.proofSentUsually;
-    case 'successful': return t.receivedRand != null && t.receivedRand !== t.amountRand ? `Added to your wallet: ${rand0(t.receivedRand)} received` : 'Added to your wallet';
+    case 'successful': return t.receivedRand != null && t.receivedRand !== t.amountRand ? `Added to your credit: ${rand0(t.receivedRand)} received` : 'Added to your credit';
     case 'unsuccessful': return `Not received${t.comment ? `: ${t.comment}` : ''}`;
     case 'cancelled': return 'Cancelled';
     default: return '';
@@ -414,7 +414,7 @@ export function ledgerLineText(line: Pick<LedgerLine, 'kind' | 'note'>, subject:
     case 'refund_reversal': return /referral bonus/i.test(line.note ?? '') ? 'Bonus taken back: a family was refunded for a lesson' : 'Taken back: the learner was refunded for a session';
     case 'payout_hold': return 'Payout requested';
     case 'payout_paid': return 'Payout paid';
-    case 'payout_release': return 'Payout could not be paid: the money is back in your wallet';
+    case 'payout_release': return 'Payout could not be paid: the money is back in your credit';
     case 'adjustment': return `Adjustment by Tutorlage${line.note ? `: ${line.note}` : ''}`;
     default: return '';
   }
@@ -494,7 +494,7 @@ export function payoutStatusLine(p: Pick<Payout, 'status' | 'paidOn' | 'comment'
   switch (p.status) {
     case 'requested': return 'Requested: you could receive it within one business day';
     case 'paid': return p.paidOn ? `Paid on ${formatDay(p.paidOn)}` : 'Paid';
-    case 'could_not_pay': return `Could not pay${p.comment ? `: ${p.comment}` : ''}. The money is back in your wallet.`;
+    case 'could_not_pay': return `Could not pay${p.comment ? `: ${p.comment}` : ''}. The money is back in your credit.`;
     default: return '';
   }
 }

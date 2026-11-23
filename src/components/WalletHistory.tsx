@@ -13,7 +13,7 @@ interface WalletHistoryProps {
 // The wallet's history from the ledger, newest first, in words ("On hold for your Maths request", "Refund: session cancelled").
 export const WalletHistory: React.FC<WalletHistoryProps> = ({ lines, requestSubjects, sessionSubjects, tutorView }) => {
   if (lines.length === 0) {
-    return <p className="text-xs text-slate-500">Nothing has happened in your wallet yet.</p>;
+    return <p className="text-xs text-slate-500">Nothing has happened in your credit yet.</p>;
   }
   return (
     <ul className="space-y-1.5" data-wallet-history>

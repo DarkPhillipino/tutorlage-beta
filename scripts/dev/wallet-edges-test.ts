@@ -114,14 +114,14 @@ async function main() {
     check('a tutor is not told the balance twice (it is already in "you are owed"); only an open payout request is mentioned', walletNotes(w, 'tutor').length === 0
       && walletNotes(parseClosureWallet({ ...WALLET, open_payout_rand: 120 }), 'tutor').join('') === CLOSE_COPY.walletPayoutOpen('R120') && walletNotes(null, 'student').length === 0);
     const hLearner = view(acct('student', WALLET));
-    check('the screen shows the wallet sentences for a learner, in amber notes', /Your wallet holds R500\./.test(hLearner) && /bank transfer of R150 that we have not confirmed/.test(hLearner) && (renderRoot(RootReact.createElement(CloseAccountView, {
+    check('the screen shows the wallet sentences for a learner, in amber notes', /Your credit holds R500\./.test(hLearner) && /bank transfer of R150 that we have not confirmed/.test(hLearner) && (renderRoot(RootReact.createElement(CloseAccountView, {
       stage: 'preview', subject: 'self', preview: parseClosurePreview(preview(acct('student', WALLET))), needsPassword: true, word: '', password: '', error: null,
       onWord: () => {}, onPassword: () => {}, onContinue: () => {}, onBack: () => {}, onConfirm: () => {}, onCancel: () => {},
     })).match(/data-wallet-note/g) ?? []).length === 2);
     const hNone = view(acct('student', undefined));
     check('nothing is drawn about a wallet for someone who has none', !/wallet/i.test(hNone));
     const hTutor = view(acct('tutor', { ...WALLET, available_rand: 20, held_rand: 120, open_payout_rand: 120 }, 140));
-    check('a tutor sees "you are owed R140" (the wallet is counted) and that the payout request stays open', /You are owed R140/.test(hTutor) && /Your payout request of R120 stays open/.test(hTutor) && !/Your wallet holds/.test(hTutor), hTutor.slice(0, 300));
+    check('a tutor sees "you are owed R140" (the wallet is counted) and that the payout request stays open', /You are owed R140/.test(hTutor) && /Your payout request of R120 stays open/.test(hTutor) && !/Your credit holds/.test(hTutor), hTutor.slice(0, 300));
     check('the new closing sentences are plain: no "ledger", "held" or "idempotency"', ![CLOSE_COPY.walletBalance('R1'), CLOSE_COPY.walletPayoutOpen('R1'), CLOSE_COPY.walletUnconfirmed('R1')].some((s) => /ledger|held|idempoten|database/i.test(s)));
     const src = code('src/lib/closeAccount.ts') + code('src/components/CloseAccountView.tsx');
     check('the closing screen reads the wallet only from preview_account_closure (no table read, no new rpc)', !/from\('wallet/.test(src) && (src.match(/rpc\('/g) ?? []).length === 2);

@@ -66,10 +66,10 @@ const topupRow = (over: Partial<Topup> = {}): Topup => ({
 
 async function main() {
   // ---- the two names, the words ----
-  check('the two ways to pay are named "Pay by bank, instant" and "Bank transfer, checked by a person"', ONLINE_COPY.onlineTitle === 'Pay by bank, instant' && ONLINE_COPY.manualTitle === 'Bank transfer, checked by a person');
+  check('the two ways to pay are named "Pay by bank" and "Bank transfer, checked by a person"', ONLINE_COPY.onlineTitle === 'Pay by bank' && ONLINE_COPY.manualTitle === 'Bank transfer, checked by a person');
   check('the return page words: "Checking your payment", and after a minute "Still waiting. We will tell you here and in your bell the moment it arrives."',
     ONLINE_COPY.checkingTitle === 'Checking your payment' && ONLINE_COPY.waitingBody === 'Still waiting. We will tell you here and in your bell the moment it arrives.' && ONLINE_COPY.checkNow === 'Check now');
-  check('a paid payment says so in rand with the usual format (no spaces, no cents)', paidTitle === 'Payment received' && paidBody(200) === 'R200 has been added to your wallet.' && paidBody(1250) === 'R1250 has been added to your wallet.');
+  check('a paid payment says so in rand with the usual format (no spaces, no cents)', paidTitle === 'Payment received' && paidBody(200) === 'R200 has been added to your credit.' && paidBody(1250) === 'R1250 has been added to your credit.');
   const allWords = [...Object.values(ONLINE_COPY), WALLET_COPY.onlineWaiting, WALLET_COPY.onlinePaid, WALLET_COPY.onlineNotCompleted, WALLET_COPY.onlineCancelled, paidTitle, paidBody(200)].join(' | ');
   check('no word offers "free" lessons or sessions', !/\bfree\b/i.test(allWords));
   check('no processor, bank or technical name in any word the person sees', !/ozow|paystack|payfast|yoco|peach|stitch|svix|webhook|token|\bAPI\b|http|json|\bnull\b|undefined|awaiting_payment/i.test(allWords), allWords.match(/ozow|paystack|webhook|token|http/i)?.[0]);
@@ -164,12 +164,12 @@ async function main() {
 
   // ---- the lines on the wallet page ----
   const line = (status: Topup['status'], method: Topup['method'] = 'online', comment: string | null = null) => topupStatusLine({ status, method, comment, receivedRand: status === 'successful' ? 200 : null, amountRand: 200 });
-  check('an online top-up reads "Waiting for your bank", "Paid by bank and added to your wallet", "The payment did not go through...", "Cancelled..."',
-    line('awaiting_payment') === 'Waiting for your bank' && line('successful') === 'Paid by bank and added to your wallet' && line('unsuccessful') === 'The payment did not go through. Nothing was added to your wallet.' && line('cancelled') === 'Cancelled. Nothing was added to your wallet.');
+  check('an online top-up reads "Waiting for your bank", "Paid by bank and added to your credit", "The payment did not go through...", "Cancelled..."',
+    line('awaiting_payment') === 'Waiting for your bank' && line('successful') === 'Paid by bank and added to your credit' && line('unsuccessful') === 'The payment did not go through. Nothing was added to your credit.' && line('cancelled') === 'Cancelled. Nothing was added to your credit.');
   check('the stored comment (for our records) is never shown for an online top-up', !/INTERNAL/i.test(line('unsuccessful', 'online', 'INTERNAL: provider said X')) && !/INTERNAL/i.test(line('cancelled', 'online', 'INTERNAL')));
   check('no raw status or code reaches the lines', !/awaiting_payment|unsuccessful|_|online/.test(['awaiting_payment', 'successful', 'unsuccessful', 'cancelled'].map((s) => line(s as Topup['status'])).join(' ')));
   check('the bank-transfer lines are exactly as before', topupStatusLine({ status: 'awaiting_proof', comment: null, receivedRand: null, amountRand: 200 }) === 'Waiting for your proof of payment'
-    && line('unsuccessful', 'eft', 'No payment with that reference') === 'Not received: No payment with that reference' && line('successful', 'eft') === 'Added to your wallet');
+    && line('unsuccessful', 'eft', 'No payment with that reference') === 'Not received: No payment with that reference' && line('successful', 'eft') === 'Added to your credit');
 
   // ---- what the return page says ----
   const v = (row: Topup | null | undefined, elapsed: number): ReturnView => decideReturn(row, elapsed);
@@ -234,10 +234,10 @@ async function main() {
 
   // ---- the screens ----
   const modal = code('src/components/AddMoneyModal.tsx');
-  check('Add money asks for the details and the choice TOGETHER when it opens, and never offers the choice to someone finishing a waiting transfer', /Promise\.all\(\[fetchPaymentDetails\(walletDb\), resume \? Promise\.resolve\(false\) : fetchOnlineAvailable\(walletDb\)\]\)/.test(modal) && /setOnlineAvailable\(!!d && online\)/.test(modal));
+  check('Add credit asks for the details and the choice TOGETHER when it opens, and never offers the choice to someone finishing a waiting transfer', /Promise\.all\(\[fetchPaymentDetails\(walletDb\), resume \? Promise\.resolve\(false\) : fetchOnlineAvailable\(walletDb\)\]\)/.test(modal) && /setOnlineAvailable\(!!d && online\)/.test(modal));
   check('without the choice the amount goes straight to the bank transfer, exactly as before (createTopup, same words)', /if \(onlineAvailable\) \{[\s\S]{0,200}setStep\('method'\);[\s\S]{0,40}return;[\s\S]{0,20}\}\s*void run\(async \(\) => \{\s*const created = await createTopup\(walletDb, parsed\.rand\);/.test(modal)
-    && modal.includes('You add money by bank transfer. Choose how much, from {rand0(details.minRand)} to {rand0(details.maxRand)}. We then show you where to pay and the reference to use.'));
-  check('"Bank transfer, checked by a person" makes the usual top-up (createTopup) and goes to the bank details and the proof; "Pay by bank, instant" makes the online top-up, asks the Worker and goes to the bank',
+    && modal.includes('You add lesson credit by bank transfer. Choose how much, from {rand0(details.minRand)} to {rand0(details.maxRand)}. We then show you where to pay and the reference to use.'));
+  check('"Bank transfer, checked by a person" makes the usual top-up (createTopup) and goes to the bank details and the proof; "Pay by bank" makes the online top-up, asks the Worker and goes to the bank',
     /createTopup\(walletDb, chosenRand\)/.test(modal) && /createOnlineTopup\(walletDb, rand\)/.test(modal) && /payByBankFor\(chosenRand\)/.test(modal) && /startOnlinePayment\(onlineRequest, created\.topupId\)/.test(modal) && /goToBankPage\(started\.redirectUrl\)/.test(modal)
     && /ONLINE_COPY\.onlineTitle/.test(modal) && /ONLINE_COPY\.manualTitle/.test(modal));
   check('a payment that failed to start is tried again on the same top-up, unless the Worker closed it; "Pay by bank transfer instead" is always there', /onlineTopup \?\? \(await createOnlineTopup/.test(modal) && /if \(started\.rowClosed\) setOnlineTopup\(null\)/.test(modal) && /handleChooseTransfer/.test(modal));
@@ -250,7 +250,7 @@ async function main() {
   check('no screen text names a processor or offers anything "free"', !/ozow|payfast|yoco|peach payments|stitch/i.test(screens) && !/'[^']*\bfree\b[^']*'|"[^"]*\bfree\b[^"]*"|`[^`]*\bfree\b[^`]*`/i.test(code('src/pages/TopupReturn.tsx') + code('src/components/OnlineTopupActions.tsx') + code('src/lib/walletOnline.ts')));
   check('the wallet-open check stays: the online lines add no new way in (the wallet page still needs useWalletVisible / useWalletOpen)', /useWalletOpen\(\)/.test(page) && /walletOpen && \(\s*<button/.test(page));
   const app = code('src/App.tsx');
-  check('"Go to your wallet" arrives as /?view=wallet: the app opens the wallet once and drops the word from the address', /params\.get\('view'\) !== 'wallet'/.test(app) && /params\.delete\('view'\)/.test(app) && /replaceState/.test(app) && /openWalletPage\(\);/.test(app));
+  check('"Go to your credit" arrives as /?view=wallet: the app opens the wallet once and drops the word from the address', /params\.get\('view'\) !== 'wallet'/.test(app) && /params\.delete\('view'\)/.test(app) && /replaceState/.test(app) && /openWalletPage\(\);/.test(app));
   const main = code('src/main.tsx');
   const meta = code('src/lib/pageMeta.ts');
   check('the return page has its route and its row in the page table (not indexed)', /path="\/wallet\/topup-return" element=\{<TopupReturn \/>\}/.test(main) && /path: '\/wallet\/topup-return'[^}]*index: false/.test(meta));
@@ -283,7 +283,7 @@ async function main() {
   check('decideMainWay: only an exact true and a real environment lead with the bank', decideMainWay(true, { provider: 'ozow', test: false }).bankIsMain === true && decideMainWay(false, { provider: 'ozow', test: true }).bankIsMain === false && decideMainWay(true, null).bankIsMain === false && decideMainWay('yes' as unknown as boolean, { provider: 'ozow', test: true }).bankIsMain === false);
   // the Test mode note
   const note = onlineTestNote('ozow');
-  check('the test note says it is test mode, the demo login, that no real money is taken and that the wallet money is pretend; the provider name comes from the Worker', /^Test mode: you will pay on Ozow's practice bank page with the demo login\. No real money is taken, and the money added to your wallet is pretend money\.$/.test(note));
+  check('the test note says it is test mode, the demo login, that no real money is taken and that the lesson credit is pretend; the provider name comes from the Worker', /^Test mode: you will pay on Ozow's practice bank page with the demo login\. No real money is taken, and the money added to your credit is pretend money\.$/.test(note));
   check('a provider word that is not a plain lower-case name never reaches the screen (the note says "the bank\'s")', onlineTestNote('<b>x</b>').includes("the bank's practice bank page") && !onlineTestNote('<b>x</b>').includes('<') && onlineTestNote('').includes("the bank's"));
   check('the new words name no processor and offer nothing "free"', !/ozow|paystack|webhook|token|http/i.test(`${ONLINE_COPY.addByBank} ${ONLINE_COPY.cardInstead}`) && !/\bfree\b/i.test(`${note} ${ONLINE_COPY.addByBank} ${ONLINE_COPY.cardInstead}`));
   // the files
@@ -292,16 +292,16 @@ async function main() {
   const libCode = code('src/lib/walletOnline.ts');
   check('the environment question reads nothing about a person and writes nothing (no rpc other than the two, no insert or update)', !/online-environment[\s\S]{0,400}\.(insert|update|upsert|delete)\(/.test(libCode) && /'\/api\/wallet\/online-environment'/.test(libCode));
   const pricesSrc = code('src/components/PricesPage.tsx');
-  check('the booking page leads with the bank only through useBankMainWay (walletAvailable, then the database, then the Worker); the wallet opens by itself then, and Add money goes straight to the bank',
+  check('the booking page leads with the bank only through useBankMainWay (walletAvailable, then the database, then the Worker); the wallet opens by itself then, and Add credit goes straight to the bank',
     /const bank = useBankMainWay\(walletAvailable\);/.test(pricesSrc) && /const bankMain = walletAvailable && bank\.bankIsMain;/.test(pricesSrc) && /const walletMode = walletAvailable && \(showWallet \|\| bankMain \|\| cardClosed\);/.test(pricesSrc) && /preferOnline=\{bankMain\}/.test(pricesSrc));
   check('the card is kept: with the bank leading it sits under "Pay with a card instead" with its own Paystack test note, the not-open notice and its button; with the bank not leading the page is as before',
     /cardSection=\{<>\{cardNote\}\{notOpenNotice\}\{cardButton\}<\/>\}/.test(pricesSrc) && /\) : \(<>\{cardNote\}<\/>\)\}\s*\{staleNote\}\s*\{notOpenNotice\}\s*\{cardButton\}/.test(pricesSrc));
   check('the bank test note comes from the Worker alone: it is rendered only under {test && ...} with onlineTestNote(provider), and no screen file types the sentence', /\{test && \(\s*<p data-test-mode-bank[\s\S]{0,200}\{onlineTestNote\(provider\)\}/.test(code('src/components/BankMainCheckout.tsx')) && !/practice bank page/.test(code('src/components/BankMainCheckout.tsx') + pricesSrc + code('src/components/AddMoneyModal.tsx')) && /test=\{bank\.test\}/.test(pricesSrc));
   check('the Paystack test note is still only the card\'s, and is not shown beside the bank\'s note', /const cardNote = \(\s*<p data-test-mode[\s\S]{0,200}Test mode: use a Paystack test card\. No real money is taken\./.test(pricesSrc) && !/data-test-mode[\s\S]{0,40}onlineTestNote/.test(pricesSrc));
   const bankMainSrc = code('src/components/BankMainCheckout.tsx');
-  check('with the bank leading: enough in the wallet gives "Pay R... from your wallet", too little gives the shortfall and "Add money by bank", and the card is folded (aria-expanded, closed to start with)', /Pay \$\{rand0\(price\)\} from your wallet/.test(bankMainSrc) && /addLabel=\{ONLINE_COPY\.addByBank\}/.test(bankMainSrc) && /useState\(false\)/.test(bankMainSrc) && /aria-expanded=\{showCard\}/.test(bankMainSrc) && /ONLINE_COPY\.cardInstead/.test(bankMainSrc));
+  check('with the bank leading: enough in the wallet gives "Pay R... from your credit", too little gives the shortfall and "Add credit by bank", and the card is folded (aria-expanded, closed to start with)', /Pay \$\{rand0\(price\)\} from your credit/.test(bankMainSrc) && /addLabel=\{ONLINE_COPY\.addByBank\}/.test(bankMainSrc) && /useState\(false\)/.test(bankMainSrc) && /aria-expanded=\{showCard\}/.test(bankMainSrc) && /ONLINE_COPY\.cardInstead/.test(bankMainSrc));
   const modalSrc = code('src/components/AddMoneyModal.tsx');
-  check('Add money with preferOnline opens the bank at once for the chosen amount, with the "How would you like to pay?" step on screen so a failure shows the message and the transfer; it does nothing different unless the choice is open for this person',
+  check('Add credit with preferOnline opens the bank at once for the chosen amount, with the "How would you like to pay?" step on screen so a failure shows the message and the transfer; it does nothing different unless the choice is open for this person',
     /preferOnline = false/.test(modalSrc) && /if \(onlineAvailable\) \{[\s\S]{0,260}if \(preferOnline\) payByBankFor\(parsed\.rand\);[\s\S]{0,60}setStep\('method'\);/.test(modalSrc));
   check('the new files use no processor name and nothing "free" in anything a person sees', !/ozow|paystack(?! test card)|payfast|yoco/i.test(bankMainSrc.replace(/console\.[a-z]+\([^)]*\)/g, '')) && !/\bfree\b/i.test(bankMainSrc));
 

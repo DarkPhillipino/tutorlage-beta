@@ -168,7 +168,7 @@ export function RequestWatchCard({ view, mode, stopped, lookFailed, busy, onRefr
           <Facts
             rows={[
               ['Lesson', detailsLine(request.subjectName, request.requestedStart, request.durationHours)],
-              ...(payMode === 'wallet' && price ? ([['On hold in your wallet', price]] as Array<[string, string]>) : []),
+              ...(payMode === 'wallet' && price ? ([['On hold in your credit', price]] as Array<[string, string]>) : []),
             ]}
           />
           <p className="text-xs text-slate-700 mb-5">{waitingLine(payMode)}</p>

@@ -2,7 +2,7 @@
 > - Tutorlage supplies a **service**: online tutoring sessions. There is nothing to post, no courier and no delivery fee.
 > - A session takes place online at the time you booked, in Tutorlage's own video room or through a meeting link your tutor adds.
 > - Your booking is confirmed when a tutor accepts. If no tutor accepts, nothing is booked and you pay nothing.
-> - Money you add to your wallet is credited once we have confirmed your bank transfer, usually within one business day.
+> - Lesson credit you add is credited once we have confirmed your bank transfer, usually within one business day.
 
 ## 1. What we deliver
 
@@ -11,10 +11,10 @@
 
 ## 2. When your booking is confirmed
 
-1. You choose a subject, grade, date, time and price level and send a request. The price is put on hold in your wallet.
+1. You choose a subject, grade, date, time and price level and send a request. The price is put on hold in your credit.
 2. The request goes to approved tutors who teach that subject and grade. It stays open for up to 48 hours, or until 30 minutes after the start time you asked for, whichever comes first.
 3. **Your booking is confirmed the moment a tutor accepts.** You are told on screen, in your sessions list and in the bell at the top of the page.
-4. If no tutor accepts in time, the request expires, nothing is booked, and the held price goes straight back to your wallet.
+4. If no tutor accepts in time, the request expires, nothing is booked, and the held price goes straight back to your credit.
 
 ## 3. How a session is delivered
 
@@ -27,20 +27,20 @@
 
 ## 4. If a session is not delivered
 
-- If the tutor cancels or does not turn up, or the session cannot take place or be finished because of a failure on Tutorlage's side or the tutor's, you are **refunded in full** to your wallet. The Refund Policy has the detail.
+- If the tutor cancels or does not turn up, or the session cannot take place or be finished because of a failure on Tutorlage's side or the tutor's, you are **refunded in full** to your credit. The Refund Policy has the detail.
 - If something outside anyone's control disrupts a session (load-shedding, a network or power outage), we decide what is fair, and the right to a refund for a session that could not take place stays.
 - If something goes wrong in a session, use **Report a problem** on the session, or email support@tutorlage.com.
 
-## 5. Adding money to your wallet
+## 5. Adding lesson credit
 
 - You add money by bank transfer (EFT) to Tutorlage's business bank account, using the reference the app gives you, and you upload proof of the transfer.
-- We check our bank account and, when the money has arrived, add it to your wallet. This is **usually within one business day**. The app tells you if a transfer cannot be matched and why.
-- The screen shows the smallest and largest amount you can add and the most your wallet can hold.
+- We check our bank account and, when the money has arrived, add it to your credit. This is **usually within one business day**. The app tells you if a transfer cannot be matched and why.
+- The screen shows the smallest and largest amount you can add and the most you can hold in credit.
 
 ## 6. Tutors: when you are paid
 
-- The learner's money stays on hold until the session is complete. Your share is then credited to your Tutorlage wallet.
-- You ask for a payout from your wallet whenever you like. We pay it by bank transfer from our bank account, **usually within one business day**. If it has not arrived after that, contact us through the Help button at the top of the site.
+- The learner's money stays on hold until the session is complete. Your share is then credited to your earnings.
+- You ask for a payout of your earnings whenever you like. We pay it by bank transfer from our bank account, **usually within one business day**. If it has not arrived after that, contact us through the Help button at the top of the site.
 
 ## 7. Delays we cannot control
 

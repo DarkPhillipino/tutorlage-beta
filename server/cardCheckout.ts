@@ -15,7 +15,7 @@ export type CardCheckoutDecision =
   | { allowed: true }
   | { allowed: false; status: 403 | 503; code: 'card_not_open' | 'card_check_unavailable'; error: string };
 
-export const CARD_NOT_OPEN_MESSAGE = 'Card payments are not open for your account. Pay from your Tutorlage wallet instead: add money by bank transfer, then send your request from the wallet.';
+export const CARD_NOT_OPEN_MESSAGE = 'Card payments are not open for your account. Pay from your lesson credit instead: add credit by bank transfer, then send your request from your credit.';
 export const CARD_CHECK_UNAVAILABLE_MESSAGE = 'We could not check how you may pay just now. Please try again in a minute.';
 
 export async function cardCheckoutDecision(db: CardCheckoutDb, profileId: string | null | undefined): Promise<CardCheckoutDecision> {
