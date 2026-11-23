@@ -48,6 +48,8 @@ begin
         return t;
       end $f$ $mk$;
 
+    -- Independent of live data (23 Nov 2026): production now holds real prior-hours entries, so V6 compares with the count BEFORE this test, not with 0.
+    perform set_config('tlt.base_prior_hours', (select count(*)::text from public.tutor_prior_hours), true);
     insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data, raw_app_meta_data) values
       (t1, z, 'authenticated', 'authenticated', 'ph.1.' || t1 || '@example.invalid', jsonb_build_object('role', 'tutor', 'first_name', 'One', 'date_of_birth', adult), '{}'),
       (t2, z, 'authenticated', 'authenticated', 'ph.2.' || t2 || '@example.invalid', jsonb_build_object('role', 'tutor', 'first_name', 'Two', 'date_of_birth', adult), '{}'),
@@ -86,7 +88,7 @@ begin
       || pg_temp.err(format('select public.admin_add_prior_hours(%L, 5001, ''taught three years at a school'', ''letter 2024-001'')', t1), vo),
       'Hours must be more than 0 and at most 5000 | Hours must be more than 0 and at most 5000 | Hours must be more than 0 and at most 5000');
     r := r || pg_temp.chk('V5', 'a person who is not a tutor is refused', pg_temp.err(format('select public.admin_add_prior_hours(%L, 10, ''taught three years at a school'', ''letter 2024-001'')', gen_random_uuid()), vo), 'No such tutor');
-    r := r || pg_temp.chk('V6', 'nothing was written by any refusal', (select count(*)::text from public.tutor_prior_hours), '0');
+    r := r || pg_temp.chk('V6', 'nothing was written by any refusal', (select count(*)::text from public.tutor_prior_hours), current_setting('tlt.base_prior_hours'));
 
     -- ---- recording, reading, audit ----
     select count(*) into n0 from public.admin_audit_logs where action = 'manual_tier_override' and metadata->>'action' in ('add_prior_hours', 'remove_prior_hours');

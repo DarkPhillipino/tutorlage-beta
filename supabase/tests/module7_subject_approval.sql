@@ -57,6 +57,8 @@ begin
 
     select k.curriculum::text into v_cur from public.curriculum_criteria k where k.active order by k.curriculum limit 1;
     select coalesce(array_agg(k.id), '{}') into v_crit from public.curriculum_criteria k where k.curriculum::text = v_cur and k.active;
+    -- Independent of live data (23 Nov 2026): production now holds real exemptions, so E0 compares with the count BEFORE this test's setup, not with 0.
+    perform set_config('tlt.base_m7', (select count(*)::text from public.module7_exemptions), true);
     insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data, raw_app_meta_data) values
       (v_off, z, 'authenticated', 'authenticated', 'm7.o.' || uid || '@example.invalid', jsonb_build_object('first_name', 'Vic', 'surname', 'Officer', 'date_of_birth', adult), '{}'),
       (v_ta, z, 'authenticated', 'authenticated', 'm7.a.' || uid || '@example.invalid', jsonb_build_object('role', 'tutor', 'first_name', 'Ana', 'surname', 'A', 'date_of_birth', adult), '{}'),
@@ -118,7 +120,7 @@ begin
     -- a list row for a person whose account does not exist yet (like ceo-odi)
     insert into public.founding_tutors_list (source, full_name, code_name, whatsapp, email, email_key, src, status)
       values ('form', 'Xia Xtest', 'Zz', '+27820000000', 'm7.x.' || uid || '@example.invalid', 'm7.x.' || uid || '@example.invalid', v_tag, 'joined') returning id into v_list;
-    r := r || pg_temp.chk('E0', 'setup: 3 more tutors, a support agent, and a list row with no account', (select count(*)::text from public.module7_exemptions), '0');
+    r := r || pg_temp.chk('E0', 'setup: 3 more tutors, a support agent, and a list row with no account', (select count(*)::text from public.module7_exemptions), current_setting('tlt.base_m7'));
 
     t := pg_temp.run_as(v_off, format('select (public.admin_grant_module7_exemption(p_list_src => %L))->>%L', v_tag, 'target'));
     r := r || pg_temp.chk('E1', 'an officer grants the exemption by LIST TAG before the account exists (default 30 days)', t, 'list_row');

@@ -69,6 +69,10 @@ for (const item of items) {
     const shown = failed.length ? failed : lines.filter(Boolean).slice(-15);
     console.log(shown.map((l) => `      ${l}`).join('\n'));
     if (run.error) console.log(`      ${run.error.message}`);
+    // On GitHub Actions also write each failure as an ANNOTATION: the job log needs a sign-in, annotations are public (added 23 Nov 2026, after a red run could not be read).
+    if (process.env.GITHUB_ACTIONS) {
+      for (const l of [`${item.name} failed`, ...shown.slice(0, 12)]) console.log(`::error::${String(l).replace(/\s+/g, " ").slice(0, 400)}`);
+    }
   }
 }
 
