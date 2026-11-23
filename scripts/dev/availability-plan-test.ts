@@ -6,6 +6,7 @@
 // It reads the source to prove the editor and its one query keep their promises (insert BEFORE delete, tutor hours repeat weekly, no old one-slot Add button).
 // It does NOT open a browser (tests/browser/availability.spec.ts does) and does not touch the database (nothing in the database changed).
 import { readFileSync } from 'node:fs';
+import { notificationTarget } from '../../src/lib/notificationTarget';
 import {
   END_OPTIONS, EVERY_DAY, START_OPTIONS, WEEKDAYS, WEEKENDS, describeDays, formatRange, idsForDay, planSave, rangesForDay, withValue, type AvailabilityRow,
 } from '../../src/lib/availabilityPlan';
@@ -79,7 +80,10 @@ const saveFn = queries.slice(queries.indexOf('export async function saveTutorAva
 check('the editor says in words that the hours repeat every week until changed', /repeat every week until you change them/.test(editor));
 check('the editor has the three shortcuts and a Save, and no longer the one-slot Add button', /Weekdays/.test(editor) && /Weekends/.test(editor) && /Every day/.test(editor) && /'Save'/.test(editor) && !/addTutorAvailabilitySlot/.test(editor));
 check('the one query inserts first, then deletes, then re-reads the rows', saveFn.indexOf('.insert(') > 0 && saveFn.indexOf('.insert(') < saveFn.indexOf('.delete()') && saveFn.indexOf('.delete()') < saveFn.indexOf('fetchTutorAvailability('));
-check('the editor reads no hours from the database and writes no table itself (only through the query)', !/supabase/.test(editor.replace(/\/\/.*$/gm, '')));
+const editorCode = editor.replace(/\/\/.*$/gm, '');
+check('the editor writes no table itself (only through the query) and reads no hours table; its one read is the sign-up-autofill record of the tutor, select only', !/\.(insert|update|delete|upsert|rpc)\(/.test(editorCode) && !/from\('tutor_availability'\)/.test(editorCode) && (editorCode.match(/supabase\.from\(/g) || []).length === 1 && /from\('tutor_hours_autofill'\)\.select\('changed_at'\)\.eq\('tutor_id', tutorId\)/.test(editorCode));
+check('"Set from your sign-up answer" shows only while the autofilled hours are unchanged and there are hours', /changed_at === null/.test(editorCode) && /setFromSignup && hasAny/.test(editorCode) && /Set from your sign-up answer/.test(editorCode));
+check('the bell notice "hours_autofilled" opens the Teaching tab of the account menu, where the editor is; the other targets are unchanged', notificationTarget('hours_autofilled') === 'hours' && notificationTarget('request_for_you') === 'teach' && notificationTarget('terms_updated') === 'terms' && notificationTarget('wallet_topup_added') === 'wallet' && notificationTarget('request_accepted') === 'sessions' && /target === 'hours'\) openManageAccount\('teaching'\)/.test(readFileSync('src/App.tsx', 'utf8')));
 
 console.log(failed === 0 ? '\nAll availability checks passed.' : `\n${failed} availability check(s) FAILED.`);
 process.exit(failed === 0 ? 0 : 1);

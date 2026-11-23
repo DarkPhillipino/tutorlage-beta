@@ -265,6 +265,7 @@ export default function App() {
     const target = notificationTarget(notification.type);
     if (target === 'wallet') openWalletPage();
     else if (target === 'teach') handleSetActiveNav('teach');
+    else if (target === 'hours') openManageAccount('teaching');
     else if (target === 'terms') window.open(siteUrl('/terms'), '_blank', 'noopener');
     else openSessionsPage();
   };
@@ -536,8 +537,8 @@ export default function App() {
             {/* 3 & 4. Main Section Grid: Left Column (Booking Form) + Right Column (Suggestions Grid) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-              {/* Left Column (5 cols on lg screen) */}
-              <div className="lg:col-span-5 w-full">
+              {/* Left Column (5 cols on lg screen). P5-a (21 Nov 2026): from lg up the left side stays in view while the right side scrolls (sticky under the 64 px header; scrolls by itself if taller than the screen). Below lg the sides stack as before. */}
+              <div className="lg:col-span-5 w-full lg:w-auto lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6.5rem)] lg:overflow-y-auto lg:p-1 lg:-m-1">
                 <BookingForm
                   formState={formState}
                   setFormState={setFormState}

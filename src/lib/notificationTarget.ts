@@ -8,7 +8,8 @@
 // and `tier_freeze`) open the Teach screen, where the level is shown (CEO, 19 Oct 2026: tell a tutor when an admin gives them a level).
 // Wallet notices (wallets, 2 Nov 2026: a top-up added or not received, a payout requested, paid or not paid, an adjustment: types written by
 // the database that start with `wallet_`) open the Wallet page.
-export type NotificationTarget = 'sessions' | 'teach' | 'terms' | 'wallet';
+// The notice that hours were set from a tutor's sign-up answer (type `hours_autofilled`, 23 Nov 2026) opens the Teaching tab of the account menu, where the hours editor is.
+export type NotificationTarget = 'sessions' | 'teach' | 'terms' | 'wallet' | 'hours';
 
 const TEACH_TYPES = new Set([
   'request_for_you',
@@ -23,5 +24,6 @@ const TERMS_TYPES = new Set(['terms_updated']);
 export function notificationTarget(type: string): NotificationTarget {
   if (TERMS_TYPES.has(type)) return 'terms';
   if (type.startsWith('wallet_')) return 'wallet';
+  if (type === 'hours_autofilled') return 'hours';
   return TEACH_TYPES.has(type) ? 'teach' : 'sessions';
 }

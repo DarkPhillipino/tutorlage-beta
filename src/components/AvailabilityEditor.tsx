@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Clock, AlertCircle, CheckCircle2, Repeat } from 'lucide-react';
 import { TutorAvailabilitySlot } from '../types';
 import { saveTutorAvailabilityChanges } from '../lib/queries';
 import { getErrorMessage } from '../lib/errors';
+import { supabase } from '../lib/supabaseClient';
 import {
   DAY_NAMES,
   DAY_SHORT,
@@ -50,6 +51,24 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId,
 
   const rows = availability;
   const hasAny = rows.length > 0;
+
+  // "Set from your sign-up answer" (23 Nov 2026): the database filled these hours from what the tutor said on the join form and stamps the record the first time the tutor
+  // changes them (table tutor_hours_autofill, the tutor reads only their own row). Read again whenever the hours change; if the read fails the line is simply not shown.
+  const [setFromSignup, setSetFromSignup] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { data } = await supabase.from('tutor_hours_autofill').select('changed_at').eq('tutor_id', tutorId).maybeSingle();
+        if (alive) setSetFromSignup(!!data && data.changed_at === null);
+      } catch {
+        if (alive) setSetFromSignup(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [tutorId, availability]);
 
   const toggleDay = (d: number) => {
     setNotice(null);
@@ -139,6 +158,12 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId,
           the rest of the hours stay open for other lessons. Times are South African time.
         </span>
       </p>
+
+      {setFromSignup && hasAny && (
+        <p className="text-xs font-semibold text-[#15803D] mb-2" data-testid="hours-from-signup">
+          Set from your sign-up answer
+        </p>
+      )}
 
       {/* The week at a glance: what a learner can book. */}
       <div className="space-y-1.5 mb-3" aria-label="Your week">
