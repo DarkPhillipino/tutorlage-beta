@@ -157,7 +157,7 @@ test('the box is on both sides, the learn page and the Teach page (same box, sam
   expect(JSON.parse(sent[0].body)).toEqual({ user_id: ME, body: 'A Teach-side idea' });
   // Not on another screen: the wallet page has no box.
   await page.locator('[data-wallet-chip]').click();
-  await expect(page.getByRole('heading', { name: 'Your wallet' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Your credit' })).toBeVisible({ timeout: 15_000 });
   await expect(page.locator(BOX)).toHaveCount(0);
   await page.locator('header nav').getByRole('button', { name: 'Learn', exact: true }).click();
   await expect(page.locator(BOX)).toBeVisible();
@@ -199,16 +199,16 @@ test('typed tags are never rendered: the markup stays text', async ({ page }) =>
 });
 
 for (const [notice, expected] of [
-  ['default', 'Tutorlage is in its pilot, so every bank transfer is checked by a person: usually within 6 hours (08:00 to 20:00; a transfer sent later is checked by 10:00 the next morning). We are building instant payments. A tutor is only paid after your session is complete.'],
-  ['missing', 'Tutorlage is in its pilot, so every bank transfer is checked by a person: usually within 6 hours (08:00 to 20:00; a transfer sent later is checked by 10:00 the next morning). We are building instant payments. A tutor is only paid after your session is complete.'],
-  ['custom', 'Tutorlage is in its pilot, so every bank transfer is checked by a person: usually within 2 hours, 08:00 to 18:00. We are building instant payments. A tutor is only paid after your session is complete.'],
+  ['default', 'Tutorlage is in its pilot, so every bank transfer is checked by a person: usually within 6 hours (08:00 to 20:00; a transfer sent later is checked by 10:00 the next morning). We are working on faster ways to pay. A tutor is only paid after your session is complete.'],
+  ['missing', 'Tutorlage is in its pilot, so every bank transfer is checked by a person: usually within 6 hours (08:00 to 20:00; a transfer sent later is checked by 10:00 the next morning). We are working on faster ways to pay. A tutor is only paid after your session is complete.'],
+  ['custom', 'Tutorlage is in its pilot, so every bank transfer is checked by a person: usually within 2 hours, 08:00 to 18:00. We are working on faster ways to pay. A tutor is only paid after your session is complete.'],
 ] as const) {
   test(`wallet open, notice "${notice}": the wallet page, the Add-money window and the waiting line`, async ({ page, problems }) => {
     await openAsStudent(page, { wallet: true, notice });
     const chip = page.locator('[data-wallet-chip]');
     await expect(chip).toBeVisible({ timeout: 15_000 });
     await chip.click();
-    await expect(page.getByRole('heading', { name: 'Your wallet' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Your credit' })).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('[data-pilot-notice]')).toHaveText(expected);
     await expect(page.locator('[data-waiting-line]')).toHaveText(/^Sent .*14:05 SAST, waiting for a person to check it$/);
     await expect(page.getByText('Proof sent. We are checking your transfer, usually within one business day.')).toHaveCount(0);
@@ -216,8 +216,8 @@ for (const [notice, expected] of [
     await expect(page.getByText(/one business day/)).toHaveCount(0);
     await expect(page.getByText('If it is taking too long, please contact support by clicking the Help button at the top of the page.')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Add money' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Add money to your wallet' });
+    await page.getByRole('button', { name: 'Add credit' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add lesson credit' });
     await expect(dialog).toBeVisible();
     await expect(dialog.locator('[data-pilot-notice]')).toHaveText(expected);
     await dialog.getByLabel('Amount to add, in rand').fill('200');
@@ -239,11 +239,11 @@ for (const [notice, expected] of [
 test('wallet open, notice switched off in the row: no notice anywhere, the rest is unchanged', async ({ page }) => {
   await openAsStudent(page, { wallet: true, notice: 'off' });
   await page.locator('[data-wallet-chip]').click();
-  await expect(page.getByRole('heading', { name: 'Your wallet' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Your credit' })).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-wallet-balance]')).toContainText('R320');
   await expect(page.locator('[data-pilot-notice]')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Add money' }).click();
-  await expect(page.getByRole('dialog', { name: 'Add money to your wallet' })).toBeVisible();
+  await page.getByRole('button', { name: 'Add credit' }).click();
+  await expect(page.getByRole('dialog', { name: 'Add lesson credit' })).toBeVisible();
   await expect(page.locator('[data-pilot-notice]')).toHaveCount(0);
 });
 
@@ -251,5 +251,5 @@ test('wallet closed: no pilot notice and nothing about top-ups on the learn page
   await openAsStudent(page, { wallet: false });
   await page.waitForTimeout(800);
   await expect(page.locator('[data-pilot-notice]')).toHaveCount(0);
-  await expect(page.getByText(/Add money|waiting for a person to check it/)).toHaveCount(0);
+  await expect(page.getByText(/Add credit|waiting for a person to check it/)).toHaveCount(0);
 });

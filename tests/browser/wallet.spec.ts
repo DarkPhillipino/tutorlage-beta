@@ -6,7 +6,7 @@ import { test, expect, signInFake } from './fixtures';
 //  - the page a learner lands on after a request is paid from the wallet says so and claims no card check;
 //  - with the wallet closed, or its functions missing from the database, the signed-in app shows nothing new and does not crash;
 //  - with the wallet "open" (the database answers are made up here): the header chip, the Wallet page (balance, on hold, top-ups in words,
-//    history in words), Add money -> the reference and bank details -> the proof file is sent -> the 24-hour wording.
+//    history in words), Add credit -> the reference and bank details -> the proof file is sent -> the 24-hour wording.
 // What this does NOT show: a real upload into the private bucket, the booking click-through with a wallet, any tutor screen, the database rules.
 
 const CORS = { 'access-control-allow-origin': '*' };
@@ -69,7 +69,7 @@ async function openAsStudent(page: Page, wallet: Wallet, seen: string[] = []) {
 test('after a request paid from the wallet: "Request sent", the price is on hold, no card check mentioned', async ({ page, problems }) => {
   await page.goto('/payment/callback?wallet=1');
   await expect(page.getByRole('heading', { name: 'Request sent' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(/on hold in your wallet/)).toBeVisible();
+  await expect(page.getByText(/on hold in your credit/)).toBeVisible();
   await expect(page.getByText(/R1 card check|Checking your card|Paystack|Free for now/)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Back to Tutorlage' })).toBeVisible();
   expect(problems.pageErrors, 'no uncaught error').toEqual([]);
@@ -78,7 +78,7 @@ test('after a request paid from the wallet: "Request sent", the price is on hold
 test('the free-session page and the card return are unchanged', async ({ page }) => {
   await page.goto('/payment/callback?free=1');
   await expect(page.getByText("Free for now: you won't be charged.")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(/on hold in your wallet/)).toHaveCount(0);
+  await expect(page.getByText(/on hold in your credit/)).toHaveCount(0);
 });
 
 for (const wallet of ['closed', 'missing'] as const) {
@@ -86,13 +86,13 @@ for (const wallet of ['closed', 'missing'] as const) {
     await openAsStudent(page, wallet);
     await page.waitForTimeout(800);
     await expect(page.locator('[data-wallet-chip]')).toHaveCount(0);
-    await expect(page.getByText(/Your wallet|Add money|Wallet/)).toHaveCount(0);
+    await expect(page.getByText(/Your credit|Add credit|Wallet/)).toHaveCount(0);
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
     expect(problems.pageErrors).toEqual([]);
   });
 }
 
-test('signed-in student, wallet open: chip -> Wallet page (balance, on hold, top-ups and history in words) -> Add money -> reference -> proof sent', async ({ page, problems }) => {
+test('signed-in student, wallet open: chip -> Wallet page (balance, on hold, top-ups and history in words) -> Add credit -> reference -> proof sent', async ({ page, problems }) => {
   const seen: string[] = [];
   await openAsStudent(page, 'open', seen);
   const chip = page.locator('[data-wallet-chip]');
@@ -100,17 +100,17 @@ test('signed-in student, wallet open: chip -> Wallet page (balance, on hold, top
   await expect(chip).toContainText('R320', { timeout: 15_000 });
   await chip.click();
 
-  await expect(page.getByRole('heading', { name: 'Your wallet' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Your credit' })).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-wallet-balance]')).toContainText('R320', { timeout: 15_000 });
   await expect(page.locator('[data-wallet-balance]')).toContainText('R180 on hold');
-  await expect(page.getByText('Money in your wallet is for lessons. To take it out, contact support.')).toBeVisible();
+  await expect(page.getByText('Credit is for lessons. If something went wrong with a session, contact support.')).toBeVisible();
   await expect(page.getByText('Not received: No payment with that reference')).toBeVisible();
-  await expect(page.getByText('Added to your wallet', { exact: true })).toBeVisible();
+  await expect(page.getByText('Added to your credit', { exact: true })).toBeVisible();
   await expect(page.locator('[data-wallet-history]')).toContainText('On hold for your request');
   await expect(page.locator('[data-wallet-history]')).toContainText('Top-up added');
 
-  await page.getByRole('button', { name: 'Add money' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Add money to your wallet' });
+  await page.getByRole('button', { name: 'Add credit' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add lesson credit' });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Amount to add, in rand').fill('10');
   await dialog.getByRole('button', { name: 'Continue' }).click();

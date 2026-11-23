@@ -8,7 +8,7 @@ import { test, expect, signInFake } from './fixtures';
 //    the page only READS the payer's own request (and never the tutor's name, never the sessions table, while it waits);
 //  - a tutor accepts: the SAME screen changes by itself (no reload) to the booked session with the tutor's name, the day and time in SAST, the subject and
 //    "Cancel session"; the page then stops looking;
-//  - ended: expired / declined / cancelled show one plain sentence (the CEO's: "No tutor accepted in time. Your R__ is back in your wallet.") and a button to
+//  - ended: expired / declined / cancelled show one plain sentence (the CEO's: "No tutor accepted in time. Your R__ is back in your credit.") and a button to
 //    send a new request;
 //  - cancelling a request, and cancelling a booked session, go through the two existing doors and the screen shows the result;
 //  - an address with no id, a made-up id, someone else's id (the database returns nothing), nobody signed in, or a failing read: today's page, word for word;
@@ -135,7 +135,7 @@ test('a wallet request that nobody has taken: a waiting screen with the lesson, 
   await expect(page.getByText('Your request is sent. This page updates by itself when a tutor accepts, so you can leave it open.')).toBeVisible();
   await expect(page.getByText('Mathematics · Thu 12 Nov, 14:00 SAST · 1h')).toBeVisible();
   await expect(page.locator('[data-request-facts]')).toContainText('R252');
-  await expect(page.getByText('The price is on hold in your wallet. If nobody accepts in time, it goes straight back.')).toBeVisible();
+  await expect(page.getByText('The price is on hold in your credit. If nobody accepts in time, it goes straight back.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancel request' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'View my sessions' })).toBeVisible();
   await expect(page.getByText('Back to Tutorlage')).toHaveCount(0);
@@ -180,7 +180,7 @@ test('a tutor accepts while the page is open: the SAME screen changes by itself 
   await expect(facts).toContainText('Thandi Mokoena');
   await expect(facts).toContainText('Thu 12 Nov, 14:00 SAST · 1h');
   await expect(facts).toContainText('Mathematics');
-  await expect(page.getByText('Paid from your wallet')).toBeVisible();
+  await expect(page.getByText('Paid from your credit')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancel session' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'View my sessions' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancel request' })).toHaveCount(0);
@@ -216,9 +216,9 @@ test('accepted but the booking cannot be read by this person: it still says a tu
 // ------------------------------------------------------------------ ended -------------------------------------------------------------------------
 
 const ENDED: Array<[string, Row, string, string]> = [
-  ['expired', requestRow({ status: 'expired' }), 'Your request has ended', 'No tutor accepted in time. Your R252 is back in your wallet.'],
-  ['declined', requestRow({ status: 'declined' }), 'Your request has ended', 'The tutor could not take this request. Your R252 is back in your wallet.'],
-  ['cancelled', requestRow({ status: 'cancelled' }), 'Request cancelled', 'Your request was cancelled. Your R252 is back in your wallet.'],
+  ['expired', requestRow({ status: 'expired' }), 'Your request has ended', 'No tutor accepted in time. Your R252 is back in your credit.'],
+  ['declined', requestRow({ status: 'declined' }), 'Your request has ended', 'The tutor could not take this request. Your R252 is back in your credit.'],
+  ['cancelled', requestRow({ status: 'cancelled' }), 'Request cancelled', 'Your request was cancelled. Your R252 is back in your credit.'],
   ['expired (free)', requestRow({ status: 'expired', paid_from_wallet: false, wallet_hold_rand: 0 }), 'Your request has ended', 'No tutor accepted in time. You were not charged.'],
 ];
 for (const [name, row, title, sentence] of ENDED) {
@@ -253,7 +253,7 @@ test('"Send a new request" goes to the booking page; "View my sessions" opens Se
 test('a booked session that was cancelled (by the tutor) shows who cancelled and where the money went', async ({ page }) => {
   await open(page, { request: () => acceptedRow({ status: 'cancelled', payment_status: 'wallet_refunded' }), session: () => sessionRow({ status: 'cancelled_by_tutor' }) }, WALLET_URL);
   await expect(page.getByRole('heading', { name: 'This session was cancelled' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('Your tutor cancelled this session. Your R252 went back into your wallet as credit.')).toBeVisible();
+  await expect(page.getByText('Your tutor cancelled this session. Your R252 went back into your credit.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send a new request' })).toBeVisible();
 });
 
@@ -263,14 +263,14 @@ test('Cancel request asks first; "Keep it" cancels nothing; "Yes, cancel" uses t
   let phase: 'waiting' | 'cancelled' = 'waiting';
   const seen = await open(page, { request: () => (phase === 'waiting' ? requestRow() : requestRow({ status: 'cancelled' })), onRpc: () => { phase = 'cancelled'; } }, WALLET_URL);
   await page.getByRole('button', { name: 'Cancel request' }).click({ timeout: 15_000 });
-  await expect(page.getByText('Cancel this request? The price on hold goes straight back into your wallet.')).toBeVisible();
+  await expect(page.getByText('Cancel this request? The price on hold goes straight back into your credit.')).toBeVisible();
   await page.getByRole('button', { name: 'Keep it' }).click();
   await expect(page.getByRole('button', { name: 'Cancel request' })).toBeVisible();
   expect(seen.rpcs, 'asking and keeping cancels nothing').toEqual([]);
   await page.getByRole('button', { name: 'Cancel request' }).click();
   await page.getByRole('button', { name: 'Yes, cancel' }).click();
   await expect(page.getByRole('heading', { name: 'Request cancelled' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('Your request was cancelled. Your R252 is back in your wallet.')).toBeVisible();
+  await expect(page.getByText('Your request was cancelled. Your R252 is back in your credit.')).toBeVisible();
   expect(seen.rpcs.map((c) => c.fn)).toEqual(['cancel_waiting_request']);
   expect(JSON.parse(seen.rpcs[0].body ?? '{}')).toEqual({ p_request_id: REQ });
   expect(problems.pageErrors).toEqual([]);
@@ -284,10 +284,10 @@ test('Cancel session asks first with the wallet wording, uses the existing door,
     onRpc: () => { phase = 'cancelled'; },
   }, WALLET_URL);
   await page.getByRole('button', { name: 'Cancel session' }).click({ timeout: 15_000 });
-  await expect(page.getByText('Cancel this session? The payment goes back into your wallet as credit.')).toBeVisible();
+  await expect(page.getByText('Cancel this session? The payment goes back into your credit.')).toBeVisible();
   await page.getByRole('button', { name: 'Yes, cancel' }).click();
   await expect(page.getByRole('heading', { name: 'This session was cancelled' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('This session was cancelled. Your R252 went back into your wallet as credit.')).toBeVisible();
+  await expect(page.getByText('This session was cancelled. Your R252 went back into your credit.')).toBeVisible();
   expect(seen.rpcs.map((c) => c.fn)).toEqual(['cancel_session']);
   expect(JSON.parse(seen.rpcs[0].body ?? '{}')).toEqual({ p_session_id: SES, p_reason: null });
   expect(problems.pageErrors).toEqual([]);
@@ -307,7 +307,7 @@ test('a cancel the database refuses shows its plain sentence and the screen stay
 
 // ------------------------------------------------------------------ today's page --------------------------------------------------------------------
 
-const TODAY_WALLET = "Your request is sent. The price is on hold in your wallet. If nobody accepts in time, it goes straight back. We'll let you know when a tutor accepts.";
+const TODAY_WALLET = "Your request is sent. The price is on hold in your credit. If nobody accepts in time, it goes straight back. We'll let you know when a tutor accepts.";
 async function expectTodaysPage(page: Page, text: string) {
   await expect(page.getByRole('heading', { name: 'Request sent' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(text)).toBeVisible();
@@ -475,6 +475,6 @@ test('the words that change sit in one polite live region (a screen reader hears
   await expect(live).toHaveCount(1);
   await expect(live).toContainText(WAITING_TITLE, { timeout: 15_000 });
   await page.clock.runFor(4000);
-  await expect(live).toContainText('No tutor accepted in time. Your R252 is back in your wallet.', { timeout: 15_000 });
+  await expect(live).toContainText('No tutor accepted in time. Your R252 is back in your credit.', { timeout: 15_000 });
   await expect(live).toHaveAttribute('aria-atomic', 'true');
 });

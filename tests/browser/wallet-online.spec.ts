@@ -4,8 +4,8 @@ import { test, expect, signInFake } from './fixtures';
 
 // PAY BY BANK, INSTANT (Ozow phase 3 of 3, 9 Nov 2026): the screens, with the database AND the Worker both PRETENDED (nothing here touches dev, production, the
 // real Worker or any payment company; the "bank page" is a made-up address answered by the test). Covers, on the five profiles:
-//  - the choice in Add money appears only when the database says so; with the function missing, or "no", the screen is exactly the old bank transfer, no error;
-//  - "Pay by bank, instant" makes the top-up, asks the Worker with NO body and no amount, and goes to the address the Worker returns; a failure says so in plain
+//  - the choice in Add credit appears only when the database says so; with the function missing, or "no", the screen is exactly the old bank transfer, no error;
+//  - "Pay by bank" makes the top-up, asks the Worker with NO body and no amount, and goes to the address the Worker returns; a failure says so in plain
 //    words and offers the bank transfer; "Bank transfer, checked by a person" is the old flow, unchanged, with its pilot notice;
 //  - the return page: "Checking your payment", reads only the payer's OWN row (GET) every 3 s, shows the result, and after a minute "Still waiting..." with
 //    "Check now"; it never writes; signed out it shows a sign-in button;
@@ -104,13 +104,13 @@ async function openWallet(page: Page, setup: Setup): Promise<Seen> {
   const chip = page.locator('[data-wallet-chip]');
   await expect(chip).toBeVisible({ timeout: 15_000 });
   await chip.click();
-  await expect(page.getByRole('heading', { name: 'Your wallet' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Your credit' })).toBeVisible({ timeout: 15_000 });
   return seen;
 }
 
 async function amountThenContinue(page: Page, rand: string) {
-  await page.getByRole('button', { name: 'Add money' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Add money to your wallet' });
+  await page.getByRole('button', { name: 'Add credit' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add lesson credit' });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Amount to add, in rand').fill(rand);
   await dialog.getByRole('button', { name: 'Continue' }).click();
@@ -140,27 +140,27 @@ async function passTheMinute(page: Page, seen: Seen) {
   await expect(waiting).toBeVisible({ timeout: 15_000 });
 }
 
-// ---------------------------------------------------------------- Add money ------------------------------------------------------------------------
+// ---------------------------------------------------------------- Add credit ------------------------------------------------------------------------
 
-test('the database says the choice is open: Add money offers both ways to pay after the amount (axe clean)', async ({ page, browserName, problems }) => {
+test('the database says the choice is open: Add credit offers both ways to pay after the amount (axe clean)', async ({ page, browserName, problems }) => {
   const seen = await openWallet(page, { online: 'yes' });
   const dialog = await amountThenContinue(page, '200');
   await expect(dialog.getByText('How would you like to pay?').first()).toBeVisible();
-  await expect(dialog.getByRole('button', { name: /Pay by bank, instant/ })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /Pay by bank/ })).toBeVisible();
   await expect(dialog.getByRole('button', { name: /Bank transfer, checked by a person/ })).toBeVisible();
   await expect(dialog.getByText('R200', { exact: true })).toBeVisible();
   // nothing has been created or started yet: choosing is what does that
   expect(seen.supabase.filter((s) => /create_online_topup|create_wallet_topup/.test(s))).toEqual([]);
   expect(seen.worker).toEqual([]);
   await expect(page.getByText(/ozow|payfast|paystack|peach|\bfree\b/i)).toHaveCount(0);
-  if (browserName === 'chromium') await axeClean(page, 'Add money, the choice', '[data-add-money]');
+  if (browserName === 'chromium') await axeClean(page, 'Add credit, the choice', '[data-add-money]');
   expect(problems.pageErrors).toEqual([]);
 });
 
-test('"Pay by bank, instant": makes the top-up, asks the Worker with NO body and no amount, then goes to the address the Worker returned', async ({ page, problems }) => {
+test('"Pay by bank": makes the top-up, asks the Worker with NO body and no amount, then goes to the address the Worker returned', async ({ page, problems }) => {
   const seen = await openWallet(page, { online: 'yes' });
   const dialog = await amountThenContinue(page, '200');
-  await dialog.getByRole('button', { name: /Pay by bank, instant/ }).click();
+  await dialog.getByRole('button', { name: /Pay by bank/ }).click();
   await page.waitForURL(BANK_PAGE, { timeout: 15_000 });
   await expect(page.getByRole('heading', { name: 'Bank page' })).toBeVisible();
   const created = seen.supabase.findIndex((s) => s.includes('/rpc/create_online_topup'));
@@ -192,19 +192,19 @@ test('"Bank transfer, checked by a person": the old flow, unchanged, with the pi
 });
 
 for (const online of ['no', 'missing'] as const) {
-  test(`the choice is ${online === 'no' ? 'closed' : 'not built into the database yet'}: Add money is exactly the old bank transfer and shows no error`, async ({ page, problems }) => {
+  test(`the choice is ${online === 'no' ? 'closed' : 'not built into the database yet'}: Add credit is exactly the old bank transfer and shows no error`, async ({ page, problems }) => {
     const seen = await openWallet(page, { online });
-    await page.getByRole('button', { name: 'Add money' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Add money to your wallet' });
-    await expect(dialog.getByText('You add money by bank transfer. Choose how much, from R50 to R5000. We then show you where to pay and the reference to use.')).toBeVisible();
+    await page.getByRole('button', { name: 'Add credit' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add lesson credit' });
+    await expect(dialog.getByText('You add lesson credit by bank transfer. Choose how much, from R50 to R5000. We then show you where to pay and the reference to use.')).toBeVisible();
     await dialog.getByLabel('Amount to add, in rand').fill('200');
     await dialog.getByRole('button', { name: 'Continue' }).click();
     await expect(dialog.getByText('TL-ABC234').first()).toBeVisible();
     await expect(dialog.getByText('Test Bank')).toBeVisible();
     await expect(page.getByText('How would you like to pay?')).toHaveCount(0);
-    await expect(page.getByText(/Pay by bank, instant/)).toHaveCount(0);
+    await expect(page.getByText(/Pay by bank/)).toHaveCount(0);
     await expect(page.getByRole('alert')).toHaveCount(0);
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Something went wrong' })).toHaveCount(0);
     expect(seen.worker).toEqual([]);
     expect(problems.pageErrors).toEqual([]);
   });
@@ -216,13 +216,13 @@ test('the Worker cannot start the payment: plain words, nothing taken, the same 
     start: (n) => (n === 1 ? { status: 502, body: { error: 'PROCESSOR SAYS NO', code: 'busy_or_not', detail: 'x' } } : { status: 200, body: { redirect_url: BANK_PAGE, resumed: true } }),
   });
   const dialog = await amountThenContinue(page, '200');
-  await dialog.getByRole('button', { name: /Pay by bank, instant/ }).click();
+  await dialog.getByRole('button', { name: /Pay by bank/ }).click();
   const alert = dialog.getByRole('alert');
   await expect(alert).toContainText("We could not open your bank's payment page. Nothing was taken from you. You can try again, or pay by bank transfer instead.");
   await expect(alert).not.toContainText(/PROCESSOR|busy_or_not|502/);
   // both ways are still there; "Try again" is the same button
   await expect(dialog.getByRole('button', { name: /Bank transfer, checked by a person/ })).toBeEnabled();
-  await dialog.getByRole('button', { name: /Pay by bank, instant/ }).click();
+  await dialog.getByRole('button', { name: /Pay by bank/ }).click();
   await page.waitForURL(BANK_PAGE, { timeout: 15_000 });
   expect(seen.supabase.filter((s) => s.includes('/rpc/create_online_topup')).length, 'the second try reuses the top-up').toBe(1);
   expect(seen.worker.map((c) => c.path)).toEqual([`/api/wallet/topups/${ONLINE_ID}/start-online`, `/api/wallet/topups/${ONLINE_ID}/start-online`]);
@@ -232,14 +232,14 @@ test('the Worker cannot start the payment: plain words, nothing taken, the same 
 test('the Worker says it is busy: asks the person to wait a few seconds, not an error code', async ({ page }) => {
   await openWallet(page, { online: 'yes', start: () => ({ status: 409, body: { error: 'x', code: 'busy', retry_after_seconds: 3 } }) });
   const dialog = await amountThenContinue(page, '200');
-  await dialog.getByRole('button', { name: /Pay by bank, instant/ }).click();
+  await dialog.getByRole('button', { name: /Pay by bank/ }).click();
   await expect(dialog.getByRole('alert')).toContainText('Your payment is being set up. Please wait a few seconds and try again.');
 });
 
 test('"Pay by bank transfer" instead, after the online payment could not start, makes the usual top-up for the same amount', async ({ page }) => {
   const seen = await openWallet(page, { online: 'yes', start: () => ({ status: 503, body: { error: 'x', code: 'not_configured' } }) });
   const dialog = await amountThenContinue(page, '200');
-  await dialog.getByRole('button', { name: /Pay by bank, instant/ }).click();
+  await dialog.getByRole('button', { name: /Pay by bank/ }).click();
   await expect(dialog.getByRole('alert')).toContainText('Paying with your bank is not available right now. Please pay by bank transfer instead.');
   await dialog.getByRole('button', { name: /Bank transfer, checked by a person/ }).click();
   await expect(dialog.getByText('TL-ABC234').first()).toBeVisible();
@@ -257,8 +257,8 @@ test('the return page: "Checking your payment", then (the bank has confirmed) "P
   if (browserName === 'chromium') await axeClean(page, 'return page, checking');
   // the second read (3 seconds later) finds the top-up paid
   await expect(page.getByRole('heading', { name: 'Payment received' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('R200 has been added to your wallet.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Go to your wallet' })).toBeVisible();
+  await expect(page.getByText('R200 has been added to your credit.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Go to your credit' })).toBeVisible();
   if (browserName === 'chromium') await axeClean(page, 'return page, paid');
   // it only ever read: every database call was a GET of the payer's own top-up (or the sign-in and profile reads), and nothing was written
   const writes = seen.supabase.filter((s) => /^(POST|PATCH|PUT|DELETE) \/rest\/v1\/(?!profiles)/.test(s) || /\/rpc\/(?!my_|wallet_open)/.test(s));
@@ -268,12 +268,12 @@ test('the return page: "Checking your payment", then (the bank has confirmed) "P
   expect(problems.pageErrors).toEqual([]);
 });
 
-test('"Go to your wallet" opens the wallet', async ({ page }) => {
+test('"Go to your credit" opens the wallet', async ({ page }) => {
   await signInFake(page);
   await mock(page, { byId: () => onlineRow('successful') });
   await page.goto(`/wallet/topup-return?topup=${ONLINE_ID}`);
-  await page.getByRole('button', { name: 'Go to your wallet' }).click({ timeout: 15_000 });
-  await expect(page.getByRole('heading', { name: 'Your wallet' })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Go to your credit' }).click({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Your credit' })).toBeVisible({ timeout: 15_000 });
   expect(page.url(), 'the word is dropped from the address').not.toContain('view=');
 });
 
@@ -317,7 +317,7 @@ test('"Check now" asks the Worker (no body), reads the row again and shows the m
   await expect(page.locator('[data-check-note]')).toHaveText('Please wait 9 seconds, then try again.');
   await checkNow.click();
   await expect(page.getByRole('heading', { name: 'Payment received' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('R200 has been added to your wallet.')).toBeVisible();
+  await expect(page.getByText('R200 has been added to your credit.')).toBeVisible();
   expect(seen.worker.map((c) => `${c.method} ${c.path}`)).toEqual([1, 2, 3].map(() => `POST /api/wallet/topups/${ONLINE_ID}/check`));
   expect(seen.worker.every((c) => c.body === null && /^Bearer /.test(c.authorization ?? ''))).toBe(true);
 });
@@ -334,9 +334,9 @@ test('"Check now" when nothing has arrived says so, and the page stays waiting',
 });
 
 const SETTLED: Array<[string, Row | null, string, string]> = [
-  ['unsuccessful', onlineRow('unsuccessful', { decision_comment: 'INTERNAL note: provider said X' }), 'Payment not completed', 'The payment did not go through. Nothing was added to your wallet.'],
-  ['cancelled', onlineRow('cancelled', { decision_comment: 'INTERNAL note' }), 'Payment cancelled', 'Cancelled. Nothing was added to your wallet.'],
-  ['missing', null, 'We could not find this payment', 'Open your wallet to see all your top-ups.'],
+  ['unsuccessful', onlineRow('unsuccessful', { decision_comment: 'INTERNAL note: provider said X' }), 'Payment not completed', 'The payment did not go through. Nothing was added to your credit.'],
+  ['cancelled', onlineRow('cancelled', { decision_comment: 'INTERNAL note' }), 'Payment cancelled', 'Cancelled. Nothing was added to your credit.'],
+  ['missing', null, 'We could not find this payment', 'Open your credit to see all your top-ups.'],
 ];
 for (const [name, row, title, body] of SETTLED) {
   test(`the return page for a top-up that is ${name}: plain words, no stored comment, a way to the wallet`, async ({ page, problems }) => {
@@ -346,7 +346,7 @@ for (const [name, row, title, body] of SETTLED) {
     await expect(page.getByRole('heading', { name: title })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(body)).toBeVisible();
     await expect(page.getByText(/INTERNAL|provider said/)).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Go to your wallet' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Go to your credit' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Check now' })).toHaveCount(0);
     expect(problems.pageErrors).toEqual([]);
   });
@@ -374,7 +374,7 @@ test('nobody signed in: a sign-in button, no database read, no crash (axe clean)
   const seen = await mock(page, { byId: () => onlineRow('successful') });
   await page.goto(`/wallet/topup-return?topup=${ONLINE_ID}`);
   await expect(page.getByRole('heading', { name: 'Sign in to see your payment' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('If you have paid, your money is added to your wallet as soon as your bank confirms it. Sign in to see it.')).toBeVisible();
+  await expect(page.getByText('If you have paid, your money is added to your credit as soon as your bank confirms it. Sign in to see it.')).toBeVisible();
   await page.getByRole('button', { name: 'Sign in' }).waitFor();
   expect(seen.supabase.filter((s) => s.includes('wallet_topups'))).toEqual([]);
   if (browserName === 'chromium') await axeClean(page, 'return page, signed out');
@@ -398,9 +398,9 @@ test('the wallet page lists online top-ups in plain words, with Continue to your
   await expect(waiting).toContainText('Waiting for your bank');
   await expect(waiting.getByRole('button', { name: 'Continue to your bank' })).toBeVisible();
   await expect(waiting.getByRole('button', { name: 'Check now' })).toBeVisible();
-  await expect(page.getByText('Paid by bank and added to your wallet')).toBeVisible();
-  await expect(page.getByText('The payment did not go through. Nothing was added to your wallet.')).toBeVisible();
-  await expect(page.getByText('Cancelled. Nothing was added to your wallet.')).toBeVisible();
+  await expect(page.getByText('Paid by bank and added to your credit')).toBeVisible();
+  await expect(page.getByText('The payment did not go through. Nothing was added to your credit.')).toBeVisible();
+  await expect(page.getByText('Cancelled. Nothing was added to your credit.')).toBeVisible();
   // the stored comments are for our records and are never shown for an online top-up
   await expect(page.getByText(/We could not start the online payment|payment window ended/)).toHaveCount(0);
   // the bank-transfer line is the same as before
@@ -451,7 +451,7 @@ test('the return page with r=cancelled while the top-up still waits: says at onc
   await page.goto(`/wallet/topup-return?topup=${ONLINE_ID}&r=cancelled`);
   await expect(page.getByRole('heading', { name: 'It looks like the payment was cancelled' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('Nothing was taken from you. If you did pay, your money will be added here as soon as your bank confirms it.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Go to your wallet' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Go to your credit' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Payment received' })).toHaveCount(0);
   if (browserName === 'chromium') await axeClean(page, 'return page, cancelled hint');
   const writes = seen.supabase.filter((s) => /^(POST|PATCH|PUT|DELETE) \/rest\/v1\/(?!profiles)/.test(s) || /\/rpc\/(?!my_|wallet_open)/.test(s));

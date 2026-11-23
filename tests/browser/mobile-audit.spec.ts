@@ -243,8 +243,8 @@ for (const stage of ['choose-type', 'documents'] as const) {
 
 test('375 px, signed in with the wallet open: the add-money window', async ({ page, problems }) => {
   await openAs(page, { role: 'student', wallet: 'open' }, '/?view=wallet');
-  await expect(page.getByRole('heading', { name: /wallet/i }).first()).toBeVisible({ timeout: 15_000 });
-  await page.getByRole('button', { name: /add money/i }).first().click();
+  await expect(page.getByRole('heading', { name: /credit/i }).first()).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: /add credit/i }).first().click();
   await page.waitForTimeout(400);
   await check(page, 'in-student-wallet-add-money', problems);
 });

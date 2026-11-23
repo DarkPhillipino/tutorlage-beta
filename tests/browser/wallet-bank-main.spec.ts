@@ -5,10 +5,10 @@ import { test, expect, signInFake } from './fixtures';
 // THE BANK AS THE MAIN WAY TO PAY on the booking page (Ozow Option A, CEO 12 Nov 2026), on the five profiles, with the database AND the Worker both PRETENDED
 // (nothing here touches dev, production, the real Worker or any payment company; the "bank page" is a made-up address answered by the test). Covers:
 //  - when the database says the bank choice is open for this person AND the Worker says online payments are set up, the price panel leads with the wallet and
-//    the bank ("Pay R180 from your wallet", or the shortfall and "Add money by bank"); the card is folded under "Pay with a card instead", with its own Paystack
+//    the bank ("Pay R180 from your credit", or the shortfall and "Add credit by bank"); the card is folded under "Pay with a card instead", with its own Paystack
 //    test note; the old "See more" is gone;
 //  - the "Test mode" note for the bank shows ONLY when the Worker says `test: true`, and never beside a live payment;
-//  - "Add money by bank" goes straight to the bank (no "How would you like to pay?" question first), asking the Worker with NO body and no amount; when the bank
+//  - "Add credit by bank" goes straight to the bank (no "How would you like to pay?" question first), asking the Worker with NO body and no amount; when the bank
 //    cannot be opened the plain message and "Bank transfer, checked by a person" are on screen;
 //  - every doubt leaves the card as the main way, exactly as before: the choice closed, its function missing, the Worker not set up, answering an error, or
 //    not answering; and then the Worker is asked nothing at all (an ordinary payer costs no extra call) or only the one public question.
@@ -19,7 +19,7 @@ const json = (body: unknown, status = 200) => ({ status, contentType: 'applicati
 const ME = '00000000-0000-4000-8000-000000000001';
 const ONLINE_ID = '22222222-2222-4222-8222-222222222222';
 const BANK_PAGE = 'https://pay.example.test/checkout/abc123';
-const NOTE_START = 'Test mode: you will pay on Ozow\'s practice bank page with the demo login. No real money is taken, and the money added to your wallet is pretend money.';
+const NOTE_START = 'Test mode: you will pay on Ozow\'s practice bank page with the demo login. No real money is taken, and the money added to your credit is pretend money.';
 
 const rowsOrOne = (route: Route, list: unknown[]) => {
   const wantsOne = (route.request().headers()['accept'] ?? '').includes('vnd.pgrst.object');
@@ -118,13 +118,13 @@ async function openPricePanel(page: Page, setup: Setup): Promise<Seen> {
 const SAVE_CARD = /Save card & send request/;
 const envAsks = (seen: Seen) => seen.worker.filter((c) => c.path.endsWith('/online-environment'));
 
-test('the bank leads (Worker says TEST): the wallet box is open, "Pay R180 from your wallet", the test note, the card folded under "Pay with a card instead" (axe clean)', async ({ page, browserName, problems }) => {
+test('the bank leads (Worker says TEST): the wallet box is open, "Pay R180 from your credit", the test note, the card folded under "Pay with a card instead" (axe clean)', async ({ page, browserName, problems }) => {
   const seen = await openPricePanel(page, { online: 'yes', env: 'staging', balance: 320 });
   const main = page.locator('[data-bank-main]');
   await expect(main).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-test-mode-bank]')).toHaveText(NOTE_START);
-  await expect(page.getByRole('button', { name: 'Pay R180 from your wallet' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('[data-wallet-pay]')).toContainText('Your wallet: R320');
+  await expect(page.getByRole('button', { name: 'Pay R180 from your credit' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-wallet-pay]')).toContainText('Your credit: R320');
   // The old arrangement is gone: no "See more" fold for the wallet, and the card is folded, not shown.
   await expect(page.locator('[data-wallet-toggle]')).toHaveCount(0);
   const toggle = page.locator('[data-card-toggle]');
@@ -153,18 +153,18 @@ test('the bank leads (Worker says TEST): the wallet box is open, "Pay R180 from 
 test('the bank leads on the LIVE system (Worker says test false): the same page, and NO test note anywhere above the card fold', async ({ page, problems }) => {
   await openPricePanel(page, { online: 'yes', env: 'production', balance: 320 });
   await expect(page.locator('[data-bank-main]')).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole('button', { name: 'Pay R180 from your wallet' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Pay R180 from your credit' })).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-test-mode-bank]')).toHaveCount(0);
   await expect(page.getByText(/Test mode|No real money|pretend money|practice bank/)).toHaveCount(0);
   expect(problems.pageErrors).toEqual([]);
 });
 
-test('too little in the wallet: the shortfall and "Add money by bank"; the bank opens at once for the amount, asking the Worker with no body, and no "How would you like to pay?" question comes first', async ({ page, problems }) => {
+test('too little in the wallet: the shortfall and "Add credit by bank"; the bank opens at once for the amount, asking the Worker with no body, and no "How would you like to pay?" question comes first', async ({ page, problems }) => {
   const seen = await openPricePanel(page, { online: 'yes', env: 'staging', balance: 50 });
-  await expect(page.getByRole('button', { name: 'Pay R180 from your wallet' })).toHaveCount(0);
-  await expect(page.locator('[data-wallet-pay]')).toContainText('Your wallet: R50', { timeout: 15_000 });
-  await page.getByRole('button', { name: 'Add money by bank' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Add money to your wallet' });
+  await expect(page.getByRole('button', { name: 'Pay R180 from your credit' })).toHaveCount(0);
+  await expect(page.locator('[data-wallet-pay]')).toContainText('Your credit: R50', { timeout: 15_000 });
+  await page.getByRole('button', { name: 'Add credit by bank' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add lesson credit' });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel('Amount to add, in rand')).toHaveValue('130');
   await dialog.getByLabel('Amount to add, in rand').fill('200');
@@ -184,8 +184,8 @@ test('too little in the wallet: the shortfall and "Add money by bank"; the bank 
 
 test('the bank cannot be opened: the plain message and "Bank transfer, checked by a person" are right there', async ({ page, problems }) => {
   await openPricePanel(page, { online: 'yes', env: 'staging', balance: 50, start: { status: 502, body: { error: 'x', code: 'start_failed' } } });
-  await page.getByRole('button', { name: 'Add money by bank' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Add money to your wallet' });
+  await page.getByRole('button', { name: 'Add credit by bank' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add lesson credit' });
   await dialog.getByLabel('Amount to add, in rand').fill('200');
   await dialog.getByRole('button', { name: 'Continue' }).click();
   await expect(dialog.getByText(/We could not open your bank's payment page\. Nothing was taken from you\./)).toBeVisible({ timeout: 15_000 });
@@ -240,13 +240,13 @@ async function expectNoCardAnywhere(page: Page) {
   expect(await page.locator('body').innerText()).not.toMatch(NO_CARD_WORDS);
 }
 
-test('an ordinary person (not on the card list): the wallet is the main way, "Pay R180 from your wallet", and no card, no Paystack word and no test note anywhere (axe clean)', async ({ page, browserName, problems }) => {
+test('an ordinary person (not on the card list): the wallet is the main way, "Pay R180 from your credit", and no card, no Paystack word and no test note anywhere (axe clean)', async ({ page, browserName, problems }) => {
   const seen = await openPricePanel(page, { online: 'no', card: 'no', env: 'staging', balance: 320 });
   const main = page.locator('[data-card-closed][data-wallet-main]');
   await expect(main).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole('button', { name: 'Pay R180 from your wallet' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('[data-wallet-pay]')).toContainText('Your wallet: R320');
-  await expect(main).toContainText('Add money to your wallet by bank transfer');
+  await expect(page.getByRole('button', { name: 'Pay R180 from your credit' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-wallet-pay]')).toContainText('Your credit: R320');
+  await expect(main).toContainText('Add lesson credit by bank transfer');
   await expectNoCardAnywhere(page);
   if (browserName === 'chromium') {
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).include('[data-card-closed]').analyze();
@@ -257,11 +257,11 @@ test('an ordinary person (not on the card list): the wallet is the main way, "Pa
   expect(problems.pageErrors).toEqual([]);
 });
 
-test('an ordinary person with too little in the wallet: the shortfall and "Add money" (bank transfer), still no card words', async ({ page, problems }) => {
+test('an ordinary person with too little in the wallet: the shortfall and "Add credit" (bank transfer), still no card words', async ({ page, problems }) => {
   await openPricePanel(page, { online: 'no', card: 'no', balance: 50 });
   await expect(page.locator('[data-card-closed][data-wallet-main]')).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole('button', { name: 'Add money' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole('button', { name: /Pay R180 from your wallet/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add credit' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: /Pay R180 from your credit/ })).toHaveCount(0);
   await expectNoCardAnywhere(page);
   expect(problems.pageErrors).toEqual([]);
 });
@@ -279,7 +279,7 @@ for (const card of ['missing', 'error'] as const) {
 test('an ordinary person where the bank leads: the bank-first page has NO "Pay with a card instead" and no card words', async ({ page, problems }) => {
   await openPricePanel(page, { online: 'yes', card: 'no', env: 'production', balance: 320 });
   await expect(page.locator('[data-bank-main]')).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole('button', { name: 'Pay R180 from your wallet' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Pay R180 from your credit' })).toBeVisible({ timeout: 15_000 });
   await expectNoCardAnywhere(page);
   expect(problems.pageErrors).toEqual([]);
 });
