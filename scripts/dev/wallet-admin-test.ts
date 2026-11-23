@@ -316,6 +316,31 @@ async function main() {
   const allSource = [libSrc, tabsSrc, ...['WalletTopupsBody', 'WalletPayoutsBody', 'WalletBalancesBody', 'WalletSettingsBody', 'WalletParts'].map((f) => code(`admin/src/components/${f}.tsx`))].join('\n');
   check('nothing in the wallet admin code selects *', !/select\(\s*['"`]\s*\*/.test(allSource) && !/select\(\s*\)/.test(allSource));
 
+  // ---- the late marker follows the parent's promise (PM line 48, 23 Nov 2026) -----------------------------------------------------------------------------------
+  {
+    const { parseCheckRule, checkDueAt, topupLateState, DEFAULT_CHECK_RULE, fetchCheckRule } = await import('../../admin/src/lib/walletAdmin');
+    const SAYS = '6 hours (08:00 to 20:00; a transfer sent later is checked by 10:00 the next morning)';
+    const rule = parseCheckRule(SAYS);
+    const at = (iso: string) => new Date(iso);   // all times below are written in UTC; SAST = UTC + 2
+    check('L1 the six hours, the 08:00 to 20:00 day and the 10:00 next morning are read out of the notice setting\'s text', rule.hours === 6 && rule.dayStartMin === 480 && rule.dayEndMin === 1200 && rule.nextMorningMin === 600);
+    check('L2 a different text gives different numbers (nothing is hard-coded a second time)', (() => { const r = parseCheckRule('4 hours (09:00 to 18:00; a transfer sent later is checked by 11:30 the next morning)'); return r.hours === 4 && r.dayStartMin === 540 && r.dayEndMin === 1080 && r.nextMorningMin === 690; })());
+    check('L3 nothing readable, or rubbish, gives the built-in rule', JSON.stringify(parseCheckRule('')) === JSON.stringify(DEFAULT_CHECK_RULE) && JSON.stringify(parseCheckRule(undefined)) === JSON.stringify(DEFAULT_CHECK_RULE) && JSON.stringify(parseCheckRule('soon')) === JSON.stringify(DEFAULT_CHECK_RULE));
+    // case 1: sent 10:00 SAST (08:00Z) -> due 16:00 SAST (14:00Z)
+    check('C1 sent 10:00: not late at 15:59, late after 16:00', topupLateState('2026-11-23T08:00:00Z', at('2026-11-23T13:59:00Z'), rule) === 'on_time' && topupLateState('2026-11-23T08:00:00Z', at('2026-11-23T14:01:00Z'), rule) === 'late');
+    // case 2: sent 21:00 SAST (19:00Z) -> due 10:00 SAST next morning (08:00Z)
+    check('C2 sent 21:00: not late at 09:59 the next morning, late after 10:00', topupLateState('2026-11-23T19:00:00Z', at('2026-11-24T07:59:00Z'), rule) === 'on_time' && topupLateState('2026-11-23T19:00:00Z', at('2026-11-24T08:01:00Z'), rule) === 'late');
+    // case 3: sent 03:00 SAST (01:00Z) -> due 10:00 SAST the same morning (08:00Z)
+    check('C3 sent 03:00: not late at 09:59 the same morning, late after 10:00', topupLateState('2026-11-24T01:00:00Z', at('2026-11-24T07:59:00Z'), rule) === 'on_time' && topupLateState('2026-11-24T01:00:00Z', at('2026-11-24T08:01:00Z'), rule) === 'late');
+    check('C4 exactly 20:00 counts as "after 20:00" (the day is 08:00 up to 20:00), exactly 08:00 as the day', checkDueAt(at('2026-11-23T18:00:00Z'), rule).toISOString() === '2026-11-24T08:00:00.000Z' && checkDueAt(at('2026-11-23T06:00:00Z'), rule).toISOString() === '2026-11-23T12:00:00.000Z');
+    check('C5 a second, stronger state after 24 hours', topupLateState('2026-11-23T08:00:00Z', at('2026-11-24T08:01:00Z'), rule) === 'very_late' && topupLateState('2026-11-23T08:00:00Z', at('2026-11-24T07:59:00Z'), rule) === 'late');
+    check('C6 no sent time, or a bad one, is never late', topupLateState(null, at('2026-11-24T08:01:00Z'), rule) === 'on_time' && topupLateState('rubbish', at('2026-11-24T08:01:00Z'), rule) === 'on_time');
+    check('C7 the rule is read from the same database function the parent\'s page uses; an error or nothing gives the built-in rule', (await fetchCheckRule({ rpc: async () => ({ data: { times: '5 hours (08:00 to 20:00; later is checked by 09:00 next morning)' }, error: null }) })).hours === 5
+      && JSON.stringify(await fetchCheckRule({ rpc: async () => ({ data: null, error: { message: 'no' } }) })) === JSON.stringify(DEFAULT_CHECK_RULE)
+      && JSON.stringify(await fetchCheckRule({ rpc: async () => { throw new Error('offline'); } })) === JSON.stringify(DEFAULT_CHECK_RULE));
+    const body = readFileSync(new URL('../../admin/src/components/WalletTopupsBody.tsx', import.meta.url), 'utf8');
+    check('C8 the top-up card uses the new rule, not the 24-hour test, and says which promise it is past', /topupLateState\(since, now, rule\)/.test(body) && !/isOverdue\(/.test(body) && /we promised parents/.test(body));
+  }
+
   console.log(failed === 0 ? '\nall checks passed' : `\n${failed} FAILED`);
   process.exitCode = failed === 0 ? 0 : 1;
 }
