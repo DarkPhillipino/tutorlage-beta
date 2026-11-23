@@ -30,7 +30,7 @@ begin
   insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data, raw_app_meta_data) values
     (v_learner, z,'authenticated','authenticated','t.le.'||v_learner||'@example.invalid',
        jsonb_build_object('role','student','date_of_birth',minor_dob), jsonb_build_object('created_by_guardian', v_parent, 'relationship','mother'));
-  insert into admin_profiles (id, first_name, surname, email, phone_number) values (v_admin, 'T', 'Admin', 'x@example.invalid', '');
+  insert into admin_profiles (id, first_name, surname, email, phone_number, admin_role) values (v_admin, 'T', 'Admin', 'x@example.invalid', '', 'verification_officer');
 
   -- an adult learner
   perform set_config('request.jwt.claims', json_build_object('sub', v_adult, 'role','authenticated')::text, true);
@@ -168,6 +168,11 @@ begin
     r := r || 'T34 FAIL tutor verified with no DOB' || E'\n';
   exception when others then r := r || 'T34 ok verify without DOB refused: ' || sqlerrm || E'\n'; end;
   perform public.admin_set_date_of_birth(v_tutor, adult_dob::date);
+  -- P4 slice A: the old trigger (21 Oct) also wants an ID and a current police certificate that are not rejected; the owner adds them.
+  reset role;
+  insert into tutor_verification_documents (tutor_id, document_type, document_url, issued_on) values (v_tutor, 'identity_doc', 'fixture/' || gen_random_uuid(), null), (v_tutor, 'police_clearance', 'fixture/' || gen_random_uuid(), (now() at time zone 'Africa/Johannesburg')::date);
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role','authenticated')::text, true);
+  set local role authenticated;
   update tutor_profiles set is_verified = true where id = v_tutor;
   get diagnostics v_cnt = row_count;
   r := r || format('T35 admin recorded DOB then verified: rows=%s (want 1)', v_cnt);

@@ -1,3 +1,4 @@
+-- (P4 slice A, 23 Nov 2026: the officer now reviews documents and approves through admin_review_document and admin_approve_tutor; the tutor adds a link as proof of experience.)
 -- Rolled-back test, item 10 of the road to P5 (17 Nov 2026): the WHOLE path one wave-1 tutor walks, on the real database, with a made-up person.
 --   join the waiting list -> released by a verification officer -> signs up (the list row follows) -> picks a kind and gives the documents consent ->
 --   uploads the ID copy -> the officer cannot approve without a police clearance -> uploads it -> the officer verifies both documents, approves the
@@ -107,14 +108,17 @@ begin
     -- 6. before approval: invisible to a signed-out visitor; the tutor cannot approve themself; the officer cannot approve without a police clearance
     t := pg_temp.run_as(null, format('select count(*)::text from public.tutor_profiles where id = %L', v_t));
     r := r || pg_temp.chk('W7', 'a signed-out visitor cannot see the unapproved tutor', t, '0');
-    t := pg_temp.run_as(v_off, format($q$with x as (update public.tutor_profiles set is_verified = true, onboarding_status = 'verified' where id = %L returning id) select count(*)::text from x$q$, v_t));
-    r := r || pg_temp.chk('W9', 'the officer cannot approve with an ID copy but no police clearance', t, 'ERR: approval_needs_documents:police_clearance_missing');
+    -- P4 slice A (23 Nov 2026): the officer approves through admin_approve_tutor, which asks tutor_readiness (the ID is only pending, no police clearance, no proof of experience yet).
+    t := pg_temp.run_as(v_off, format('select public.admin_approve_tutor(%L)::text', v_t));
+    r := r || pg_temp.chk('W9', 'the officer cannot approve with an ID copy but no police clearance', t, 'ERR: approval_not_ready:identity_not_verified,police_missing,third_doc_missing');
 
     -- 7. the police clearance (issued today), then the officer checks both documents, ticks the subject's checklist and approves the tutor
     t := pg_temp.run_as(v_t, format($q$with x as (insert into public.tutor_verification_documents (tutor_id, document_type, document_url, issued_on) values (%L, 'police_clearance', %L, %L::date) returning id) select count(*)::text from x$q$, v_t, v_t || '/zz-police.pdf', v_today));
     r := r || pg_temp.chk('W10', 'the tutor uploads the police clearance', t, '1');
-    t := pg_temp.run_as(v_off, format($q$with x as (update public.tutor_verification_documents set status = 'verified', reviewed_at = now() where tutor_id = %L returning id) select count(*)::text from x$q$, v_t));
-    r := r || pg_temp.chk('W11', 'the officer marks both documents verified', t, '2');
+    t := pg_temp.run_as(v_t, format($q$with x as (insert into public.tutor_verification_documents (tutor_id, document_type, document_url) values (%L, 'proof_of_experience', %L) returning id) select count(*)::text from x$q$, v_t, 'https://example.invalid/zz-reference'));
+    r := r || pg_temp.chk('W10b', 'the tutor adds a link as proof of experience (the experienced route needs it)', t, '1');
+    t := pg_temp.run_as(v_off, format($q$select count(*)::text from (select public.admin_review_document(d.id, 'verified') from public.tutor_verification_documents d where d.tutor_id = %L) x$q$, v_t));
+    r := r || pg_temp.chk('W11', 'the officer marks the three documents verified (admin_review_document)', t, '3');
     -- Module 7 (safeguarding) and the code of conduct: from migration 20261118110000 an admin cannot approve a subject without them. The tutor does this in the app (tier1_submit_module_check);
     -- the row it writes is put in here directly, and tests/module7_subject_approval.sql proves the refusal without it.
     insert into public.tier1_training (tutor_id, module, result, method, conduct_accepted_at) values (v_t, 7, 'complete', 'scenario_check', now());
@@ -122,8 +126,8 @@ begin
     r := r || pg_temp.chk('W12', 'the officer approves the subject on the checklist', t, '');
     t := pg_temp.run_as(v_t, format($q$with x as (update public.tutor_profiles set is_verified = true, onboarding_status = 'verified' where id = %L returning id) select count(*)::text from x$q$, v_t));
     r := r || pg_temp.chk('W8', 'the tutor, with all documents in, still cannot approve themself', t, 'ERR: Only Tutorlage can change verification, tier, rating or freeze details');
-    t := pg_temp.run_as(v_off, format($q$with x as (update public.tutor_profiles set is_verified = true, onboarding_status = 'verified' where id = %L returning id) select count(*)::text from x$q$, v_t));
-    r := r || pg_temp.chk('W13', 'the officer approves the tutor', t, '1');
+    t := pg_temp.run_as(v_off, format('select (public.admin_approve_tutor(%L)->>%L)', v_t, 'ready'));
+    r := r || pg_temp.chk('W13', 'the officer approves the tutor (admin_approve_tutor)', t, 'true');
 
     -- 8. what the world now sees
     select tp.is_verified::text || '/' || (tp.verified_at is not null)::text into t from public.tutor_profiles tp where tp.id = v_t;

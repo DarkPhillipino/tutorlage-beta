@@ -140,7 +140,7 @@ begin
     (v5, z,'authenticated','authenticated','pc.v5.'||v5||'@example.invalid', jsonb_build_object('role','tutor','first_name','V5','date_of_birth',adult), '{}'),
     (v6, z,'authenticated','authenticated','pc.v6.'||v6||'@example.invalid', jsonb_build_object('role','tutor','first_name','V6','date_of_birth',adult), '{}'),
     (vu, z,'authenticated','authenticated','pc.vu.'||vu||'@example.invalid', jsonb_build_object('role','tutor','first_name','VU','date_of_birth',adult), '{}');
-  insert into admin_profiles (id, first_name, surname, email, phone_number) values (v_adm, 'T', 'Admin', 'x@example.invalid', '');
+  insert into admin_profiles (id, first_name, surname, email, phone_number, admin_role) values (v_adm, 'T', 'Admin', 'x@example.invalid', '', 'verification_officer');   -- P4 slice A: since 16 Nov 2026 only the verification roles may update a tutor profile (a support agent's update matched no row)
   vs := array[v1, v2, v3, v4, v5, v6];
   update profiles set date_of_birth = adult::date where id = any (array[a1, a2, a3, a4, vu] || vs);
   insert into tutor_onboarding (tutor_id, grandfathered) values (a2, true), (v5, true);

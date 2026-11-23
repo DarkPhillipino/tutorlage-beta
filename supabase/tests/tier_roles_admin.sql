@@ -71,7 +71,7 @@ begin
   begin perform public.admin_assign_tier(gen_random_uuid(), '2D', 'x reason'); x := 1; exception when others then x := 0; end;
   reset role;
   r := r || format('%s T4 refused: no reason (%s), unknown level (%s), unknown tutor (%s)',
-    case when s = 'Give the reason for this level' and s2 = 'No such level' and x = 0 then 'ok  ' else 'FAIL' end, s, s2, case when x = 0 then 'refused' else 'ACCEPTED' end) || E'\n';
+    case when s = 'Give the reason for this level (at least 10 characters)' and s2 = 'No such level' and x = 0 then 'ok  ' else 'FAIL' end, s, s2, case when x = 0 then 'refused' else 'ACCEPTED' end) || E'\n';
 
   -- T5 a credential: the degree puts the tutor at 2D (it was 2C before item 6, 18 Nov 2026); the higher level still wins; removing the assignment leaves 2D
   select id into doc from (select gen_random_uuid() as id) q;
