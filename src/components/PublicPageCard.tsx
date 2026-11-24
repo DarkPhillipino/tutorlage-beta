@@ -5,6 +5,8 @@ import {
   PUBLIC_PAGE_COPY as COPY, fetchMyPublicProfile, profileLink, setMyPublicProfile, type MyPublicProfile, type PublicPageClient,
 } from '../lib/publicTutorPage';
 
+const ShareCard = React.lazy(() => import('./ShareCard'));
+
 // The tutor's switch for her public page, /t/CODE, and "Copy my profile link" (CEO, 24 Nov 2026; job P slice 1). WAVE-MARKED: this is the ONLY change to the Teach screen for this job. Default OFF; switching on needs an
 // explicit tick of the consent line; switching off is one tap and the page disappears at once. A tutor who is not approved, or has no code, sees one plain line and no switch. Anything that goes wrong
 // shows nothing extra (the Teach screen is never held up by this card).
@@ -63,6 +65,11 @@ export const PublicPageCard: React.FC<{ client?: PublicPageClient }> = ({ client
         <>
           <p className="text-[11px] text-slate-700 leading-relaxed">{COPY.cardOn}</p>
           {link && <p className="text-[11px] font-mono text-slate-600 break-all">{link}</p>}
+          {me.code && (
+            <React.Suspense fallback={null}>
+              <ShareCard client={client} code={me.code} />
+            </React.Suspense>
+          )}
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={copy} className="min-h-9 px-3 rounded-lg bg-[#15803D] hover:bg-[#166534] text-white text-xs font-bold cursor-pointer">{copied ? COPY.copied : COPY.copy}</button>
             <button type="button" disabled={busy} onClick={() => change(false)} className="min-h-9 px-3 rounded-lg border border-slate-300 bg-white text-xs font-bold text-[#0F172A] cursor-pointer disabled:opacity-50">{COPY.switchOff}</button>

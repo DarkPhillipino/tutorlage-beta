@@ -311,8 +311,7 @@ export const ManageAccountModal: React.FC<ManageAccountModalProps> = ({
                 <p className="text-xs text-slate-500">Loading…</p>
               ) : savedCards.length === 0 ? (
                 <div className="bg-white rounded-2xl p-4 border border-slate-200 text-xs text-slate-600 leading-relaxed">
-                  No saved card yet. When you send a request, Paystack saves your card with a R1 check
-                  (refunded straight away), so it can be charged when a tutor accepts.
+                  No saved card. Lessons are paid from your lesson credit, which you add by bank transfer.
                 </div>
               ) : (
                 savedCards.map((card) => (
