@@ -66,6 +66,11 @@ export function gradesInWords(min: string, max: string): string {
   return `${a} to ${b}`;
 }
 
+// "odirile" -> "Odirile", "mary-ann" -> "Mary-Ann": the first letter of each part is a capital, the rest is left as she typed it.
+export function capitaliseName(name: string): string {
+  return name.trim().replace(/(^|[\s-])(\p{L})/gu, (_m, sep: string, ch: string) => sep + ch.toLocaleUpperCase('en-ZA'));
+}
+
 // What the database answered, or null when there is no page (or the answer is odd).
 export function parsePublicPage(data: unknown): PublicTutorPage | null {
   if (!data || typeof data !== 'object') return null;
@@ -84,7 +89,7 @@ export function parsePublicPage(data: unknown): PublicTutorPage | null {
     : [];
   return {
     code,
-    firstName,
+    firstName: capitaliseName(firstName),
     levelId: str(d.level_id),
     levelName: str(d.level_name),
     price: whole(d.price),

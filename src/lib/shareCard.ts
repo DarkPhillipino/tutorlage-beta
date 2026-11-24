@@ -2,16 +2,14 @@
 // What is on it: TUTORLAGE, her first name, her subjects and grades, her link and a QR code of the link. Never a price, earnings, a surname, a contact detail or a campus.
 // Pure text helpers live here (tested); the drawing needs a canvas and is only reached from the lazy ShareCard component on the Teach screen, so none of this
 // (nor the QR code library) is loaded anywhere else.
-import { gradesInWords, type PublicPageSubject } from './publicTutorPage';
+import { capitaliseName, gradesInWords, type PublicPageSubject } from './publicTutorPage';
 
 export const CARD_W = 1080;
 export const CARD_H = 1920;
 const MAX_LINES = 6;
 
 // Capitalise the first letter of each part of a first name ("odirile" -> "Odirile", "mary-ann" -> "Mary-Ann"); the rest is left as typed.
-export function nameForCard(firstName: string): string {
-  return firstName.trim().replace(/(^|[\s-])(\p{L})/gu, (_m, sep: string, ch: string) => sep + ch.toLocaleUpperCase('en-ZA'));
-}
+export const nameForCard = capitaliseName;
 
 // One line per subject: "Mathematics: Grades 8 to 12". The same subject twice (two grade bands) is shown twice, as she set it.
 export function subjectLines(subjects: PublicPageSubject[]): string[] {
