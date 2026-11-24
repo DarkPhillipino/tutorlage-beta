@@ -12,6 +12,8 @@ import { TutorDocumentsReminder } from './TutorOnboardingGate';
 import { PublicPageCard } from './PublicPageCard';
 import { TurnOnAlertsCard } from './TurnOnAlertsCard';
 
+const MyPhotoCard = React.lazy(() => import('./MyPhotoCard'));
+
 interface TeachGoScreenProps {
   tutorId: string;
   onOpenMenu: () => void;
@@ -239,6 +241,10 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
 
           {/* WAVE-MARKED (job P slice 1, 24 Nov 2026): the tutor's public page switch and "Copy my profile link". The only change to this screen for that job. */}
           <PublicPageCard />
+          {/* RUN 7: her own photo, pending until the company approves it (shows nothing for anyone who is not a tutor) */}
+          <React.Suspense fallback={null}>
+            <MyPhotoCard />
+          </React.Suspense>
           {/* RUN 6: renders nothing while the database setting web_push_enabled is off */}
           <TurnOnAlertsCard />
 
