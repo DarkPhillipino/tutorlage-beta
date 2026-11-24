@@ -40,17 +40,18 @@ check('no subjects at all is layout A', cardLayout([]) === 'A');
 
 // ---- the grouping by grade range ----
 const flat = (g: ReturnType<typeof groupByGradeRange>) => g.map((x) => `${x.range}: ${x.subjects.join(', ')}`).join(' | ');
-const oddGroups = flat(groupByGradeRange(odi));
+const oddGroups = flat(groupByGradeRange(odi, 'B'));
 check(
-  "Odi's card, widest range first, English joined",
-  oddGroups === 'Grade 4 to 12: English | Grade 4 to 9: Natural Sciences and Technology, Social Sciences | Grade 4 to 8: Mathematics | Grade 10 to 12: Geography, Life Sciences',
+  "Odi's card, widest range first, English written out in full",
+  oddGroups === 'Grade 4 to 12: English, Home Language and First Additional Language | Grade 4 to 9: Natural Sciences and Technology, Social Sciences | Grade 4 to 8: Mathematics | Grade 10 to 12: Geography, Life Sciences',
   oddGroups,
 );
-check("Odi's seven subjects are all there (nothing cut off, none invented)", groupByGradeRange(odi).flatMap((g) => g.subjects).length === 6 && oddGroups.includes('English') && ['Geography', 'Life Sciences', 'Mathematics', 'Natural Sciences and Technology', 'Social Sciences'].every((s) => oddGroups.includes(s)));
-check("Amira's card: one block per grade range", flat(groupByGradeRange(amira)) === 'Grade 1 to 12: English Home Language | Grade 8 to 12: Geography', flat(groupByGradeRange(amira)));
-check('a three-subject tutor: two blocks, subjects sharing a range together', flat(groupByGradeRange(three)) === 'Grade 8 to 12: Mathematics, Physical Sciences | Grade 10 to 12: Accounting', flat(groupByGradeRange(three)));
+check("Odi's seven subjects are all there (nothing cut off, none invented)", groupByGradeRange(odi, 'B').flatMap((g) => g.subjects).length === 6 && oddGroups.includes('English, Home Language and First Additional Language') && ['Geography', 'Life Sciences', 'Mathematics', 'Natural Sciences and Technology', 'Social Sciences'].every((s) => oddGroups.includes(s)));
+check("Amira's card: one block per grade range", flat(groupByGradeRange(amira, 'A')) === 'Grade 1 to 12: English Home Language | Grade 8 to 12: Geography', flat(groupByGradeRange(amira, 'A')));
+check('a three-subject tutor: two blocks, subjects sharing a range together', flat(groupByGradeRange(three, 'A')) === 'Grade 8 to 12: Mathematics, Physical Sciences | Grade 10 to 12: Accounting', flat(groupByGradeRange(three, 'A')));
 check('one grade is "Grade 5"; Grade R sorts as the lowest', flat(groupByGradeRange([sub('Mathematics', 'Grade 5', 'Grade 5'), sub('Life Skills', 'Grade R', 'Grade 3')])) === 'Grade R to 3: Life Skills | Grade 5: Mathematics', flat(groupByGradeRange([sub('Mathematics', 'Grade 5', 'Grade 5'), sub('Life Skills', 'Grade R', 'Grade 3')])));
-check('English is joined only when both share a range', flat(groupByGradeRange([sub('English Home Language', 'Grade 4', 'Grade 12'), sub('English First Additional Language', 'Grade 8', 'Grade 12')])) === 'Grade 4 to 12: English Home Language | Grade 8 to 12: English First Additional Language');
+check('layout A keeps both English names as the page gives them (no joining)', flat(groupByGradeRange(odi.slice(0, 2), 'A')) === 'Grade 4 to 12: English First Additional Language, English Home Language');
+check('English is joined only when both share a range', flat(groupByGradeRange([sub('English Home Language', 'Grade 4', 'Grade 12'), sub('English First Additional Language', 'Grade 8', 'Grade 12')], 'B')) === 'Grade 4 to 12: English Home Language | Grade 8 to 12: English First Additional Language');
 check('a tutor with no photo and no subjects makes no groups (the card is not offered)', groupByGradeRange([]).length === 0);
 
 // ---- the caption: her link on its own line, nothing on the picture ----
@@ -65,6 +66,7 @@ const comp = read('src/components/ShareCard.tsx');
 const libCode = lib.replace(/\/\/.*$/gm, '');
 check('no QR code and no link drawn on the picture', !/qrcode|drawQr|Scan to see/i.test(libCode + comp) && !/fillText\([^)]*link/i.test(libCode));
 check('the QR library is gone from the project', !/qrcode-generator/.test(read('package.json')));
+check('layout B carries "Link in the caption below" at the foot and layout A does not', /Link in the caption below/.test(libCode) && /isB/.test(libCode));
 check('the card text says TUTORLAGE small top-left (a brand drawn from the left padding)', /'TUTORLAGE'/.test(libCode) && /textAlign = 'left'/.test(libCode));
 
 // ---- her photo stays on her phone ----

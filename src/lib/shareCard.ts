@@ -53,8 +53,10 @@ const isEnglishHome = (n: string) => /^english\b.*\bhome language\b/i.test(n);
 const isEnglishFal = (n: string) => /^english\b.*\bfirst additional language\b/i.test(n);
 
 // Subjects grouped by grade range, widest range first, subjects that share a range merged into one group. When both English subjects share a range they
-// are joined as "English" (the CEO's example). Only the subjects and ranges the public page returns: nothing is invented.
-export function groupByGradeRange(subjects: PublicPageSubject[]): GradeGroup[] {
+// are written "English, Home Language and First Additional Language" in layout B only (PM line 71); layout A keeps the names as the page gives them. Only the subjects and ranges the public page returns: nothing is invented.
+export const ENGLISH_BOTH = 'English, Home Language and First Additional Language';
+
+export function groupByGradeRange(subjects: PublicPageSubject[], layout: CardLayout = 'B'): GradeGroup[] {
   const groups: { range: string; width: number; min: number; subjects: string[] }[] = [];
   for (const s of subjects) {
     const name = s.subject.trim();
@@ -72,10 +74,10 @@ export function groupByGradeRange(subjects: PublicPageSubject[]): GradeGroup[] {
   for (const g of groups) {
     const h = g.subjects.findIndex(isEnglishHome);
     const f = g.subjects.findIndex(isEnglishFal);
-    if (h >= 0 && f >= 0) {
+    if (layout === 'B' && h >= 0 && f >= 0) {
       const first = Math.min(h, f);
       g.subjects = g.subjects.filter((_n, i) => i !== h && i !== f);
-      g.subjects.splice(first, 0, 'English');
+      g.subjects.splice(first, 0, ENGLISH_BOTH);
     }
   }
   groups.sort((a, b) => b.width - a.width || a.min - b.min);
@@ -118,14 +120,14 @@ const BG = '#0F6E56';
 const INK = '#E1F5EE';
 const SOFT = '#5DCAA5';
 // The design (reference page, 360 x 640) drawn at three times its size on the real 1080 x 1920 card.
-const PAD_X = 78;
-const PAD_TOP = 84;
-const PAD_BOTTOM = 84;
+const PAD_X = 66;
+const PAD_TOP = 78;
+const PAD_BOTTOM = 78;
 const INNER_W = CARD_W - PAD_X * 2;
-const BRAND_SIZE = 45;
+const BRAND_SIZE = 39;
 const MIN_GAP = 36;
 
-export interface Row { text: string; size: number; weight: number; color: string; mt: number; lh: number }
+export interface Row { text: string; size: number; weight: number; color: string; mt: number; lh: number; left?: boolean }
 
 export function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const words = text.split(/\s+/).filter(Boolean);
@@ -157,16 +159,22 @@ function measure(ctx: CanvasRenderingContext2D, rows: Row[]): { items: Measured[
 
 export interface CardPhoto { source: CanvasImageSource }
 
-// The rows of the subjects block for a layout. `s` shrinks the type (1 = the design size) when many groups have to fit.
+// The rows of the subjects block. Layout A (the design's 360 px at 3 times): name 32 px semi-bold, then one bold 18 px grade line per range with the subjects under it, centred.
+// Layout B: name 40 px centred, then groups left-aligned (bold 16 px range, subjects under it). `s` shrinks the group type (1 = the design size) when many groups must fit.
 export function subjectRows(name: string, groups: GradeGroup[], layout: CardLayout, s: number): Row[] {
-  const nameSize = layout === 'A' ? 132 : 114;
-  const rows: Row[] = [{ text: name, size: nameSize, weight: 500, color: INK, mt: 0, lh: 1.15 }];
-  const size = Math.round((layout === 'A' ? 57 : 45) * s);
-  const mt = Math.round((layout === 'A' ? 36 : 27) * s);
-  const lhText = layout === 'A' ? 1.3 : 1.25;
+  if (layout === 'A') {
+    const rows: Row[] = [{ text: name, size: 96, weight: 600, color: INK, mt: 0, lh: 1.15 }];
+    groups.forEach((g, i) => {
+      rows.push({ text: g.range, size: Math.round(54 * s), weight: 700, color: '#FFFFFF', mt: i === 0 ? 24 : Math.round(24 * s), lh: 1.2 });
+      rows.push({ text: g.subjects.join(', '), size: Math.round(54 * s), weight: 400, color: INK, mt: 0, lh: 1.3 });
+    });
+    return rows;
+  }
+  const size = Math.round(48 * s);
+  const rows: Row[] = [];
   groups.forEach((g, i) => {
-    rows.push({ text: g.range, size, weight: 600, color: '#FFFFFF', mt: i === 0 ? (layout === 'A' ? 36 : 18) : mt, lh: 1.2 });
-    rows.push({ text: g.subjects.join(', '), size, weight: 400, color: INK, mt: 0, lh: lhText });
+    rows.push({ text: g.range, size, weight: 600, color: '#FFFFFF', mt: i === 0 ? 0 : Math.round(33 * s), lh: 1.2, left: true });
+    rows.push({ text: g.subjects.join(', '), size, weight: 400, color: INK, mt: 0, lh: 1.35, left: true });
   });
   return rows;
 }
@@ -211,9 +219,30 @@ function drawFace(ctx: CanvasRenderingContext2D, cx: number, cy: number, d: numb
   ctx.restore();
 }
 
-// Lay out the card from the top: brand, then face and block spread with equal gaps, as in the design. Shrinks the face, then the type, until everything fits;
-// a subject is never cut off. Returns the final type scale and face size (for the test page).
-export function composeAndDraw(canvas: HTMLCanvasElement, opts: { name: string; photo: CardPhoto | null; makeRows: (s: number) => Row[]; faceD: number }): { scale: number; faceD: number; fits: boolean } {
+function paintRows(ctx: CanvasRenderingContext2D, items: Measured[], top: number): void {
+  let y = top;
+  ctx.textBaseline = 'top';
+  items.forEach((it, i) => {
+    if (i > 0) y += it.row.mt;
+    ctx.font = `${it.row.weight} ${it.row.size}px ${FONT}`;
+    ctx.fillStyle = it.row.color;
+    ctx.textAlign = it.row.left ? 'left' : 'center';
+    const x = it.row.left ? PAD_X : CARD_W / 2;
+    const step = Math.round(it.row.size * it.row.lh);
+    for (const line of it.lines) {
+      ctx.fillText(line, x, y + (step - it.row.size) / 2);
+      y += step;
+    }
+  });
+}
+
+// Layout A (and the weekly card): brand top-left, face in the middle, the text block anchored at the bottom, all centred, as in the approved design (PM line 71).
+// Layout B: brand top-left, face at the top centred, name centred, groups left-aligned, and "Link in the caption below" at the foot.
+// Shrinks the face, then the type, until everything fits; a subject is never cut off. Returns the final type scale and face size (for the test page).
+export function composeAndDraw(
+  canvas: HTMLCanvasElement,
+  opts: { name: string; photo: CardPhoto | null; makeRows: (s: number) => Row[]; faceD: number; mode?: 'A' | 'B' },
+): { scale: number; faceD: number; fits: boolean } {
   canvas.width = CARD_W;
   canvas.height = CARD_H;
   const ctx = canvas.getContext('2d');
@@ -222,14 +251,27 @@ export function composeAndDraw(canvas: HTMLCanvasElement, opts: { name: string; 
   ctx.fillRect(0, 0, CARD_W, CARD_H);
   const avail = CARD_H - PAD_TOP - PAD_BOTTOM;
   const brandH = Math.round(BRAND_SIZE * 1.2);
+  const isB = opts.mode === 'B';
+  const nameRow: Row = { text: opts.name, size: 120, weight: 500, color: INK, mt: 0, lh: 1.15 };
+  const FOOT = 'Link in the caption below';
+  const footSize = 39;
+  const footH = isB ? Math.round(footSize * 1.2) : 0;
+  const B_FACE_TOP = 42;
 
   let faceD = opts.faceD;
   let scale = 1;
-  let m = measure(ctx, opts.makeRows(scale));
-  const fits = () => brandH + faceD + m.height + MIN_GAP * 2 <= avail;
+  const build = () => {
+    if (!isB) return measure(ctx, opts.makeRows(scale));
+    const m = measure(ctx, opts.makeRows(scale));
+    const n = measure(ctx, [nameRow]);
+    return { items: m.items, height: m.height, nameH: n.height };
+  };
+  let m = build() as ReturnType<typeof measure> & { nameH?: number };
+  const need = () => (isB ? brandH + B_FACE_TOP + faceD + 36 + (m.nameH ?? 0) + 42 + m.height + 36 + footH : brandH + faceD + m.height + MIN_GAP * 2);
+  const fits = () => need() <= avail;
   const smaller = () => {
     scale = Math.round((scale - 0.02) * 100) / 100;
-    m = measure(ctx, opts.makeRows(scale));
+    m = build() as typeof m;
   };
   while (!fits() && faceD > 300) faceD -= 30;
   while (!fits() && scale > 0.62) smaller();
@@ -237,34 +279,38 @@ export function composeAndDraw(canvas: HTMLCanvasElement, opts: { name: string; 
   while (!fits() && scale > 0.45) smaller();
 
   drawBrand(ctx);
-  const gap = Math.max(MIN_GAP, (avail - brandH - faceD - m.height) / 2);
-  const faceTop = PAD_TOP + brandH + gap;
-  drawFace(ctx, CARD_W / 2, faceTop + faceD / 2, faceD, opts.photo, (opts.name[0] ?? 'T').toLocaleUpperCase('en-ZA'));
-
-  let y = faceTop + faceD + gap;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  m.items.forEach((it, i) => {
-    if (i > 0) y += it.row.mt;
-    ctx.font = `${it.row.weight} ${it.row.size}px ${FONT}`;
-    ctx.fillStyle = it.row.color;
-    const step = Math.round(it.row.size * it.row.lh);
-    for (const line of it.lines) {
-      ctx.fillText(line, CARD_W / 2, y + (step - it.row.size) / 2);
-      y += step;
-    }
-  });
+  const initial = (opts.name[0] ?? 'T').toLocaleUpperCase('en-ZA');
+  if (isB) {
+    const faceTop = PAD_TOP + brandH + B_FACE_TOP;
+    drawFace(ctx, CARD_W / 2, faceTop + faceD / 2, faceD, opts.photo, initial);
+    const nameTop = faceTop + faceD + 36;
+    paintRows(ctx, measure(ctx, [nameRow]).items, nameTop);
+    paintRows(ctx, m.items, nameTop + (m.nameH ?? 0) + 42);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = INK;
+    ctx.font = `400 ${footSize}px ${FONT}`;
+    ctx.fillText(FOOT, CARD_W / 2, CARD_H - PAD_BOTTOM - footH);
+    ctx.globalAlpha = 1;
+  } else {
+    // face in the middle of the space between the brand and the text block, the text anchored at the bottom
+    const textTop = CARD_H - PAD_BOTTOM - 42 - m.height;
+    const faceTop = PAD_TOP + brandH + (textTop - (PAD_TOP + brandH) - faceD) / 2;
+    drawFace(ctx, CARD_W / 2, faceTop + faceD / 2, faceD, opts.photo, initial);
+    paintRows(ctx, m.items, textTop);
+  }
   return { scale, faceD, fits: fits() };
 }
 
 // Draws the share card (layout A or B by how many subjects) on a canvas of CARD_W x CARD_H. Nothing is sent anywhere.
 export async function drawShareCard(canvas: HTMLCanvasElement, input: { firstName: string; subjects: PublicPageSubject[]; photo?: CardPhoto | null }): Promise<void> {
   const layout = cardLayout(input.subjects);
-  const groups = groupByGradeRange(input.subjects);
+  const groups = groupByGradeRange(input.subjects, layout);
   const probe = document.createElement('canvas').getContext('2d');
   if (!probe) throw new Error('no canvas');
-  const name = fitName(probe, input.firstName, layout === 'A' ? 132 : 114, 500);
-  composeAndDraw(canvas, { name, photo: input.photo ?? null, makeRows: (s) => subjectRows(name, groups, layout, s), faceD: layout === 'A' ? 510 : 450 });
+  const name = fitName(probe, input.firstName, layout === 'A' ? 96 : 120, layout === 'A' ? 600 : 500);
+  composeAndDraw(canvas, { name, photo: input.photo ?? null, makeRows: (s) => subjectRows(name, groups, layout, s), faceD: 450, mode: layout });
 }
 
 // ---- The weekly card (JOB WEEKLY): her REAL numbers, counts only; same design and rules as the share card ----------------------------------------------------
