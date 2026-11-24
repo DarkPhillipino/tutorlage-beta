@@ -32,6 +32,7 @@ begin
       (v_off, 'Vic', 'Officer', 'ex.off.' || uid || '@example.invalid', '', 'verification_officer', true),
       (v_sup, 'Sam', 'Support', 'ex.sup.' || uid || '@example.invalid', '', 'support_agent', true);
 
+    perform public.tutor_drift_scan();   -- 24 Nov 2026: bring the findings up to date first, so the counts below change only by what THIS run adds (production may hold a finding the scan has not yet closed)
     b := (pg_temp.run_as(v_off, 'select public.admin_exceptions_report()::text'))::jsonb;
     r := r || pg_temp.chk('A1', 'the answer has counts and rows', (b ? 'counts')::text || (b ? 'rows')::text, 'truetrue');
     r := r || pg_temp.chk('A2', 'the five counts', (select string_agg(k, ',' order by k) from jsonb_object_keys(b -> 'counts') k), 'direct_level,grandfathered,module7,not_ready,prior_hours');

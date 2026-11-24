@@ -244,7 +244,7 @@ $wb$;
     case when to_regprocedure('public.create_wallet_session(uuid,uuid,integer)') is not null then 'approval < police < fit < wallet block < free block < first money step'
          when to_regprocedure('public.create_free_session(uuid,uuid)') is not null then 'approval < police < fit < free block < first money step' else 'no free block' end);
   r := r || pg_temp.chk('C21', 'stored accept_session_request equals the migration file (md5 of its text)', (select md5(prosrc) from pg_proc where oid = 'public.accept_session_request(uuid)'::regprocedure), '6441ca81efdc251fc83a18e672d541f4');
-  r := r || pg_temp.chk('C21b', 'the helper, the trigger function and the status function equal the file', (select string_agg(md5(prosrc), ',' order by proname) from pg_proc where pronamespace = 'public'::regnamespace and proname in ('police_clearance_problem', 'enforce_tutor_documents_on_verify', 'my_police_clearance_status')), '7d5be641fdafb06124bd0aae57597893,0d6850560c3014ae4ff528054190da24,e70fdd27b9d50c745cd3c8960c776a1b');
+  r := r || pg_temp.chk('C21b', 'the helper, the trigger function and the status function equal the file', (select string_agg(md5(prosrc), ',' order by proname) from pg_proc where pronamespace = 'public'::regnamespace and proname in ('police_clearance_problem', 'enforce_tutor_documents_on_verify', 'my_police_clearance_status')), '7d5be641fdafb06124bd0aae57597893,0c09d0c88ce10d96183de962ba3ff486,f2f0dfac67ac9f6fa9fc36efcc4152b3');
   r := r || pg_temp.chk('C21c', 'execute rights kept: the Worker can claim, a signed-in user cannot', (has_function_privilege('service_role', 'public.claim_session_request(uuid,uuid)', 'execute'))::text || '/' || (has_function_privilege('authenticated', 'public.claim_session_request(uuid,uuid)', 'execute'))::text || '/' || (has_function_privilege('authenticated', 'public.accept_session_request(uuid)', 'execute'))::text, 'true/false/false');
 
   -- ---- ACCEPTING --------------------------------------------------------------------------------------------------------------
@@ -267,12 +267,15 @@ $wb$;
     values (v_l, e_l, v_l, tue10, 1, 'pending', 'paid', 'pc_qd', '1A', 1, 50, s1) returning id into qd;
 
   r := r || pg_temp.chk('C22', 'claim: approved, no certificate', pg_temp.try_claim(qa, v1), 'police_clearance_missing');
-  r := r || pg_temp.chk('C23', 'claim: only a certificate 7 months old', pg_temp.try_claim(qa, v2), 'police_clearance_expired');
+  -- 24 Nov 2026 (JOB POL): the age of the certificate matters only at registration, so a VERIFIED tutor with a 7-month-old certificate is no longer refused (that is proved in
+  -- police_age_only_at_registration.sql). The refusals below keep their meaning with the certificate REJECTED instead of aged: still refused, and 'missing'.
+  update tutor_verification_documents set status = 'rejected' where tutor_id = v2 and document_type = 'police_clearance' and issued_on = (td - interval '7 months')::date;
+  r := r || pg_temp.chk('C23', 'claim: only a certificate 7 months old and rejected', pg_temp.try_claim(qa, v2), 'police_clearance_missing');
   r := r || pg_temp.chk('C24', 'claim: only a rejected certificate', pg_temp.try_claim(qa, v3), 'police_clearance_missing');
   r := r || pg_temp.chk('C25', 'claim: a grandfathered tutor is not excused', pg_temp.try_claim(qa, v5), 'police_clearance_missing');
   r := r || pg_temp.chk('C26', 'claim: a tutor who is not approved still hears the approval message first', pg_temp.try_claim(qa, vu), 'Tutorlage has to verify your tutor profile before you can accept requests');
   r := r || pg_temp.chk('C27', 'older accept: no certificate', pg_temp.try_accept(qb, v1), 'police_clearance_missing');
-  r := r || pg_temp.chk('C28', 'older accept: certificate 7 months old', pg_temp.try_accept(qb, v2), 'police_clearance_expired');
+  r := r || pg_temp.chk('C28', 'older accept: certificate 7 months old and rejected', pg_temp.try_accept(qb, v2), 'police_clearance_missing');
   r := r || pg_temp.chk('C29', 'older accept: a grandfathered tutor is not excused', pg_temp.try_accept(qb, v5), 'police_clearance_missing');
   select count(*) into n from session_requests where id in (qa, qb) and tutor_id is not null;
   r := r || pg_temp.chk('C30', 'nothing was reserved by any refusal', n::text, '0');
@@ -334,13 +337,13 @@ $wb$;
     r := r || pg_temp.chk('C37b', 'free request of a child, claim: only a rejected certificate', pg_temp.try_claim(qk1, v3), 'police_clearance_missing');
     r := r || pg_temp.chk('C37c', 'free request of a child, claim: a grandfathered tutor is not excused', pg_temp.try_claim(qk1, v5), 'police_clearance_missing');
     update tutor_verification_documents set status = 'rejected' where tutor_id = v2 and document_type = 'police_clearance' and issued_on = td;
-    r := r || pg_temp.chk('C37d', 'free request of a child, claim: only a certificate 7 months old', pg_temp.try_claim(qk1, v2), 'police_clearance_expired');
+    r := r || pg_temp.chk('C37d', 'free request of a child, claim: only a certificate 7 months old and rejected', pg_temp.try_claim(qk1, v2), 'police_clearance_missing');
     r := r || pg_temp.chk('C37e', 'free request of a child, claim: a tutor who is not approved still hears the approval message first', pg_temp.try_claim(qk1, vu), 'Tutorlage has to verify your tutor profile before you can accept requests');
     select (tutor_id is null and status = 'pending' and payment_status = 'card_verified' and free_session and resulting_session_id is null)::text into t from session_requests where id = qk1;
     select count(*) into n from sessions where student_id = v_kid;
     r := r || pg_temp.chk('C37f', 'nothing was reserved or booked by any refusal (request untouched / sessions of the child)', t || '/' || n, 'true/0');
     r := r || pg_temp.chk('C38', 'free request of an adult learner, claim: approved, no certificate', pg_temp.try_claim(qf1, v1), 'police_clearance_missing');
-    r := r || pg_temp.chk('C38b', 'free request of an adult learner, claim: only a certificate 7 months old', pg_temp.try_claim(qf1, v2), 'police_clearance_expired');
+    r := r || pg_temp.chk('C38b', 'free request of an adult learner, claim: only a certificate 7 months old and rejected', pg_temp.try_claim(qf1, v2), 'police_clearance_missing');
     r := r || pg_temp.chk('C39', 'the older accept cannot book a free request, even for a tutor with a current certificate', pg_temp.try_accept(qk1, v4), 'Another tutor already accepted this request, or it is no longer available.');
 
     r := r || pg_temp.chk('C40', 'free request of a child, claim: a tutor with a current certificate accepts', pg_temp.try_claim(qk1, v4), 'accepted (already_paid)');
@@ -348,12 +351,12 @@ $wb$;
       into t from session_requests q join sessions s on s.id = q.resulting_session_id where q.id = qk1;
     r := r || pg_temp.chk('C40b', 'the session is flagged free with money stored as 0, for that tutor and the child; the request ends as free', t, 'true');
 
-    update tutor_verification_documents set issued_on = (m6 - interval '1 day')::date where tutor_id = v6 and document_type = 'police_clearance';
-    r := r || pg_temp.chk('C41', 'free request of a child, claim: a certificate that lapsed (6 months and a day old)', pg_temp.try_claim(qk2, v6), 'police_clearance_expired');
+    update tutor_verification_documents set status = 'rejected' where tutor_id = v6 and document_type = 'police_clearance';
+    r := r || pg_temp.chk('C41', 'free request of a child, claim: the only certificate rejected (since 24 Nov a lapsed date alone no longer refuses a verified tutor)', pg_temp.try_claim(qk2, v6), 'police_clearance_missing');
     select (tutor_id is null and status = 'pending' and payment_status = 'card_verified' and resulting_session_id is null)::text into t from session_requests where id = qk2;
     r := r || pg_temp.chk('C41b', 'and nothing was reserved', t, 'true');
-    update tutor_verification_documents set issued_on = m6 where tutor_id = v6 and document_type = 'police_clearance';
-    r := r || pg_temp.chk('C41c', 'with the last good day restored (exactly 6 months old) the same claim is accepted', pg_temp.try_claim(qk2, v6), 'accepted (already_paid)');
+    update tutor_verification_documents set status = 'pending' where tutor_id = v6 and document_type = 'police_clearance';
+    r := r || pg_temp.chk('C41c', 'with the certificate back (not rejected) the same claim is accepted', pg_temp.try_claim(qk2, v6), 'accepted (already_paid)');
     r := r || pg_temp.chk('C42', 'a signed-in or signed-out caller cannot call the free booking function directly', (has_function_privilege('authenticated', 'public.create_free_session(uuid,uuid)', 'execute'))::text || '/' || (has_function_privilege('anon', 'public.create_free_session(uuid,uuid)', 'execute'))::text, 'false/false');
     update system_settings set setting_value = 'false'::jsonb where setting_key = 'free_sessions_enabled';
   end if;
