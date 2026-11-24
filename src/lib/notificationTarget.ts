@@ -18,6 +18,8 @@ const TEACH_TYPES = new Set([
   'tier_promotion',
   'tier_demotion',
   'tier_freeze',
+  'public_page_live',
+  'weekly_post_ready',
 ]);
 const TERMS_TYPES = new Set(['terms_updated']);
 

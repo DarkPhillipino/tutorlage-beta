@@ -1,7 +1,7 @@
 // Checks on the week-one share card (24 Nov 2026, JOB CARD): the caption text, the subject lines, the first-name capitals, the words that must never appear, and that the
 // card code is loaded only from the lazy component (so only the Teach screen pays for it). Run: npx tsx scripts/dev/share-card-test.ts
 import fs from 'node:fs';
-import { SHARE_CARD_COPY, cardSubjectLines, launchCaption, nameForCard, subjectLines, subjectsInSentence } from '../../src/lib/shareCard';
+import { SHARE_CARD_COPY, cardSubjectLines, launchCaption, nameForCard, parseWeeklyPost, subjectLines, weeklyCaption, subjectsInSentence } from '../../src/lib/shareCard';
 
 let failures = 0;
 const check = (name: string, ok: boolean, detail = '') => {
@@ -46,5 +46,16 @@ const importers = ['src', 'admin/src'].flatMap((d) => {
 });
 check('the card code is reached only through the lazy import', importers.sort().join(',') === 'src/components/PublicPageCard.tsx,src/components/ShareCard.tsx', importers.join(','));
 check('the QR library is imported only on demand', /await import\('qrcode-generator'\)/.test(read('src/lib/shareCard.ts')) && !/^import .*qrcode-generator/m.test(read('src/lib/shareCard.ts')));
+
+// ---- the weekly post (JOB WEEKLY) ----
+const w3 = weeklyCaption({ week: 2, lessons: 3 }, link);
+const w1 = weeklyCaption({ week: 1, lessons: 1 }, link);
+const w0 = weeklyCaption({ week: 4, lessons: 0 }, link);
+check('weekly caption with lessons is the CEO wording', w3 === `Week 2: I taught 3 lessons. Thank you to the families who trusted me. ${link}. Know a parent looking for a tutor? Please reshare this post.`, w3);
+check('one lesson reads "1 lesson"', w1.startsWith('Week 1: I taught 1 lesson.'), w1);
+check('zero lessons switches to the thank-you caption, no week and no number', w0 === `Thank you to everyone who has supported me so far. I'm still looking for my first families. Please help me reach them by resharing this post, it would be greatly appreciated. ${link}` && !/Week|taught/.test(w0), w0);
+check('the numbers are read as whole counts only', parseWeeklyPost({ week: 3, lessons: 2 })?.lessons === 2 && parseWeeklyPost({ week: 0, lessons: 2 }) === null && parseWeeklyPost({ week: 1, lessons: -1 }) === null && parseWeeklyPost({ week: 1, lessons: 'x' }) === null && parseWeeklyPost(null) === null);
+check('no banned word, price or earnings in the weekly captions', !banned.test(w3 + w1 + w0) && !/\b(price|earn|income|R\d)/i.test(w3 + w1 + w0));
+check('the Monday notice and the page-live notice open the Teach screen', /'weekly_post_ready'/.test(read('src/lib/notificationTarget.ts')) && /'public_page_live'/.test(read('src/lib/notificationTarget.ts')));
 
 process.exitCode = failures === 0 ? 0 : 1;

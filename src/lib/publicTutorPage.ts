@@ -39,7 +39,7 @@ export const PUBLIC_PAGE_COPY = {
   // On the tutor's own Teach screen
   cardTitle: 'Your public page',
   cardOff: 'Switched off. Nobody can open your page.',
-  cardOn: 'Switched on. Anyone with your link can open it.',
+  cardOn: 'Your profile is live. Anyone with your link can open it. You can switch it off at any time.',
   consent:
     'If you switch this on, anyone with your link will see your first name, your subjects and grades, your level and price, the checks we have done and your weekly hours. No photo, no surname, no contact details. You can switch it off at any time and the page disappears at once.',
   consentLabel: 'I understand and I want my page to be public',
