@@ -21,6 +21,7 @@ declare
   v_q1 uuid; v_q2 uuid; v_q3 uuid;
   v_a uuid; v_b uuid; v_c uuid;
   v_enr uuid;
+  n_real int;
   v_vis_a uuid := gen_random_uuid(); v_vis_b uuid := gen_random_uuid(); v_vis_c uuid := gen_random_uuid(); v_vis_t uuid := gen_random_uuid();
   v_h1 timestamptz; v_h2 timestamptz;
   v_today date := (now() at time zone 'Africa/Johannesburg')::date;
@@ -297,9 +298,16 @@ begin
   r := r || pg_temp.chk('R8c', 'the demand row: subject, band, shortfall 3, 1 unserved request, 2 people waiting who could cover it', coalesce(t2, '-'), 'Zz Demand Subject|Intermediate (4-6)|3|1|2');
   t := pg_temp.adm(v_vo, 'public.admin_set_founding_wave_cap(2)->>''cap''');
   t2 := pg_temp.adm(v_vo, 'public.admin_founding_suggestion()');
-  select (t2::jsonb ->> 'cap') || '|' || (t2::jsonb ->> 'suggested_n') || '|' || (select string_agg((e.value ->> 'code_name') || ':' || (e.value ->> 'suggested'), ' ' order by e.ordinality)
-         from jsonb_array_elements(t2::jsonb -> 'people') with ordinality e(value, ordinality) where e.value ->> 'code_name' like 'Qz%') into t2;
-  r := r || pg_temp.chk('R8d', 'a cap of 2 limits the suggestion to the first two', t || '|' || t2, '2|2|2|Qz1:true Qz2:true Qz3:false');
+  -- 24 Nov 2026 (U2): this used to name the three made-up people (Qz1 true, Qz2 true, Qz3 false), which holds only when they are the FIRST people in
+  -- the list. Production now has real people waiting (one outranks the made-up ones because she covers the demand), so the first two are
+  -- not both made-up. The rule under test is unchanged and is now checked on the whole list, whoever is in it: the cap is 2, exactly 2 people are
+  -- suggested, and they are exactly the first two in the list's order (every suggested person comes before every person who is not).
+  select (t2::jsonb ->> 'cap') || '|' || (t2::jsonb ->> 'suggested_n') || '|'
+         || (select count(*) filter (where (e.value ->> 'suggested') = 'true') from jsonb_array_elements(t2::jsonb -> 'people') e) || '|'
+         || (select coalesce(bool_and(((e.ordinality <= 2) = ((e.value ->> 'suggested') = 'true'))), false) from jsonb_array_elements(t2::jsonb -> 'people') with ordinality e(value, ordinality)),
+         (select count(*) from jsonb_array_elements(t2::jsonb -> 'people') e where e.value ->> 'code_name' not like 'Qz%')
+    into t2, n_real;
+  r := r || pg_temp.chk('R8d', 'a cap of 2 limits the suggestion to the first two people in the list, whoever they are (' || n_real || ' real people are on the list now)', t || '|' || t2, '2|2|2|2|true');
   r := r || pg_temp.chk('R8e', 'the cap is a number from 1 to 200',
     pg_temp.pfx(pg_temp.adm(v_vo, 'public.admin_set_founding_wave_cap(0)'), 'ERR: The wave cap is a number from 1 to 200') || '/' || pg_temp.pfx(pg_temp.adm(v_vo, 'public.admin_set_founding_wave_cap(201)'), 'ERR: The wave cap is a number from 1 to 200'),
     'ERR: The wave cap is a number from 1 to 200/ERR: The wave cap is a number from 1 to 200');

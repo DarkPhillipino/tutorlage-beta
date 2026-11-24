@@ -100,5 +100,12 @@ begin
     f := f || 'FAIL C7 the super-admin settings guard trigger is missing' || E'\n'; end if;
   r := r || 'C7 grants: allowed=service_role only, mode=internal, available=signed-in only, staff table closed with RLS on; settings guard trigger present' || E'\n';
 
-  perform set_config('test.report', E'CARD CHECKOUT ALLOWLIST TEST (rolled back)\n' || case when f = '' then 'NO FAILURES' else f end || E'\n' || r, true);
+  -- 24 Nov 2026 (U2): run ALONE (the command-line tool, the SQL editor) this block used to END WITHOUT RAISING, so it COMMITTED: it left the Demo Parent review
+  -- account expired, the Demo Learner marked deleted and the setting's description replaced. Now, unless the runner (scripts/run-rolled-back-test.mjs) is driving it,
+  -- it raises the report, which rolls everything back, like every other suite.
+  if coalesce(current_setting('test.runner', true), '') = 'on' then
+    perform set_config('test.report', E'CARD CHECKOUT ALLOWLIST TEST (rolled back)\n' || case when f = '' then 'NO FAILURES' else f end || E'\n' || r, true);
+  else
+    raise exception E'CARD CHECKOUT ALLOWLIST TEST (rolled back)\n%\n%', case when f = '' then 'NO FAILURES' else f end, r;
+  end if;
 end $t$;

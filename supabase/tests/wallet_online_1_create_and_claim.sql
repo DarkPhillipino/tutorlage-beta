@@ -118,6 +118,8 @@ begin
   update system_settings set setting_value = '"1234567890"'::jsonb where setting_key = 'wallet_bank_account_number';
   update system_settings set setting_value = '"250655"'::jsonb where setting_key = 'wallet_bank_branch_code';
   update system_settings set setting_value = '"off"'::jsonb where setting_key = 'wallet_online_mode';
+  -- 24 Nov 2026 (U2): pinned, the suite no longer reads the live provider name (production reads another value than the seeded 'ozow')
+  update system_settings set setting_value = '"ozow"'::jsonb where setting_key = 'wallet_online_provider';
   r := r || 'S0 setup: 3 parents, a child, 3 admins (finance, super, support); the wallet open; online mode off' || E'\n';
 
   -- ---- the mode and the staff list --------------------------------------------------------------------------------------------------------
@@ -165,7 +167,7 @@ begin
     pg_temp.run_as(a_fin, 'select (count(*) filter (where event_id = ''evt-c13''))::text from public.wallet_provider_events') || ' ' || pg_temp.run_as(a_spt, 'select count(*)::text from public.wallet_provider_events') || ' '
     || pg_temp.run_as(p1, 'select count(*)::text from public.wallet_provider_events') || ' '
     || pg_temp.has(pg_temp.run_as(a_fin, $q$insert into public.wallet_provider_events (provider, source, outcome) values ('ozow', 'admin', 'ignored')$q$), 'permission denied'), '1 0 0 yes');
-  r := r || pg_temp.chk('C14', 'a child cannot start one (the parent''s wallet is used)', pg_temp.has(pg_temp.run_as(m1, 'select public.create_online_topup(200)::text'), 'Only an adult can add money'), 'yes');
+  r := r || pg_temp.chk('C14', 'a child cannot start one (the parent''s wallet is used)', pg_temp.has(pg_temp.run_as(m1, 'select public.create_online_topup(200)::text'), 'Only an adult can add lesson credit'), 'yes');
   r := r || pg_temp.chk('C15', 'a signed-out visitor cannot call it', pg_temp.has(pg_temp.run_as(null, 'select public.create_online_topup(200)::text'), 'permission denied'), 'yes');
   update system_settings set setting_value = 'false'::jsonb where setting_key = 'wallet_payments_enabled';
   t := pg_temp.run_as(p1, 'select public.create_online_topup(200)::text');
@@ -196,7 +198,7 @@ begin
   t := pg_temp.run_as(p3, 'select public.create_online_topup(800)::text');
   r := r || pg_temp.chk('C21', 'the cap: R800 then R300 is refused (R200 would fit); R200 is allowed exactly to the cap',
     (t not like 'ERR%')::text || ' / ' || pg_temp.run_as(p3, 'select public.create_online_topup(300)::text') || ' / ' || (pg_temp.run_as(p3, 'select public.create_online_topup(200)::text') not like 'ERR%')::text,
-    'true / ERR: That would take your wallet above R1000. You can add up to R200 now. / true');
+    'true / ERR: That would take your credit above R1000. You can add up to R200 now. / true');
   update system_settings set setting_value = '10000'::jsonb where setting_key = 'wallet_balance_cap_rand';
   update system_settings set setting_value = '5000'::jsonb where setting_key = 'wallet_topup_max_rand';
 

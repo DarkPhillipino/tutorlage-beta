@@ -105,10 +105,18 @@ begin
     (a_spt, 'Spt', 'Agent', 'w.a3.' || a_spt || '@example.invalid', '', 'support_agent', true),
     (a_off, 'Off', 'Manager', 'w.a4.' || a_off || '@example.invalid', '', 'finance_manager', false);
   update system_settings set setting_value = 'false'::jsonb where setting_key = 'free_sessions_enabled';
+  -- 24 Nov 2026 (U2): the suite used to assume the database as the migration left it (switch off, no bank details, a R5,000 per-top-up limit
+  -- and R10,000 cap). Production is live now (switch on, real bank details, limits R50,000 and R50,000 by the PM and the CEO), so the suite sets
+  -- the state it needs itself, inside the rolled-back statement, and nothing here reads or changes what is live.
+  update system_settings set setting_value = 'false'::jsonb where setting_key = 'wallet_payments_enabled';
+  update system_settings set setting_value = '""'::jsonb where setting_key in ('wallet_bank_name', 'wallet_bank_account_holder', 'wallet_bank_account_number', 'wallet_bank_branch_code', 'wallet_bank_account_type');
+  update system_settings set setting_value = '50'::jsonb where setting_key = 'wallet_topup_min_rand';
+  update system_settings set setting_value = '50000'::jsonb where setting_key in ('wallet_topup_max_rand', 'wallet_balance_cap_rand');
+  delete from notifications where type = 'wallet_bank_changed' and created_at >= now();   -- the notices the set-up itself caused; W09 counts the test's own
   r := r || 'S0 setup: 7 people (a parent, one under 18, two tutors), 4 admins (finance, super, support, one switched off)' || E'\n';
 
   -- ---- the switch, the settings and their guard -------------------------------------------------------------------------------------------
-  r := r || pg_temp.chk('W01', 'the wallet is closed after the migration', public.wallet_open()::text, 'false');
+  r := r || pg_temp.chk('W01', 'the wallet is closed while the switch is off', public.wallet_open()::text, 'false');
   t := pg_temp.run_as(v_l, 'select public.create_wallet_topup(200)::text');
   r := r || pg_temp.chk('W02', 'a closed wallet refuses a top-up', pg_temp.has(t, 'Wallet payments are not open.'), 'yes');
   r := r || pg_temp.chk('W03', 'a closed wallet shows no payment details', pg_temp.run_as(v_l, 'select public.wallet_payment_details()::text'), '{"open": false}');
@@ -119,7 +127,7 @@ begin
   update system_settings set setting_value = 'false'::jsonb where setting_key = 'free_sessions_enabled';
   select string_agg(setting_value #>> '{}', ' ' order by setting_key) into t from system_settings
     where setting_key in ('wallet_balance_cap_rand', 'wallet_topup_max_rand', 'wallet_topup_min_rand');
-  r := r || pg_temp.chk('W06', 'limits seeded: cap, max, min', t, '10000 5000 50');
+  r := r || pg_temp.chk('W06', 'limits as set by the CEO (R50,000 cap, R50,000 per top-up, R50 minimum): cap, max, min', t, '50000 50000 50');
   t := pg_temp.run_as(a_spt, $q$ with u as (update system_settings set setting_value = '"X"'::jsonb where setting_key = 'wallet_bank_name' returning 1) select count(*)::text from u $q$);
   t2 := pg_temp.run_as(a_spt, $q$ with d as (delete from system_settings where setting_key = 'wallet_topup_min_rand' returning 1) select count(*)::text from d $q$);
   r := r || pg_temp.chk('W07', 'a support agent cannot change or delete a wallet setting', pg_temp.has(t, 'Only a finance admin') || ' ' || pg_temp.has(t2, 'Only a finance admin'), 'yes yes');
@@ -127,7 +135,7 @@ begin
   r := r || pg_temp.chk('W08', 'a finance admin can change a bank detail', t, '1');
   r := r || pg_temp.chk('W09', 'every active admin is told (finance, super, support) and the switched-off one is not', pg_temp.nn(a_fin, 'wallet_bank_changed') || ' ' || pg_temp.nn(a_sup, 'wallet_bank_changed') || ' '
     || pg_temp.nn(a_spt, 'wallet_bank_changed') || ' ' || pg_temp.nn(a_off, 'wallet_bank_changed'), '1 1 1 0');
-  t := pg_temp.has(pg_temp.run_as(a_fin, $q$ with u as (update system_settings set setting_value = '6000'::jsonb where setting_key = 'wallet_topup_min_rand' returning 1) select count(*)::text from u $q$), 'limits must satisfy');
+  t := pg_temp.has(pg_temp.run_as(a_fin, $q$ with u as (update system_settings set setting_value = '60000'::jsonb where setting_key = 'wallet_topup_min_rand' returning 1) select count(*)::text from u $q$), 'limits must satisfy');
   t2 := pg_temp.has(pg_temp.run_as(a_fin, $q$ with u as (update system_settings set setting_value = '"yes"'::jsonb where setting_key = 'wallet_payments_enabled' returning 1) select count(*)::text from u $q$), 'true or false');
   t3 := pg_temp.has(pg_temp.run_as(a_fin, $q$ with u as (update system_settings set setting_value = '0'::jsonb where setting_key = 'wallet_balance_cap_rand' returning 1) select count(*)::text from u $q$), 'at least 1');
   r := r || pg_temp.chk('W10', 'nonsense values are refused: min above max, switch not true/false, cap 0', t || ' ' || t2 || ' ' || t3, 'yes yes yes');
@@ -237,9 +245,9 @@ begin
   update system_settings set setting_value = '"A B Account"'::jsonb where setting_key = 'wallet_bank_account_holder';
   update system_settings set setting_value = '"1234567890"'::jsonb where setting_key = 'wallet_bank_account_number';
   update system_settings set setting_value = '"250655"'::jsonb where setting_key = 'wallet_bank_branch_code';
-  t := pg_temp.has(pg_temp.run_as(v_l, 'select public.create_wallet_topup(49)::text'), 'Add between R50 and R5000');
-  t2 := pg_temp.has(pg_temp.run_as(v_l, 'select public.create_wallet_topup(5001)::text'), 'Add between R50 and R5000');
-  t3 := pg_temp.has(pg_temp.run_as(v_l, 'select public.create_wallet_topup(0)::text'), 'Add between R50 and R5000');
+  t := pg_temp.has(pg_temp.run_as(v_l, 'select public.create_wallet_topup(49)::text'), 'Add between R50 and R50000');
+  t2 := pg_temp.has(pg_temp.run_as(v_l, 'select public.create_wallet_topup(50001)::text'), 'Add between R50 and R50000');
+  t3 := pg_temp.has(pg_temp.run_as(v_l, 'select public.create_wallet_topup(0)::text'), 'Add between R50 and R50000');
   r := r || pg_temp.chk('T04', 'below the minimum, above the maximum and zero are refused', t || ' ' || t2 || ' ' || t3, 'yes yes yes');
   q1 := (pg_temp.run_as(v_l, 'select public.create_wallet_topup(200)::text')::jsonb ->> 'topup_id')::uuid;
   q2 := (pg_temp.run_as(v_l, 'select public.create_wallet_topup(100)::text')::jsonb ->> 'topup_id')::uuid;
@@ -258,13 +266,13 @@ begin
   t := pg_temp.run_as(v_o, 'select public.create_wallet_topup(50)::text');
   update system_settings set setting_value = '3'::jsonb where setting_key = 'wallet_topup_max_waiting';
   r := r || pg_temp.chk('T08', 'ten top-ups in a day are allowed, the eleventh is refused', n || ' ' || pg_temp.has(t, 'many top-up requests today'), '10 yes');
-  perform public.wallet_post(v_t2, 'topup', 9900, 0, 'cap:t2');
+  perform public.wallet_post(v_t2, 'topup', 49900, 0, 'cap:t2');   -- R100 of room under the R50,000 cap
   t := pg_temp.run_as(v_t2, 'select public.create_wallet_topup(200)::text');
   t2 := pg_temp.run_as(v_t2, 'select public.create_wallet_topup(100)::text');
-  r := r || pg_temp.chk('T09', 'a top-up that would take the wallet above the R10 000 cap is refused with the room left; the exact room is accepted',
+  r := r || pg_temp.chk('T09', 'a top-up that would take the credit above the R50 000 cap is refused with the room left; the exact room is accepted',
     pg_temp.has(t, 'You can add up to R100 now.') || ' ' || (t2::jsonb ->> 'status'), 'yes awaiting_proof');
   t := pg_temp.run_as(v_l, 'select public.wallet_payment_details()::text');
-  r := r || pg_temp.chk('T10', 'an open wallet shows the bank details and limits', (t::jsonb ->> 'bank_name') || '|' || (t::jsonb ->> 'account_number') || '|' || (t::jsonb ->> 'min_rand') || '|' || (t::jsonb ->> 'cap_rand'), 'Test Bank|1234567890|50|10000');
+  r := r || pg_temp.chk('T10', 'an open wallet shows the bank details and limits', (t::jsonb ->> 'bank_name') || '|' || (t::jsonb ->> 'account_number') || '|' || (t::jsonb ->> 'min_rand') || '|' || (t::jsonb ->> 'cap_rand'), 'Test Bank|1234567890|50|50000');
   r := r || pg_temp.chk('T11', 'the table refuses a bad state: successful with no ledger line, unsuccessful with no comment',
     pg_temp.has(pg_temp.try(format($q$ update public.wallet_topups set status = 'successful', received_rand = 200, decided_at = now() where id = %L $q$, q1)), 'wallet_topups_state') || ' '
     || pg_temp.has(pg_temp.try(format($q$ update public.wallet_topups set status = 'unsuccessful', decided_at = now() where id = %L $q$, q1)), 'wallet_topups_state'), 'yes yes');
@@ -398,7 +406,7 @@ begin
   r := r || pg_temp.chk('B03', 'through the API: the tutor reads last four, not the full number (nor select *); another tutor sees none; the finance admin sees last four only',
     pg_temp.run_as(v_t, 'select account_last4 from public.tutor_bank_details') || ' ' || pg_temp.has(pg_temp.run_as(v_t, 'select account_number from public.tutor_bank_details'), 'permission denied') || ' '
     || pg_temp.has(pg_temp.run_as(v_t, 'select count(*)::text from (select * from public.tutor_bank_details) x'), 'permission denied') || ' '
-    || pg_temp.run_as(v_t2, 'select count(*)::text from public.tutor_bank_details') || ' ' || pg_temp.run_as(a_fin, 'select account_last4 from public.tutor_bank_details') || ' '
+    || pg_temp.run_as(v_t2, 'select count(*)::text from public.tutor_bank_details') || ' ' || pg_temp.run_as(a_fin, format('select account_last4 from public.tutor_bank_details where tutor_id = %L', v_t)) || ' '
     || pg_temp.has(pg_temp.run_as(a_fin, 'select account_number from public.tutor_bank_details'), 'permission denied'), '6789 yes yes 0 6789 yes');
   t := pg_temp.has(pg_temp.run_as(v_t, 'select public.request_my_payout()::text'), 'nothing to pay out');
   t2 := pg_temp.has(pg_temp.run_as(v_t2, 'select public.request_my_payout()::text'), 'Add your bank details first');

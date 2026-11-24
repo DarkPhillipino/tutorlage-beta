@@ -166,6 +166,9 @@ begin
          charged_amount, institution_id)
     values (v_l, e_l, v_l, pg_temp.slot(1), 1, 'pending', 'paid', 'we_paid', '1A', 1, 50, s1) returning id into qold;
   sold := pg_temp.paid_done(qold, v_t, true);
+  -- 24 Nov 2026 (U2): since migration 20261115120000 a session paid by CARD that completes also credits the tutor (here R35 of the R50). That second
+  -- session is this test's own, so its credit is counted in every balance of the tutor below instead of being a surprise.
+  select coalesce(sum(available_delta), 0)::int into ex_c from wallet_ledger where profile_id = v_t and session_id = sold and kind = 'session_credit';
   r := r || pg_temp.chk('E06', 'a session paid by card (not from a wallet) cannot be refunded here', pg_temp.has(pg_temp.run_as(a_fin, format('select public.admin_refund_to_wallet(%L, 10, ''problem reported'', true, %L)::text', sold, gen_random_uuid())), 'was not paid from a wallet'), 'yes');
   qB := pg_temp.mkreq(v_l, v_l, e_l, 2, 100);
   perform pg_temp.send(v_l, qB);
@@ -178,20 +181,20 @@ begin
   red1 := floor(80 * share / 200.0 + 0.5)::int;
   r := r || pg_temp.chk('E08', 'refund R80: the answer, the learner has R80 more, the tutor loses the same share of their credit',
     (t::jsonb ->> 'already') || ' ' || (t::jsonb ->> 'refunded_rand') || ' ' || (t::jsonb ->> 'tutor_reduced_rand') || ' ' || (t::jsonb ->> 'tutor_shortfall_rand') || ' / ' || pg_temp.wb(v_l) || ' / ' || pg_temp.wb(v_t),
-    format('false 80 %s 0 / 880/0 / %s/0', red1, share - red1));
+    format('false 80 %s 0 / 880/0 / %s/0', red1, share - red1 + ex_c));
   select l.kind || ' ' || l.available_delta || ' ' || (l.session_id = sA) || ' ' || (l.actor_id = a_fin) into t2 from wallet_ledger l where l.idempotency_key = 'adminrefund:' || k1;
   select l.kind || ' ' || l.available_delta || ' ' || (l.session_id = sA) into t3 from wallet_ledger l where l.idempotency_key = 'adminrefundtutor:' || k1;
   r := r || pg_temp.chk('E09', 'two ledger lines: a refund for the learner and a refund_reversal for the tutor, both tied to the session', t2 || ' / ' || t3, format('refund 80 true true / refund_reversal %s true', -red1));
   r := r || pg_temp.chk('E10', 'both are told (the learner reads the reason, the tutor is not told it), and one audit line',
-    pg_temp.nn(v_l, 'wallet_refunded', '%R80 was added%Session did not happen as agreed') || ' ' || pg_temp.nn(v_t, 'wallet_adjusted', format('R%s was taken from your wallet%%', red1)) || ' ' || pg_temp.nn(v_t, 'wallet_adjusted', '%did not happen%') || ' ' || pg_temp.aud('wallet_refunded_to_learner', sA), '1 1 0 1');
+    pg_temp.nn(v_l, 'wallet_refunded', '%R80 was added%Session did not happen as agreed') || ' ' || pg_temp.nn(v_t, 'wallet_adjusted', format('R%s was taken from your earnings%%', red1)) || ' ' || pg_temp.nn(v_t, 'wallet_adjusted', '%did not happen%') || ' ' || pg_temp.aud('wallet_refunded_to_learner', sA), '1 1 0 1');
   t := pg_temp.run_as(a_fin, format('select public.admin_refund_to_wallet(%L, 80, ''Session did not happen as agreed'', true, %L)::text', sA, k1));
   r := r || pg_temp.chk('E11', 'the same click again (same key) changes nothing and says so', (t::jsonb ->> 'already') || ' / ' || pg_temp.wb(v_l) || ' / ' || pg_temp.wb(v_t) || ' / ' || pg_temp.aud('wallet_refunded_to_learner', sA),
-    format('true / 880/0 / %s/0 / 1', share - red1));
+    format('true / 880/0 / %s/0 / 1', share - red1 + ex_c));
   k2 := gen_random_uuid();
   t := pg_temp.run_as(a_sup, format('select public.admin_refund_to_wallet(%L, 120, ''Rest of the session refunded'', true, %L)::text', sA, k2));
   select coalesce(-sum(available_delta), 0)::int into n from wallet_ledger where kind = 'refund_reversal' and session_id = sA;
   r := r || pg_temp.chk('E12', 'the rest (R120, by a super admin): the learner is whole again, and the two reductions add up to exactly the tutor''s credit, never more',
-    (t::jsonb ->> 'refunded_total_rand') || ' / ' || pg_temp.wb(v_l) || ' / ' || n || ' / ' || pg_temp.wb(v_t), format('200 / 1000/0 / %s / 0/0', share));
+    (t::jsonb ->> 'refunded_total_rand') || ' / ' || pg_temp.wb(v_l) || ' / ' || n || ' / ' || pg_temp.wb(v_t), format('200 / 1000/0 / %s / %s/0', share, ex_c));
   r := r || pg_temp.chk('E13', 'one rand more is refused: nothing is left to refund', pg_temp.has(pg_temp.run_as(a_fin, format('select public.admin_refund_to_wallet(%L, 1, ''too much'', true, %L)::text', sA, gen_random_uuid())), 'At most R0 can still be refunded'), 'yes');
 
   -- the tutor is left alone when the finance admin says so, and when the wallet cannot cover it
@@ -201,18 +204,18 @@ begin
   t := pg_temp.run_as(a_fin, format('select public.admin_refund_to_wallet(%L, 50, ''Part refund, tutor not charged'', false, %L)::text', sC, gen_random_uuid()));
   r := r || pg_temp.chk('E14', 'take-back switched off: the learner gets R50, the tutor keeps their whole credit, no reversal line',
     (t::jsonb ->> 'tutor_reduced_rand') || ' / ' || pg_temp.wb(v_l) || ' / ' || pg_temp.wb(v_t) || ' / ' || (select count(*) from wallet_ledger where kind = 'refund_reversal' and session_id = sC),
-    format('0 / 850/0 / %s/0 / 0', share));
+    format('0 / 850/0 / %s/0 / 0', share + ex_c));
   qD := pg_temp.mkreq(v_l, v_l, e_l, 4, 200);
   perform pg_temp.send(v_l, qD);
   sD := pg_temp.paid_done(qD, v_t, true);
   t := pg_temp.run_as(v_t, $q$ select public.save_my_bank_details('Test Bank', '12345678', '250655', 'T Tutor') $q$);
   t := pg_temp.run_as(v_t, $q$ select public.request_my_payout()::text $q$);
-  r := r || pg_temp.chk('E15', 'the tutor then asks to be paid: everything is on hold, nothing available', pg_temp.wb(v_t), format('0/%s', 2 * share));
+  r := r || pg_temp.chk('E15', 'the tutor then asks to be paid: everything is on hold, nothing available', pg_temp.wb(v_t), format('0/%s', 2 * share + ex_c));
   t := pg_temp.run_as(a_fin, format('select public.admin_refund_to_wallet(%L, 100, ''Problem reported after payout'', true, %L)::text', sD, gen_random_uuid()));
   red1 := floor(100 * share / 200.0 + 0.5)::int;
   r := r || pg_temp.chk('E16', 'the tutor cannot cover it: the learner is still refunded in full, nothing is taken from the tutor, the shortfall is reported and nothing goes below zero',
     (t::jsonb ->> 'tutor_reduced_rand') || ' ' || (t::jsonb ->> 'tutor_shortfall_rand') || ' / ' || pg_temp.wb(v_l) || ' / ' || pg_temp.wb(v_t) || ' / ' || (select count(*) from wallet_ledger where kind = 'refund_reversal' and session_id = sD),
-    format('0 %s / 750/0 / 0/%s / 0', red1, 2 * share));
+    format('0 %s / 750/0 / 0/%s / 0', red1, 2 * share + ex_c));
   j := (pg_temp.run_as(a_fin, format('select jsonb_agg(to_jsonb(x))::text from public.admin_wallet_sessions(%L) x', v_l)))::jsonb;
   select count(*)::text || ' ' || bool_and((x ->> 'price_rand')::int > 0)::text into t from jsonb_array_elements(j) x;
   r := r || pg_temp.chk('E17', 'the sessions a wallet paid for are listed for the refund screen (the 4 wallet sessions), each with a price', t, '4 true');
@@ -454,7 +457,7 @@ begin
          charged_amount, institution_id)
     values (v_l, e_l, v_l, pg_temp.slot(34), 1, 'pending', 'card_verified', 'we_card3', '1A', 1, 50, s1) returning id into qh3;
   r := r || pg_temp.chk('F04', 'an ordinary card-checked request still goes down the card path',
-    (position('Add your bank details in your tutor account' in pg_temp.try_claim(qh3, v_t)) > 0)::text, 'true');
+    (position('card can''t be charged any more' in pg_temp.try_claim(qh3, v_t)) > 0)::text, 'true');
 
   -- ---- rights and the patches ------------------------------------------------------------------------------------------------------------------
   select count(*) into n from unnest(array['public.closure_wallet_summary(uuid)', 'public.closure_wallet_owes(uuid)', 'public.closure_wallet_cleanup(uuid,uuid)',

@@ -76,6 +76,7 @@ begin
           prov || jsonb_build_object('created_by_guardian', p, 'relationship', 'mother'));
   -- two more guardians of the same learner, linked directly (as the test owner)
   insert into parent_student_links (parent_id, student_id) values (p3, m), (p4, m);
+  update tutor_profiles set is_verified = true where id in (t, t2, t3);   -- 24 Nov 2026: only a verified tutor can open a video room (20261116190500); these suites test rooms, not verification
   select count(*) into v_cnt from parent_student_links where student_id = m;
   r := r || pg_temp.vr_line('V0 setup',
     (select count(*) from tutor_profiles where id in (t, t2, t3)) = 3 and v_cnt = 3

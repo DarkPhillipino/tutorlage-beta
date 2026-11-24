@@ -153,22 +153,23 @@ begin
   r := r || pg_temp.chk('B5', 'inside 5 minutes, F (tied to another school) cannot accept it', pg_temp.try_claim(q1, v_f), 'This request is for a different institution.');
   r := r || pg_temp.chk('B6', 'inside 5 minutes, the older accept path refuses B too', pg_temp.try_accept(q4, v_b), 'This request is for a curriculum you aren''t approved for.');
 
+  -- (24 Nov 2026: available_price_levels is now closed to the signed-out door and to the plain connection of the command-line tool, so each count is read as a signed-in person, which is how the app reads it)
   -- ---- the price counts: who could take a request once it has widened (school and curriculum do not narrow) --------------------------
-  select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1);
+  set local role authenticated; select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1); reset role;
   r := r || pg_temp.chk('B7', 'counts, old three-value call, no time (A B C F G H; D not approved, E wrong grade)', n::text, '6');
-  select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1, null, null, c_ieb);
+  set local role authenticated; select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1, null, null, c_ieb); reset role;
   r := r || pg_temp.chk('B7b', 'counts, a curriculum answer no longer narrows them', n::text, '6');
-  select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', null);
+  set local role authenticated; select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', null); reset role;
   r := r || pg_temp.chk('B7c', 'counts, no school gives the same', n::text, '6');
-  select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1, t10, 1);
+  set local role authenticated; select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1, t10, 1); reset role;
   r := r || pg_temp.chk('B8', 'counts, Monday 10:00 for an hour (G is busy)', n::text, '5');
-  select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1, t13, 1);
+  set local role authenticated; select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1, t13, 1); reset role;
   r := r || pg_temp.chk('B8b', 'counts, Monday 13:00 (C is outside hours, G is free)', n::text, '5');
-  select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 9', s1);
+  set local role authenticated; select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 9', s1); reset role;
   r := r || pg_temp.chk('B9', 'counts, Grade 9 (E teaches Grade 8 to 9, so E counts)', n::text, '7');
-  select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 4', s1);
+  set local role authenticated; select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 4', s1); reset role;
   r := r || pg_temp.chk('B9b', 'counts, a grade in the list that nobody teaches', n::text, '0');
-  select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1, t10, 1) where level_id = '2A';
+  set local role authenticated; select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1, t10, 1) where level_id = '2A'; reset role;
   r := r || pg_temp.chk('B10', 'counts, the 2A level counts only tutors at 2A or above', n::text, '1');
 
   -- ---- AFTER 5 minutes: the first four requests are made 6 minutes old ---------------------------------------------------------------
@@ -230,7 +231,7 @@ begin
   reset role;
   r := r || pg_temp.chk('B33', 'a signed-in user cannot call the two new helpers', t, 'widened-refused interval-refused');
   set local role anon;
-  select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1);
+  set local role authenticated; select coalesce(max(tutors), 0) into n from available_price_levels('Zorology', 'Grade 10', s1); reset role;
   reset role;
   r := r || pg_temp.chk('B34', 'a signed-out visitor can still ask for the counts', n::text, '6');
 

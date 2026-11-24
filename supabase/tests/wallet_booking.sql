@@ -157,7 +157,7 @@ begin
   r := r || pg_temp.chk('B03', 'a stranger cannot send someone else''s request', pg_temp.send(v_o, q1), 'ERR: That request is not yours, or does not exist.');
   r := r || pg_temp.chk('B04', 'a signed-out visitor cannot call it at all', substr(pg_temp.send(null, q1), 1, 36), 'ERR: permission denied for function ');
   perform pg_temp.top(v_l, 120);
-  r := r || pg_temp.chk('B05', 'R120 in the wallet, R180 price: refused with the shortfall in words', pg_temp.send(v_l, q1), 'ERR: Your wallet has R120. This session is R180. Add R60 or more.');
+  r := r || pg_temp.chk('B05', 'R120 in the wallet, R180 price: refused with the shortfall in words', pg_temp.send(v_l, q1), 'ERR: Your credit has R120. This session is R180. Add R60 or more.');
   select payment_status || ' ' || paid_from_wallet || ' ' || coalesce(wallet_hold_rand::text, 'null') into t from session_requests where id = q1;
   r := r || pg_temp.chk('B06', 'the request stays as it was, the wallet is untouched, nothing is held, no tutor sees it',
     t || ' / ' || pg_temp.wb(v_l) || ' / ' || pg_temp.nl('hold:' || q1) || ' / ' || pg_temp.inbox(q1, v_t), 'initiated false null / 120/0 / 0 / 0');
@@ -174,13 +174,13 @@ begin
   q2a := pg_temp.mkreq(v_o, v_o, e_o, 1, 150);
   q2b := pg_temp.mkreq(v_o, v_o, e_o, 2, 150);
   r := r || pg_temp.chk('B12', 'two requests, a wallet for one: the first is held', pg_temp.send(v_o, q2a), '150/50/false');
-  r := r || pg_temp.chk('B13', 'the second is refused with the shortfall', pg_temp.send(v_o, q2b), 'ERR: Your wallet has R50. This session is R150. Add R100 or more.');
+  r := r || pg_temp.chk('B13', 'the second is refused with the shortfall', pg_temp.send(v_o, q2b), 'ERR: Your credit has R50. This session is R150. Add R100 or more.');
   select payment_status || ' / ' || (select count(*) from wallet_ledger where profile_id = v_o and kind = 'hold') into t from session_requests where id = q2b;
   r := r || pg_temp.chk('B14', 'the same rand is never held twice: one hold line, the second request unsent', t, 'initiated / 1');
   select string_agg(c, ' ') into t from (select code c from currencies where code <> 'ZAR' order by code limit 1) x;
   qusd := pg_temp.mkreq(v_l, v_l, e_l, 3, 100, null, coalesce(t, 'ZAR'));
   r := r || pg_temp.chk('B15', 'a request in another currency cannot be paid from the wallet', case when t is null then 'n/a' else pg_temp.send(v_l, qusd) end,
-    case when t is null then 'n/a' else 'ERR: The wallet can only pay for requests in rand (ZAR).' end);
+    case when t is null then 'n/a' else 'ERR: Credit can only pay for requests in rand (ZAR).' end);
   perform pg_temp.top(v_p, 100);
   qk := pg_temp.mkreq(v_p, v_m, e_m, 4, 90);
   r := r || pg_temp.chk('B16', 'a parent pays for their child: the hold is on the parent''s wallet and the child has no wallet',
@@ -197,19 +197,19 @@ begin
   perform public.expire_stale_paid_requests();
   r := r || pg_temp.chk('B19', 'the job run again releases nothing more', pg_temp.wb(v_l) || ' / ' || pg_temp.nl('release:' || qe1), '320/180 / 1');
   r := r || pg_temp.chk('B20', 'the learner is told the money is back, not that a card was not charged',
-    pg_temp.nn(v_l, 'request_expired', '%R40 is back in your wallet%') || ' ' || pg_temp.nn(v_l, 'request_expired', '%card was not charged%'), '1 0');
+    pg_temp.nn(v_l, 'request_expired', '%R40 is back in your credit%') || ' ' || pg_temp.nn(v_l, 'request_expired', '%card was not charged%'), '1 0');
   qe2 := pg_temp.mkreq(v_l, v_l, e_l, 6, 60, v_t);
   perform pg_temp.send(v_l, qe2);
   update session_requests set expires_at = now() - interval '1 minute' where id = qe2;
   perform public.expire_stale_paid_requests();
   r := r || pg_temp.chk('B21', 'an addressed request that the tutor let lapse: released once, with the wallet wording',
-    pg_temp.wb(v_l) || ' / ' || pg_temp.nl('release:' || qe2) || ' / ' || pg_temp.nn(v_l, 'request_expired', '%R60 is back in your wallet%'), '320/180 / 1 / 1');
+    pg_temp.wb(v_l) || ' / ' || pg_temp.nl('release:' || qe2) || ' / ' || pg_temp.nn(v_l, 'request_expired', '%R60 is back in your credit%'), '320/180 / 1 / 1');
   qd := pg_temp.mkreq(v_l, v_l, e_l, 7, 70, v_t);
   perform pg_temp.send(v_l, qd);
   r := r || pg_temp.chk('B22', 'the tutor declines it', pg_temp.run_as(v_t, format('select (select 1 from (select public.decline_session_request(%L)) x)::text', qd)), '1');
   select status into t from session_requests where id = qd;
   r := r || pg_temp.chk('B23', 'declined: released once, the learner told in wallet words',
-    t || ' / ' || pg_temp.wb(v_l) || ' / ' || pg_temp.nl('release:' || qd) || ' / ' || pg_temp.nn(v_l, 'request_declined', '%R70 is back in your wallet%'), 'declined / 320/180 / 1 / 1');
+    t || ' / ' || pg_temp.wb(v_l) || ' / ' || pg_temp.nl('release:' || qd) || ' / ' || pg_temp.nn(v_l, 'request_declined', '%R70 is back in your credit%'), 'declined / 320/180 / 1 / 1');
   qc := pg_temp.mkreq(v_l, v_l, e_l, 8, 30);
   perform pg_temp.send(v_l, qc);
   update session_requests set status = 'cancelled' where id = qc;
@@ -238,7 +238,7 @@ begin
   select kind || ' ' || available_delta || ' ' || held_delta || ' ' || (session_id = s_1) into t from wallet_ledger where idempotency_key = 'charge:' || q1;
   r := r || pg_temp.chk('B30', 'one charge line takes the 180 out of on-hold; the hold is not released; the wallet shows 320 available, 0 on hold',
     t || ' / ' || pg_temp.nl('release:' || q1) || ' / ' || pg_temp.wb(v_l), 'charge 0 -180 true / 0 / 320/0');
-  r := r || pg_temp.chk('B31', 'the learner is told what was taken from the wallet', pg_temp.nn(v_l, 'request_accepted', '%R180 was taken from your wallet%')::text, '1');
+  r := r || pg_temp.chk('B31', 'the learner is told what was taken from the wallet', pg_temp.nn(v_l, 'request_accepted', '%R180 was taken from your credit%')::text, '1');
   r := r || pg_temp.chk('B32', 'a second accept is refused as for any request already taken', pg_temp.try_claim(q1, v_t), 'Another tutor already accepted this request, or it is no longer available.');
   r := r || pg_temp.chk('B33', 'the tutor is NOT credited yet', pg_temp.wb(v_t) || ' / ' || (select count(*) from wallet_ledger where profile_id = v_t), '0/0 / 0');
   select count(*) into n from unnest(array['public.create_wallet_session(uuid,uuid,integer)', 'public.wallet_hold_for_request(uuid,uuid,integer)', 'public.resend_request_without_card(uuid)',
@@ -264,7 +264,7 @@ begin
   select kind || ' ' || available_delta || ' ' || held_delta into t2 from wallet_ledger where idempotency_key = 'refund:' || s_1;
   r := r || pg_temp.chk('B40', 'session cancelled by the tutor, request wallet_refunded, one refund line, the full R180 back as credit, no Paystack call',
     t || ' / ' || t2 || ' / ' || pg_temp.wb(v_l) || ' / ' || (pg_temp.netq() - nq), 'cancelled_by_tutor cancelled wallet_refunded / refund 180 0 / 500/0 / 0');
-  r := r || pg_temp.chk('B41', 'the learner is told', pg_temp.nn(v_l, 'session_cancelled', '%R180 is back in your wallet as credit%')::text, '1');
+  r := r || pg_temp.chk('B41', 'the learner is told', pg_temp.nn(v_l, 'session_cancelled', '%R180 is back in your credit%')::text, '1');
   r := r || pg_temp.chk('B42', 'cancelling again is refused and refunds nothing more', substr(pg_temp.run_as(v_t, format('select (select 1 from (select public.cancel_session(%L, null)) x)::text', s_1)), 1, 55)
     || ' / ' || pg_temp.nl('refund:' || s_1), 'ERR: Only an upcoming session can be cancelled / 1');
   q3 := pg_temp.mkreq(v_l, v_l, e_l, 9, 100);
@@ -275,7 +275,7 @@ begin
   r := r || pg_temp.chk('B43', 'the learner cancels 30 days after paying, before the session starts (no window)', pg_temp.run_as(v_l, format('select (select 1 from (select public.cancel_session(%L, ''test'')) x)::text', s_3)), '1');
   select s.status::text || ' ' || q.payment_status into t from sessions s join session_requests q on q.resulting_session_id = s.id where s.id = s_3;
   r := r || pg_temp.chk('B44', 'cancelled by the learner, refunded as credit; the tutor and the payer are told',
-    t || ' / ' || pg_temp.wb(v_l) || ' / ' || pg_temp.nn(v_t, 'session_cancelled', 'The learner cancelled the session. Reason: test') || ' ' || pg_temp.nn(v_l, 'session_cancelled', '%R100 is back in your wallet as credit%'),
+    t || ' / ' || pg_temp.wb(v_l) || ' / ' || pg_temp.nn(v_t, 'session_cancelled', 'The learner cancelled the session. Reason: test') || ' ' || pg_temp.nn(v_l, 'session_cancelled', '%R100 is back in your credit%'),
     'cancelled_by_student wallet_refunded / 500/0 / 1 1');
   q4 := pg_temp.mkreq(v_l, v_l, e_l, 10, 80);
   perform pg_temp.send(v_l, q4);
@@ -299,7 +299,7 @@ begin
   select kind || ' ' || available_delta || ' ' || held_delta || ' ' || (session_id = s_5) || ' ' || (request_id = q5) into t from wallet_ledger where idempotency_key = 'credit:' || s_5;
   r := r || pg_temp.chk('B49', 'the tutor''s share is credited: one session_credit line carrying the session id; the learner''s wallet does not move',
     t || ' / ' || pg_temp.wb(v_t) || ' / ' || pg_temp.wb(v_l), format('session_credit %s 0 true true / %s/0 / 300/0', 200 - ex_c, 200 - ex_c));
-  r := r || pg_temp.chk('B50', 'the tutor is told', pg_temp.nn(v_t, 'wallet_session_credit', '%added to your wallet%')::text, '1');
+  r := r || pg_temp.chk('B50', 'the tutor is told', pg_temp.nn(v_t, 'wallet_session_credit', '%added to your earnings%')::text, '1');
   update sessions set status = 'scheduled' where id = s_5;
   update sessions set status = 'completed' where id = s_5;
   r := r || pg_temp.chk('B51', 'completed twice: still credited once', pg_temp.nl('credit:' || s_5) || ' / ' || pg_temp.wb(v_t), format('1 / %s/0', 200 - ex_c));
@@ -412,7 +412,7 @@ begin
   perform public.wallet_post(v_s, 'adjustment', -100, 0, 'wb-spend:' || v_s, null, 'spent elsewhere');
   r := r || pg_temp.chk('B67', 'a learner whose wallet is now empty cannot send a declined request on: refused with the shortfall, nothing created',
     pg_temp.run_as(v_s, format('select public.resend_request_to_anyone(%L)::text', rq2)) || ' / ' || (select count(*) from session_requests where resent_from = rq2),
-    'ERR: Your wallet has R0. This session is R100. Add R100 or more. / 0');
+    'ERR: Your credit has R0. This session is R100. Add R100 or more. / 0');
   rq3 := pg_temp.mkreq(v_l, v_l, e_l, 27, 20, v_t);
   perform pg_temp.send(v_l, rq3);
   t2 := pg_temp.wb(v_l);

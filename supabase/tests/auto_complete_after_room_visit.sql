@@ -17,6 +17,8 @@ begin
     (v_learner, z,'authenticated','authenticated','t.l.'||v_learner||'@example.invalid', jsonb_build_object('first_name','Learner','date_of_birth',adult), '{}'),
     (v_other, z,'authenticated','authenticated','t.o.'||v_other||'@example.invalid', jsonb_build_object('first_name','Other','date_of_birth',adult), '{}'),
     (v_tutor, z,'authenticated','authenticated','t.t.'||v_tutor||'@example.invalid', jsonb_build_object('role','tutor','first_name','Tutor'), '{}');
+  update profiles set date_of_birth = adult::date where id = v_tutor;
+  update tutor_profiles set is_verified = true where id = v_tutor;   -- 24 Nov 2026: only a verified tutor can open a video room (20261116190500)
 
   -- Every session below ended N hours ago (start = N + 1 hours ago, the default one-hour length).
   -- s_both: ended 3h ago, room used by the tutor and the learner.

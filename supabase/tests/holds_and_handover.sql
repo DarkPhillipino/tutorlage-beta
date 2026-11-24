@@ -37,6 +37,7 @@ begin
   insert into admin_profiles (id, first_name, surname, email, phone_number) values (v_adm, 'A', 'One', 'hp.a.' || v_adm || '@example.invalid', '');
   insert into admin_profiles (id, first_name, surname, email, phone_number, is_active) values (v_off, 'A', 'Off', 'hp.o.' || v_off || '@example.invalid', '', false);
   update profiles set date_of_birth = adult::date where id in (v_t, v_u, v_x);
+  update tutor_profiles set is_verified = true where id in (v_t, v_u, v_x);   -- 24 Nov 2026: a video room can only be opened by a verified tutor (20261116190500), and these suites open rooms
   insert into storage.objects (bucket_id, name) values
     ('tutor-documents', v_t || '/id.pdf'), ('tutor-documents', v_t || '/police.pdf'), ('tutor-documents', v_t || '/diploma.pdf'), ('tutor-documents', v_t || '/extra.pdf'),
     ('tutor-documents', v_u || '/id.pdf'), ('tutor-documents', v_u || '/police.pdf'), ('tutor-documents', v_u || '/scan.pdf');
@@ -86,8 +87,16 @@ begin
     end if;
     r := r || format('V4 %s the clean-up function: still one function; signed-out can run it=%s (want 0), signed-in=%s (want 0), server key=%s (want 1); definer with pinned path=%s; its daily job is unchanged=%s',
       case when n = 0 and n2 = 0 and n3 = 1 and n4 = 1 and bl then 'ok' else 'FAIL' end, n, n2, n3, n4, bl) || E'\n';
-    select (md5(pg_get_functiondef('public.purge_old_video_rooms()'::regprocedure)) <> current_setting('test.purge_md5_before')) into bl;
-    r := r || format('V5 %s the clean-up text really changed from the live text: %s', case when bl then 'ok' else 'FAIL' end, bl) || E'\n';
+    -- V5 and D7's byte-identical part compare with the text BEFORE the migrations, which only the pre-apply helper (rights_before.sql) can record. Run alone
+    -- on a database where the migrations are already applied (production since 21 Oct) there is no such snapshot, so they are marked SKIP, not guessed.
+    if current_setting('test.purge_md5_before', true) is null then
+      r := r || 'V5 SKIP the clean-up text changed from the live text: needs the pre-apply snapshot (migrations already applied)' || E'\n';
+    else
+      select (md5(pg_get_functiondef('public.purge_old_video_rooms()'::regprocedure)) <> current_setting('test.purge_md5_before')) into bl;
+
+      r := r || format('V5 %s the clean-up text really changed from the live text: %s', case when bl then 'ok' else 'FAIL' end, bl) || E'\n';
+
+    end if;
   exception when others then
     reset role;
     r := r || 'V ERROR ' || left(sqlerrm, 150) || E'\n';
@@ -152,6 +161,11 @@ begin
       case when n = 1 and t = 'pending' and n2 = 1 and n3 = 1 and n4 = 0 then 'ok' else 'FAIL' end, n, t, n2, n3, n4) || E'\n';
 
     -- an admin is unaffected by the hold
+    -- 24 Nov 2026 (U2): since 20261116200300 an admin may only UPDATE a document as a verification officer or super admin, and no admin may DELETE
+    -- one through the API (the admin app never does). The test admin (default role) is made a super admin here; the point of D4, that a hold on the
+    -- TUTOR does not stop an ADMIN's update, is unchanged; the delete now touches 0 rows for every admin, held tutor or not.
+    reset role;
+    update admin_profiles set admin_role = 'super_admin' where id = v_adm;
     perform set_config('request.jwt.claims', json_build_object('sub', v_adm, 'role', 'authenticated')::text, true);
     set local role authenticated;
     update tutor_verification_documents set document_url = v_t || '/address2.pdf' where tutor_id = v_t and document_type = 'proof_of_address';
@@ -159,7 +173,7 @@ begin
     delete from tutor_verification_documents where id = v_d1;
     get diagnostics n2 = row_count;
     reset role;
-    r := r || format('D4 %s admin on the held tutor''s documents: replaced the file of one=%s row, deleted one=%s row (as before the change)', case when n = 1 and n2 = 1 then 'ok' else 'FAIL' end, n, n2) || E'\n';
+    r := r || format('D4 %s admin (super admin) on the held tutor''s documents: replaced the file of one=%s row (want 1), deleted one=%s row (want 0: no admin delete since 16 Nov)', case when n = 1 and n2 = 0 then 'ok' else 'FAIL' end, n, n2) || E'\n';
 
     -- the hold is reversible: after the release the tutor can remove their own unverified document and file again
     perform set_config('request.jwt.claims', json_build_object('sub', v_adm, 'role', 'authenticated')::text, true);
@@ -200,7 +214,12 @@ begin
       case when bl and not bl2 and t = 'ok' then 'ok' else 'FAIL' end, bl, bl2, t) || E'\n';
     select count(*) filter (where tgname = 'guard_held_documents'), count(*) filter (where tgname = 'guard_verification_documents') into n, n2
       from pg_trigger where tgrelid = 'public.tutor_verification_documents'::regclass and not tgisinternal;
-    select md5(pg_get_functiondef('public.guard_verification_documents()'::regprocedure)) = current_setting('test.guard_md5_before') into bl;
+    if current_setting('test.guard_md5_before', true) is null then
+      bl := true;   -- no pre-apply snapshot (migrations already applied): the byte-identical part of D7 cannot be judged here, so it does not count either way
+      r := r || 'D7a SKIP the existing guard function is byte-identical to before: needs the pre-apply snapshot (migrations already applied)' || E'\n';
+    else
+      select md5(pg_get_functiondef('public.guard_verification_documents()'::regprocedure)) = current_setting('test.guard_md5_before') into bl;
+    end if;
     select has_function_privilege('authenticated', 'public.guard_held_documents()', 'execute') or has_function_privilege('anon', 'public.guard_held_documents()', 'execute') into bl2;
     select count(*) filter (where qual like '%my_documents_are_kept%' and qual like '%verified%' and qual like '%tutor-documents%')
       into n3 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Tutors delete own documents';

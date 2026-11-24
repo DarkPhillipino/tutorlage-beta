@@ -26,7 +26,10 @@ begin
     (v_l, z, 'authenticated', 'authenticated', 'p.l.' || v_l || '@example.invalid', jsonb_build_object('first_name', 'Lee', 'date_of_birth', adult), '{}'),
     (v_m, z, 'authenticated', 'authenticated', 'p.m.' || v_m || '@example.invalid', jsonb_build_object('first_name', 'Max', 'date_of_birth', adult), '{}'),
     (v_adm, z, 'authenticated', 'authenticated', 'p.a.' || v_adm || '@example.invalid', '{}'::jsonb, '{}');
-  insert into admin_profiles (id, first_name, surname, email, phone_number) values (v_adm, 'T', 'Admin', 'x@example.invalid', '');
+  insert into admin_profiles (id, first_name, surname, email, phone_number, admin_role) values (v_adm, 'T', 'Admin', 'x@example.invalid', '', 'super_admin');   -- 24 Nov 2026: freezing a level needs a role since 16 Nov; the plain default no longer may
+  -- 24 Nov 2026 (U2): the founding gate is ON in production (tutors may upload documents only once released). This suite is about the document folder and the
+  -- public reads, not the gate, so the gate is switched off inside the rolled-back statement (the gate has its own suites: founding_tutors_list, wave1_verification_path).
+  update system_settings set setting_value = jsonb_set(coalesce(setting_value, '{}'::jsonb), '{on}', 'false'::jsonb) where setting_key = 'founding_tutors_gate';
   update profiles set date_of_birth = adult::date where id = v_ta;
   update tutor_profiles set is_verified = true, tier_frozen = true, freeze_reason = 'SECRET-REASON', fast_track_proof_url = 'SECRET-PROOF' where id = v_ta;
   insert into sessions (student_id, tutor_id, booked_by_profile_id, scheduled_start, hourly_rate_charged, platform_commission_pct, gross_amount, tutor_payout_amount, status)
@@ -169,7 +172,10 @@ begin
          string_agg(attname, ',' order by attname) filter (where not has_column_privilege('anon', 'public.tutor_profiles', attname, 'SELECT')),
          string_agg(attname, ',' order by attname) filter (where not has_column_privilege('authenticated', 'public.tutor_profiles', attname, 'SELECT'))
     into n, n2, t, t2 from pg_attribute where attrelid = 'public.tutor_profiles'::regclass and attnum > 0 and not attisdropped;
-  q := 'credential_floor_sub_tier_id,fast_track_proof_url,fast_track_status,freeze_reason,tier_frozen';
+  -- 24 Nov 2026 (U2): four lifecycle timestamps were added to tutor_profiles after this suite (declined_at, first_request_seen_at, hours_saved_at, verified_at).
+  -- The columns browsers may read are an allow-list of 20 and a new column is hidden until someone grants it, so the four are hidden by default: the count of
+  -- readable columns (20) is unchanged and the hidden list below names them, so a column that ever becomes readable by accident shows up here.
+  q := 'credential_floor_sub_tier_id,declined_at,fast_track_proof_url,fast_track_status,first_request_seen_at,freeze_reason,hours_saved_at,tier_frozen,verified_at';
   r := r || format('P12 %s readable columns anon=%s signed-in=%s (want 20 20); hidden = %s', case when n = 20 and n2 = 20 and t = q and t2 = q then 'ok' else 'FAIL' end, n, n2, left(coalesce(t, ''), 30)) || E'\n';
 
   -- ============ m1: messaging tables ====================================================================================
@@ -224,9 +230,16 @@ begin
   reset role;
   perform set_config('request.jwt.claims', json_build_object('sub', v_adm, 'role', 'authenticated')::text, true);
   set local role authenticated;
-  insert into public.tutor_verification_documents (tutor_id, document_type, document_url) values (v_ta, 'identity_doc', 'legacy/x.pdf');
-  reset role;
-  r := r || 'D4 ok admin can still add a document for a tutor (guard skips admins)' || E'\n';
+  -- 24 Nov 2026 (U2): since 20261116200300 no admin can INSERT a document through the API (the admin app never does; the old policy let any admin do everything).
+  -- D4 used to say an admin can still add one; it now says the row-level rule refuses it, for the right reason (SQLSTATE 42501, not a guard or syntax error).
+  begin
+    insert into public.tutor_verification_documents (tutor_id, document_type, document_url) values (v_ta, 'identity_doc', 'legacy/x.pdf');
+    reset role;
+    r := r || 'D4 FAIL an admin added a document through the API' || E'\n';
+  exception when others then
+    reset role;
+    r := r || format('D4 %s an admin can no longer add a document through the API (refused by the row-level rule, %s)', case when sqlstate = '42501' then 'ok' else 'FAIL' end, sqlstate) || E'\n';
+  end;
 
   -- ============ how it is built =========================================================================================
   select count(*) filter (where exists (select 1 from unnest(coalesce(proconfig, '{}'::text[])) c where c like 'search_path=%')),

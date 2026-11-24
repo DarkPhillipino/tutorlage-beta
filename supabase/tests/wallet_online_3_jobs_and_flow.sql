@@ -122,6 +122,8 @@ begin
   update system_settings set setting_value = '10'::jsonb where setting_key = 'wallet_online_check_after_minutes';
   update system_settings set setting_value = '50'::jsonb where setting_key = 'wallet_topup_max_waiting';
   update system_settings set setting_value = '100'::jsonb where setting_key = 'wallet_topup_max_per_day';
+  -- 24 Nov 2026 (U2): pinned, the suite no longer reads the live provider name (production reads another value than the seeded 'ozow')
+  update system_settings set setting_value = '"ozow"'::jsonb where setting_key = 'wallet_online_provider';
   r := r || 'S0 setup: 2 parents, 3 admins (finance, super, support); the wallet open; online mode on; 60-minute links; first check after 10 minutes' || E'\n';
 
   -- ---- the backstop: what it closes, and what it never closes too early -------------------------------------------------------------------

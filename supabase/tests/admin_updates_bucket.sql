@@ -17,6 +17,7 @@ declare
   n int; n2 int; s text;
   nfail int; nlines int;
   others_before int := (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and qual not like '%admin-updates%');
+  bucket_before int := (select count(*) from storage.objects where bucket_id = 'admin-updates');   -- the live bucket holds the admin app's real release files; the test adds 2 more and counts relative to what is there (24 Nov 2026: was a hard-coded 2, live bucket has 21)
 begin
   begin
     execute $mk$
@@ -48,7 +49,7 @@ begin
     set local role authenticated;
     select count(*) into n from storage.objects where bucket_id = 'admin-updates';
     reset role;
-    r := r || pg_temp.chk('U4', 'an active admin sees both objects', n::text, '2');
+    r := r || pg_temp.chk('U4', 'an active admin sees both added objects and every object already in the bucket', n::text, (bucket_before + 2)::text);
 
     -- a switched-off admin
     perform set_config('request.jwt.claims', jsonb_build_object('sub', off, 'role', 'authenticated')::text, true);
@@ -86,7 +87,7 @@ begin
     reset role;
     select count(*) into n2 from storage.objects where bucket_id = 'admin-updates';
     r := r || pg_temp.chk('U8', 'an active admin cannot insert, rename or delete (writes are refused or touch 0 rows); both objects are still there',
-      case when s like 'refused%' and n2 = 2 and exists (select 1 from storage.objects where bucket_id = 'admin-updates' and name = 'manifest.json') then 'refused / untouched' else s || ' left=' || n2 end, 'refused / untouched');
+      case when s like 'refused%' and n2 = bucket_before + 2 and exists (select 1 from storage.objects where bucket_id = 'admin-updates' and name = 'manifest.json') then 'refused / untouched' else s || ' left=' || n2 end, 'refused / untouched');
 
     r := r || pg_temp.chk('U9', 'the policies on every other bucket are exactly as many as before', (select count(*)::text from pg_policies where schemaname = 'storage' and tablename = 'objects' and qual not like '%admin-updates%'), others_before::text);
   exception when others then

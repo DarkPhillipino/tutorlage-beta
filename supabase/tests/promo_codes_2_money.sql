@@ -251,12 +251,12 @@ begin
   update session_requests set requested_start = now() - interval '2 hours' where id = q5;
   perform public.expire_stale_paid_requests();
   r := r || pg_temp.chk('P57', 'it expires with nobody: the use is returned, the R45 is back, the notice says R45 (what was held, not R50)',
-    pg_temp.use(q5) || ' / ' || pg_temp.wb(p4) || ' / ' || pg_temp.nn(p4, 'request_expired', '%R45 is back in your wallet%') || ' / ' || pg_temp.quote(p4, 50), '1/5/true/false / 1000/0 / 1 / true/45/5/1/3');
+    pg_temp.use(q5) || ' / ' || pg_temp.wb(p4) || ' / ' || pg_temp.nn(p4, 'request_expired', '%R45 is back in your credit%') || ' / ' || pg_temp.quote(p4, 50), '1/5/true/false / 1000/0 / 1 / true/45/5/1/3');
   q6 := pg_temp.mkreq(p4, c4, e4, 50, '1A', 1, v_t);
   perform pg_temp.send(p4, q6);
   r := r || pg_temp.chk('P58', 'a request addressed to a tutor takes a use too', pg_temp.use(q6), '1/5/false/false');
   perform pg_temp.run_as(v_t, format('select (select 1 from (select public.decline_session_request(%L)) x)::text', q6));
-  r := r || pg_temp.chk('P59', 'the tutor declines: the use is returned, the notice says R45', pg_temp.use(q6) || ' / ' || pg_temp.wb(p4) || ' / ' || pg_temp.nn(p4, 'request_declined', '%R45 is back in your wallet%'), '1/5/true/false / 1000/0 / 1');
+  r := r || pg_temp.chk('P59', 'the tutor declines: the use is returned, the notice says R45', pg_temp.use(q6) || ' / ' || pg_temp.wb(p4) || ' / ' || pg_temp.nn(p4, 'request_declined', '%R45 is back in your credit%'), '1/5/true/false / 1000/0 / 1');
   perform pg_temp.run_as(p4, format('select public.resend_request_to_anyone(%L)::text', q6));
   r := r || pg_temp.chk('P60', '"send to anyone" after the decline: a new request, held at R45 again, with its own use (lesson 1)',
     (select count(*) from session_requests where resent_from = q6)::text || ' / ' || (select wallet_hold_rand || ' ' || promo_discount_rand from session_requests where resent_from = q6) || ' / '
@@ -297,9 +297,9 @@ begin
   -- a wallet that is too small is refused with the shortfall of the DISCOUNTED price, and no use is left behind
   perform pg_temp.top(p12, 20);
   qz := pg_temp.mkreq(p12, c12, e12, 50, '1A', 1);
-  r := r || pg_temp.chk('P68', 'R20 in the wallet, R45 to hold: refused in words with the discounted price, and no use is left behind',
+  r := r || pg_temp.chk('P68', 'R20 in the credit balance, R45 to hold: refused in words with the discounted price, and no use is left behind',
     pg_temp.send(p12, qz) || ' / ' || (select count(*) from promo_code_uses where profile_id = p12) || ' / ' || pg_temp.wb(p12) || ' / ' || pg_temp.quote(p12, 50),
-    'ERR: Your wallet has R20. This session is R45. Add R25 or more. / 0 / 20/0 / true/45/5/1/3');
+    'ERR: Your credit has R20. This session is R45. Add R25 or more. / 0 / 20/0 / true/45/5/1/3');
   -- the rounding: a half-hour at R25 is R22.50 off the price, which rounds to R23; the tutor's pay is on R25 with the commission rounded as always
   qr := pg_temp.mkreq(p13, c13, e13, 25, '1A', 1);
   r := r || pg_temp.chk('P69', 'R25 (a half hour at 1A): the quote and the hold are R23, R2 off', pg_temp.quote(p13, 25) || ' / ' || pg_temp.send(p13, qr), 'true/23/2/1/3 / 23/2/977');
@@ -309,7 +309,7 @@ begin
   -- ---- a card request is untouched; the flags cannot be set from outside ------------------------------------------------------------------------------------------------
   insert into session_requests (student_id, enrollment_id, requested_by_profile_id, requested_start, duration_hours, status, payment_status, paystack_reference, min_sub_tier_id, tier_id, charged_amount, institution_id)
     values (c1, e1, p1, pg_temp.slot(pg_temp.nxt()), 1, 'pending', 'card_verified', 'pc_card1', '1A', 1, 50, s1) returning id into qx;
-  r := r || pg_temp.chk('P71', 'a card-checked request still goes down the card path, and no use is taken', (position('Add your bank details in your tutor account' in pg_temp.try_claim(qx, v_t)) > 0)::text || ' / ' || pg_temp.use(qx), 'true / none');
+  r := r || pg_temp.chk('P71', 'a card-checked request still goes down the card path, and no use is taken', (position('card can''t be charged any more' in pg_temp.try_claim(qx, v_t)) > 0)::text || ' / ' || pg_temp.use(qx), 'true / none');
   begin
     update session_requests set promo_discount_rand = 5 where id = qx;
     t := 'accepted';

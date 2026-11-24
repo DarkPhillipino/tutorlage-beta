@@ -93,7 +93,11 @@ begin
   -- ---- the safety net ------------------------------------------------------------------------------------------------------------------------------
   select coalesce(string_agg(distinct p.proname, ',' order by p.proname), '(none)') into t from pg_proc p
     where p.pronamespace = 'public'::regnamespace and p.prosecdef and has_function_privilege('anon', p.oid, 'EXECUTE')
-      and p.proname not in ('current_policy_versions', 'log_client_error', 'public_tutor_reviews', 'free_sessions_open');
+      -- the signed-out door is deliberate for these 11 (the release gate's SUP-FN-01 list). The last 7 were added after this suite was written
+      -- (check_promo_code, the founding-list functions for the join form and the personal link, and the consented public tutor page); a NEW name
+      -- here must be a decision, so it is listed on purpose, never matched by a pattern.
+      and p.proname not in ('current_policy_versions', 'log_client_error', 'public_tutor_reviews', 'free_sessions_open',
+                            'check_promo_code', 'founding_gate_public', 'founding_signup_prefill', 'join_founding_list', 'log_founding_event', 'log_founding_field', 'public_tutor_page');
   r := r || pg_temp.chk('R6', 'every other SECURITY DEFINER function in schema public that a signed-out caller can still run', t, '(none)');
 
   exception when others then

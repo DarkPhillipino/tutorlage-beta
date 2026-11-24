@@ -13,18 +13,21 @@ declare
   total int; n int; n2 int; t text; b text;
   nok int; nfail int;
 begin
+  -- 24 Nov 2026: the test used to assume the database held no notice of this kind. Production now holds the real ones, so the live ids are
+  -- remembered first and every count below is of the notices THIS RUN made (the live ones are never changed or counted; all is rolled back).
+  create temp table pn_before on commit drop as select id from public.notifications where type = 'terms_updated';
   insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data, raw_app_meta_data) values
     (u1, z,'authenticated','authenticated','pn.1.'||u1||'@example.invalid', jsonb_build_object('role','student','first_name','One','date_of_birth',adult), '{}'),
     (u2, z,'authenticated','authenticated','pn.2.'||u2||'@example.invalid', jsonb_build_object('role','tutor','first_name','Two','date_of_birth',adult), '{}'),
     (u3, z,'authenticated','authenticated','pn.3.'||u3||'@example.invalid', jsonb_build_object('role','parent','first_name','Three','date_of_birth',adult), '{}');
   select count(*) into total from profiles;
-  select count(*) into n from notifications where type = 'terms_updated';
+  select count(*) into n from notifications where type = 'terms_updated' and id not in (select id from pn_before);
   r := r || format('%s N0 setup: %s profiles, %s notices of this kind before (want 0 notices)', case when n = 0 then 'ok  ' else 'FAIL' end, total, n) || E'\n';
 
   -- N1. Both versions change in one statement: every account gets exactly ONE notice, not two.
   update system_settings set setting_value = '"test-v1"'::jsonb where setting_key in ('current_terms_version', 'current_privacy_version');
-  select count(*) into n from notifications where type = 'terms_updated';
-  select count(*) into n2 from (select profile_id from notifications where type = 'terms_updated' group by profile_id having count(*) > 1) x;
+  select count(*) into n from notifications where type = 'terms_updated' and id not in (select id from pn_before);
+  select count(*) into n2 from (select profile_id from notifications where type = 'terms_updated' and id not in (select id from pn_before) group by profile_id having count(*) > 1) x;
   r := r || format('%s N1 both keys changed at once: %s notices for %s accounts, accounts with more than one: %s (want %s, 0)',
     case when n = total and n2 = 0 then 'ok  ' else 'FAIL' end, n, total, n2, total) || E'\n';
 
@@ -36,18 +39,18 @@ begin
 
   -- N3. Setting the same value again adds nothing.
   update system_settings set setting_value = '"test-v1"'::jsonb where setting_key in ('current_terms_version', 'current_privacy_version');
-  select count(*) into n from notifications where type = 'terms_updated';
+  select count(*) into n from notifications where type = 'terms_updated' and id not in (select id from pn_before);
   r := r || format('%s N3 the same value again: %s notices (want %s, unchanged)', case when n = total then 'ok  ' else 'FAIL' end, n, total) || E'\n';
 
   -- N4. Another setting changing adds nothing.
   update system_settings set setting_value = '"subaccount"'::jsonb where setting_key = 'paystack_fee_bearer';
-  select count(*) into n from notifications where type = 'terms_updated';
+  select count(*) into n from notifications where type = 'terms_updated' and id not in (select id from pn_before);
   r := r || format('%s N4 another setting changes: %s notices (want %s, unchanged)', case when n = total then 'ok  ' else 'FAIL' end, n, total) || E'\n';
 
   -- N5. A later change (the earlier notices made an hour older, as a later day would): everyone gets a second notice, once.
   update notifications set created_at = created_at - interval '1 hour' where type = 'terms_updated';
   update system_settings set setting_value = '"test-v2"'::jsonb where setting_key = 'current_privacy_version';
-  select count(*) into n from notifications where type = 'terms_updated';
+  select count(*) into n from notifications where type = 'terms_updated' and id not in (select id from pn_before);
   select count(*) into n2 from notifications where profile_id = u2 and type = 'terms_updated';
   r := r || format('%s N5 a later change: %s notices in all, %s for one account (want %s, 2)', case when n = 2 * total and n2 = 2 then 'ok  ' else 'FAIL' end, n, n2, 2 * total) || E'\n';
 
