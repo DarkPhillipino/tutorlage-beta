@@ -172,7 +172,7 @@ async function burst(handlers: ReturnType<ReturnType<typeof createRateLimit>>[],
   {
     const src = readFileSync(new URL('../../server/index.ts', import.meta.url), 'utf8');
     const found = [...src.matchAll(/rateLimit\((\d+), 60_000\)/g)].map((m) => Number(m[1]));
-    const expected = [10, 30, 30, 5, 20, 5, 10, 30, 30, 30, 120, 60, 60, 60, 6, 12, 30, 8];
+    const expected = [10, 30, 30, 5, 20, 5, 10, 30, 30, 30, 120, 60, 60, 60, 6, 12, 30, 30, 8];
     // the room routes under 120 and 60 sit in two loops, so only compare the multiset of numbers, not the order
     const sorted = (a: number[]) => [...a].sort((x, y) => x - y).join(',');
     check('index.ts: every limit number is the one from origin/main', sorted(found) === sorted(expected), `found ${sorted(found)} expected ${sorted(expected)}`);

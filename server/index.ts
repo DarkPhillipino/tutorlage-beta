@@ -7,6 +7,7 @@ import { hasRelay, iceConfigFromEnv, iceServersFor, relayConfigured } from './ic
 import { mayUseCamera } from './cameraRule';
 import { jobSecretMatches, mailerFromEnv, runClosureRounds } from './closeAccount';
 import { runNoticeEmails } from './noticeEmails';
+import { runPushAlerts, sendEmptyPush, type PushClaimRow } from './webPush';
 import { classifyCreateUserError, createSignupByLink } from './signupByLink';
 import type { CloseAccountDeps } from './closeAccount';
 import type { IceServer } from './iceServers';
@@ -1492,6 +1493,51 @@ app.post('/api/internal/notice-emails/run', rateLimit(12, 60_000), async (req, r
   } catch (e) {
     console.error('notice-emails run failed:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'The notice email run failed.' });
+  }
+});
+
+// --- Web push for a request addressed to one tutor (RUN 6, 24 Nov 2026): server/webPush.ts is the logic, supabase/migrations/20261125100000_web_push.sql the database half ---
+// The database wakes this route every minute (only when an alert is due) with the shared secret PUSH_JOB_SECRET (the same value is the Vault secret push_job_secret). Nothing here is reachable by a
+// browser. It sends an EMPTY push (no payload: the service worker shows the fixed words) to each device the database claims, signed with the VAPID private key (Worker secret VAPID_PRIVATE_KEY,
+// never in a repository; the public key is VAPID_PUBLIC_KEY). Without the secrets it claims nothing. It logs counts only.
+const PUSH_JOB_SECRET = process.env.PUSH_JOB_SECRET;
+const pushDeps = {
+  config: () =>
+    process.env.VAPID_PRIVATE_KEY && process.env.VAPID_PUBLIC_KEY
+      ? { privateKey: process.env.VAPID_PRIVATE_KEY, publicKey: process.env.VAPID_PUBLIC_KEY, subject: process.env.VAPID_SUBJECT || 'https://tutorlage.com' }
+      : null,
+  claim: async (limit: number) => {
+    const { data, error } = await db.rpc('push_claim', { p_limit: limit });
+    if (error) throw new Error(`push claim: ${error.message}`);
+    return (data ?? []) as PushClaimRow[];
+  },
+  finish: async (notificationId: string, ok: number, failed: number) => {
+    const { error } = await db.rpc('push_finish', { p_notification_id: notificationId, p_ok: ok, p_failed: failed });
+    if (error) throw new Error(`push finish: ${error.message}`);
+  },
+  drop: async (subscriptionId: string) => {
+    const { error } = await db.rpc('push_drop_subscription', { p_subscription_id: subscriptionId });
+    if (error) throw new Error(`push drop: ${error.message}`);
+  },
+  send: (endpoint: string, cfg: { privateKey: string; publicKey: string; subject: string }) =>
+    sendEmptyPush(endpoint, cfg, (url, init) => fetch(url, init), Math.floor(Date.now() / 1000)),
+  log: (line: string) => console.log(line),
+};
+
+app.post('/api/internal/push/run', rateLimit(30, 60_000), async (req, res) => {
+  if (!PUSH_JOB_SECRET) {
+    res.status(503).json({ error: 'Alerts are not set up on this server yet.' });
+    return;
+  }
+  if (!jobSecretMatches(req.headers['x-job-secret'], PUSH_JOB_SECRET)) {
+    res.status(401).json({ error: 'Not allowed.' });
+    return;
+  }
+  try {
+    res.json(await runPushAlerts(pushDeps)); // counts only
+  } catch (e) {
+    console.error('push run failed:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'The alert run failed.' });
   }
 });
 

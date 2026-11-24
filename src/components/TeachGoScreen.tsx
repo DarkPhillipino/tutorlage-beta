@@ -10,6 +10,7 @@ import { getErrorMessage } from '../lib/errors';
 import { FEATURES } from '../lib/features';
 import { TutorDocumentsReminder } from './TutorOnboardingGate';
 import { PublicPageCard } from './PublicPageCard';
+import { TurnOnAlertsCard } from './TurnOnAlertsCard';
 
 interface TeachGoScreenProps {
   tutorId: string;
@@ -238,6 +239,8 @@ export const TeachGoScreen: React.FC<TeachGoScreenProps> = ({ tutorId, onOpenMen
 
           {/* WAVE-MARKED (job P slice 1, 24 Nov 2026): the tutor's public page switch and "Copy my profile link". The only change to this screen for that job. */}
           <PublicPageCard />
+          {/* RUN 6: renders nothing while the database setting web_push_enabled is off */}
+          <TurnOnAlertsCard />
 
           {/* Tips (illustrative, not data-driven) */}
           <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-slate-200">
