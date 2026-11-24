@@ -42,7 +42,10 @@
     // OZOW_PAYMENTS_TEST: "true" is a REHEARSAL (every request says isTest true: Ozow skips the bank, the payer picks a pretend outcome, and the database refuses to credit it). Leave it "false".
     // Ozow posts its notification to the Worker's own address (OZOW_NOTIFY_ORIGIN, which defaults to the workers.dev address in server/ozowPayments.ts; set it only if the Worker moves).
     "OZOW_PAYMENTS_BASE": "https://api.ozow.com",
-    "OZOW_PAYMENTS_TEST": "false"
+    "OZOW_PAYMENTS_TEST": "false",
+    // Web push for a request addressed to one tutor (24 Nov 2026; server/webPush.ts). The PUBLIC key is public by design. The PRIVATE half is the Worker secret VAPID_PRIVATE_KEY (set by the CEO, never in a repository),
+    // and the shared secret PUSH_JOB_SECRET (same value as the Vault secret push_job_secret). Nothing is sent until the database setting web_push_enabled is switched on.
+    "VAPID_PUBLIC_KEY": "BPH_nSrFYxI6WGtvohaSaW0ZaxfBf1_T0Fj0jk46e__19GjpB41AGyccBcWZFhgo0LXWH9JH2_4FCjr_H1KZfpc"
   },
   "observability": { "enabled": true },
   // Scheduled pulse (17 Nov 2026; server/pulseSchedule.ts): every 10 minutes the Worker checks the public site and mails when it breaks, once
