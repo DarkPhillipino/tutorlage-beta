@@ -166,6 +166,10 @@ export default function ForgotPassword() {
             </Link>
           </p>
         </div>
+        <p className="text-center text-[11px] text-slate-600 mt-4" data-testid="privacy-note">
+          How we look after your information:{' '}
+          <Link to="/privacy" target="_blank" rel="noopener" className="font-bold text-[#15803D] hover:underline">Privacy Policy</Link>
+        </p>
       </div>
     </div>
   );

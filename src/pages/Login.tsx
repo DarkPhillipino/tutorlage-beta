@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { GraduationCap, BookOpen, ChevronRight, Users } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { SignupRole } from '../lib/accountRules';
@@ -110,6 +110,10 @@ export default function Login() {
             <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-[#15803D] transition-colors shrink-0" />
           </button>
         </div>
+        <p className="text-center text-[11px] text-slate-600 mt-4" data-testid="privacy-note">
+          How we look after your information:{' '}
+          <Link to="/privacy" target="_blank" rel="noopener" className="font-bold text-[#15803D] hover:underline">Privacy Policy</Link>
+        </p>
       </div>
     </div>
   );

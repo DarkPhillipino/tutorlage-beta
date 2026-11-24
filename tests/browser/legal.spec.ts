@@ -43,13 +43,9 @@ test.describe('LEGAL-CONSENT-01: nothing leaves for a third party before any con
 });
 
 test.describe('LEGAL-PRIVACY-01: the privacy notice is reachable from every page and every sign-up', () => {
-  // FOUND 24 Nov 2026: these five pages carry no link to the Privacy Policy (the footer is not on them). They are WAVE pages (/login,
-  // first sign-in), so they are NOT changed without the PM's line. test.fail() keeps the suite honest: it records the defect and turns
-  // red the day someone adds the link (then delete the name from this list).
-  const NO_PRIVACY_LINK_YET = ['/login', '/signin/student', '/signin/tutor', '/signin/parent', '/forgot-password'];
+  // 28 Nov 2026: the five sign-in pages (/login, /signin/student, /signin/tutor, /signin/parent, /forgot-password) now carry the link under the form; the test.fail list that recorded the defect is gone.
   for (const path of PUBLIC_PAGES.filter((p) => p !== '/privacy')) {
     test(`${path}: carries a link to the Privacy Policy`, async ({ page }) => {
-      test.fail(NO_PRIVACY_LINK_YET.includes(path), 'known defect (WAVE page, waits for the PM): no Privacy link on this page');
       await page.goto(path);
       await expect(page.locator('#root h1, #root h2').first()).toBeVisible({ timeout: 15_000 });
       const links = page.locator('a[href="/privacy"], a[href$="/privacy"]');
