@@ -147,3 +147,13 @@ export async function setMyPublicProfile(client: PublicPageClient, on: boolean):
     return 'Could not change your page. Try again.';
   }
 }
+
+// A number goes up by one for her page (JOB COUNTERS, 24 Nov 2026): the open of her page, and the tap on Book. Only the code and the word are sent: no visitor id, no cookie, nothing is stored about
+// the person. Never an error to the visitor: any failure is ignored.
+export async function countPageEvent(client: PublicPageClient, code: string, kind: 'page_open' | 'book_tap'): Promise<void> {
+  try {
+    await client.rpc('count_tutor_page_event', { p_code: code, p_kind: kind });
+  } catch {
+    /* a missed count is better than a held-up visitor */
+  }
+}

@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { CheckCircle2, Clock, GraduationCap, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import {
-  PUBLIC_PAGE_COPY as COPY, bookLink, fetchPublicPage, gradesInWords, priceLine, type PublicPageClient, type PublicTutorPage,
+  PUBLIC_PAGE_COPY as COPY, bookLink, countPageEvent, fetchPublicPage, gradesInWords, priceLine, type PublicPageClient, type PublicTutorPage,
 } from '../lib/publicTutorPage';
 
 // A tutor's own public page, /t/CODE (CEO, 24 Nov 2026; job P slice 1). Public: no sign-in. It is NEVER indexed by search engines: this page says noindex, nofollow itself, the static 404 page the host serves
@@ -18,6 +18,7 @@ export default function TutorPublicPage({ client = supabase as unknown as Public
     setPage(undefined);
     fetchPublicPage(client, code).then((p) => {
       if (live) setPage(p);
+      if (live && p) void countPageEvent(client, code, 'page_open');
     });
     return () => {
       live = false;
@@ -114,6 +115,12 @@ export default function TutorPublicPage({ client = supabase as unknown as Public
         <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2">
           <a
             href={bookLink(page.code)}
+            onClick={(e) => {
+              // count the tap, then go on (at most 0.7 seconds is spent waiting for the count)
+              e.preventDefault();
+              const go = bookLink(page.code);
+              void Promise.race([countPageEvent(client, page.code, 'book_tap'), new Promise((r) => setTimeout(r, 700))]).then(() => window.location.assign(go));
+            }}
             className="block w-full text-center bg-[#15803D] hover:bg-[#166534] text-white font-bold text-sm px-5 py-3 rounded-xl"
           >
             {COPY.book}
