@@ -32,6 +32,8 @@ begin
       (a_spt, 'Spt', 'Agent', 'tc.a2.' || a_spt || '@example.invalid', '', 'support_agent', true);
     update profiles set full_name = 'Tessa Surnamesson' where id = ta;
     update tutor_profiles set is_verified = true, current_tier_id = 1, current_sub_tier_id = '1A' where id = any (array[ta, tb]);
+    -- since 24 Nov 2026 (JOB ON-BY-DEFAULT) approval itself switches the page on; this suite starts from "page off", so remove the rows approval made (rolled back with everything else)
+    delete from tutor_public_profile where tutor_id = any (array[ta, tb]);
     insert into promo_codes (code, label, percent_off, uses_per_account, active, owner_tutor_id)
       select 'ZZTC' || substr(replace(x::text, '-', ''), 1, 8), 'zz test', 10, 3, true, x from unnest(array[ta, tb]) x
        where not exists (select 1 from promo_codes c where c.owner_tutor_id = x);
@@ -47,7 +49,7 @@ begin
     perform public.count_tutor_page_event(ca, 'something_else');
     perform public.count_tutor_page_event(ca, null);
     perform public.count_tutor_page_event(cb, 'page_open');
-    r := r || pg_temp.chk('A2', 'an unknown code, an empty code, an odd kind, a tutor whose page is off: nothing is counted and nothing is said', (select count(*) from tutor_daily_counts)::text, '0');
+    r := r || pg_temp.chk('A2', 'an unknown code, an empty code, an odd kind, a tutor whose page is off: nothing is counted and nothing is said (this run''s two made-up tutors only: production holds real counts)', (select count(*) from tutor_daily_counts where tutor_id = any (array[ta, tb]))::text, '0');
 
     -- B. a visitor who is not signed in counts opens and taps; the case of the code does not matter
     r := r || pg_temp.chk('B1', 'a visitor can call it', pg_temp.run_as(null, format('select public.count_tutor_page_event(%L, ''page_open'')::text', lower(ca))), '');

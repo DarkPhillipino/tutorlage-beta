@@ -29,6 +29,8 @@ begin
     update profiles set full_name = 'Tessa Surnamesson' where id = ta;
     update profiles set full_name = 'Bongani Dlamini' where id = tb;
     update tutor_profiles set is_verified = true, current_tier_id = 1, current_sub_tier_id = '1A' where id = any (array[ta, tb]);
+    -- since 24 Nov 2026 (JOB ON-BY-DEFAULT) approval itself switches the page on; this suite starts from "page off", so remove the rows approval made (rolled back with everything else)
+    delete from tutor_public_profile where tutor_id = any (array[ta, tb]);
     insert into promo_codes (code, label, percent_off, uses_per_account, active, owner_tutor_id)
       select 'ZZFR' || substr(replace(x::text, '-', ''), 1, 8), 'zz test', 10, 3, true, x from unnest(array[ta, tb]) x
        where not exists (select 1 from promo_codes c where c.owner_tutor_id = x);

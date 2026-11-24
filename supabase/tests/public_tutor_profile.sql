@@ -34,6 +34,8 @@ begin
     update profiles set full_name = 'Bongani Dlamini' where id = tb;
     update tutor_profiles set is_verified = true, current_tier_id = 1, current_sub_tier_id = '1A' where id = any (array[ta, tb, td]);
     update tutor_profiles set is_verified = false where id = tc;
+    -- since 24 Nov 2026 (JOB ON-BY-DEFAULT) approval itself switches the page on; this suite tests the SWITCH, so start from "not switched on" by removing the rows approval made (rolled back with everything else)
+    delete from tutor_public_profile where tutor_id = any (array[ta, tb, tc, td]);
     -- approval makes a code by itself (one per tutor); take what exists, make one only where there is none
     insert into promo_codes (code, label, percent_off, uses_per_account, active, owner_tutor_id)
       select 'ZZPUB' || substr(replace(x::text, '-', ''), 1, 8), 'zz test', 10, 3, true, x from unnest(array[ta, tb, tc, td]) x
@@ -77,7 +79,7 @@ begin
     j := public.public_tutor_page(lower(ca));
     r := r || pg_temp.chk('C1', 'the code is read in any case and gives the page', (j is not null)::text, 'true');
     r := r || pg_temp.chk('C2', 'the first name only', j ->> 'first_name', 'Tessa');
-    r := r || pg_temp.chk('C3', 'the fixed set of keys, nothing else', (select string_agg(k, ',' order by k) from jsonb_object_keys(j) k), 'checked,code,currency,first_name,hours,level_id,level_name,price,subjects,taking_requests');
+    r := r || pg_temp.chk('C3', 'the fixed set of keys, nothing else', (select string_agg(k, ',' order by k) from jsonb_object_keys(j) k), 'checked,code,currency,first_name,hours,level_id,level_name,photo,price,subjects,taking_requests');
     r := r || pg_temp.chk('C4', 'no surname, e-mail address or learner anywhere in the answer', (j::text ilike '%surnamesson%' or j::text ilike '%example.invalid%' or j::text ilike '%' || lrn::text || '%' or j::text ilike '%' || ta::text || '%')::text, 'false');
     r := r || pg_temp.chk('C5', 'only the VERIFIED subject, with its grades', (select string_agg((s ->> 'subject') || ' ' || (s ->> 'min_grade') || '-' || (s ->> 'max_grade'), ',') from jsonb_array_elements(j -> 'subjects') s), 'Mathematics Grade 8-Grade 12');
     r := r || pg_temp.chk('C6', 'the level and its price are the same as the Prices page reads', (j ->> 'level_id') || ' ' || (j ->> 'level_name') || ' ' || (j ->> 'price') || ' ' || (j ->> 'currency'),

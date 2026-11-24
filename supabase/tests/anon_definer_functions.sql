@@ -97,7 +97,7 @@ begin
       -- (check_promo_code, the founding-list functions for the join form and the personal link, and the consented public tutor page); a NEW name
       -- here must be a decision, so it is listed on purpose, never matched by a pattern.
       and p.proname not in ('current_policy_versions', 'log_client_error', 'public_tutor_reviews', 'free_sessions_open',
-                            'check_promo_code', 'founding_gate_public', 'founding_signup_prefill', 'join_founding_list', 'log_founding_event', 'log_founding_field', 'public_tutor_page');
+                            'check_promo_code', 'founding_gate_public', 'founding_signup_prefill', 'join_founding_list', 'log_founding_event', 'log_founding_field', 'public_tutor_page', 'count_tutor_page_event');
   r := r || pg_temp.chk('R6', 'every other SECURITY DEFINER function in schema public that a signed-out caller can still run', t, '(none)');
 
   exception when others then
