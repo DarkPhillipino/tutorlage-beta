@@ -203,5 +203,24 @@ function partBSections(text: string): Set<string> {
   check('the three addresses /terms, /privacy and /refunds are public routes', /path="\/terms"/.test(main) && /path="\/privacy"/.test(main) && /path="\/refunds"/.test(main));
 }
 
+// ---- acts we will not allow, and the public tutor page (24 Nov 2026, CEO) ------------------------------------------------------------
+{
+  const t = docs.terms;
+  const pv = docs.privacy;
+  const clause = t.slice(t.indexOf('Acts we will not allow'), t.indexOf('Acts we will not allow') + 1800);
+  check('the Terms list the acts we will not allow (section 11) with the ban and the right to remove a profile text, photo or banner at once',
+    /\*\*Acts we will not allow on Tutorlage\.\*\*/.test(t) && /will be removed from Tutorlage \(banned\)/.test(t) && /at once and without notice/.test(t) && /hate speech/.test(t) && /discriminate against/.test(t));
+  check('the clause is not duplicated and the old one-line respect rule still stands once',
+    (t.match(/Acts we will not allow on Tutorlage/g) ?? []).length === 1 && (t.match(/\*\*Treat each other with respect\.\*\*/g) ?? []).length === 1);
+  check('Part B names the public page, no surname, no contact, switch off at any time; B9 and section 17 point at the clause',
+    /\*\*Your public page\.\*\*[^\n]*first name[^\n]*no surname and no contact details[^\n]*switch it off at any time/.test(t) && /including "Acts we will not allow"/.test(t) && /an act listed under "Acts we will not allow" in §11/.test(t));
+  check('the Privacy Policy names the public page, says it is on under the tutor Terms (it does not claim she consented) and that it sets no cookie',
+    /\*\*Anyone, on a verified tutor's public page\.\*\*/.test(pv) && /on for a verified tutor under the tutor Terms \(Part B\)/.test(pv) && !/public page[^\n]*you consent/i.test(pv) && /sets no cookie/.test(pv));
+  check('the new wording never says vetted, certified or background-checked',
+    !/vetted|background-checked|\bcertified\b/i.test(clause) && !/vetted|background-checked/i.test(pv));
+  const page = read('src/pages/LegalPage.tsx');
+  check('the version moved to 2026-11-24 with its date', /LEGAL_VERSION = '2026-11-24'/.test(page) && /LAST_UPDATED = '24 November 2026'/.test(page));
+}
+
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

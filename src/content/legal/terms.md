@@ -125,6 +125,8 @@ These rules apply to everyone, and to tutors in particular (see Part B):
 - **Keep personal details to a minimum.** Do not give a tutor a home address, a school timetable or other personal details a lesson does not need.
 - **No recording.** Do not record a session, or anyone in it, without everyone's consent.
 - **Treat each other with respect.** No harassment, discrimination or abusive language.
+- **Acts we will not allow on Tutorlage.** Nobody may use Tutorlage, in a session, a message, a profile, a photo, a banner or any other content, to: discriminate against, harass, threaten, intimidate or demean a person because of race, colour, ethnic or social origin, nationality, language, religion, sex, gender, sexual orientation, pregnancy, marital status, age, disability, health or belief; share or promote hate speech, or content that incites violence or hatred; share sexual, violent or otherwise indecent content, or anything unlawful; bully or abuse a learner; pretend to be someone else, or misstate qualifications, checks or experience; or share or ask for contact details to take a learner or a tutor off Tutorlage, including in a profile, a photo or a banner.
+- **What happens if you do.** **A tutor or any other user found acting in this way will be removed from Tutorlage (banned), and we may report the matter to the authorities.** We can remove any profile text, photo or banner that breaks these rules at once and without notice. Profile photos and banners must be yours to use and must be professional: show nothing a parent would not want a child to see.
 - **Reporting.** Report safety concerns to safety@tutorlage.com. **Reporting a suspected crime or abuse to SAPS (10111) or Childline (116) never needs Tutorlage's permission first.**
 - **Safety suspensions.** We may suspend an account straight away while we look into a safety concern.
 
@@ -175,7 +177,7 @@ We may change, add or remove features to improve Tutorlage or comply with the la
 ## 17. Suspending or closing accounts
 
 1. **Closing your own account.** You can close your account at any time by emailing support@tutorlage.com. Sessions already booked are cancelled and refunded under §8, and any lesson credit left is returned to you by bank transfer. Your information is then handled as our Privacy Policy says.
-2. **When we may suspend or close an account**, for a serious or repeated breach of these Terms, for fraud, or for a safety concern:
+2. **When we may suspend or close an account**, for a serious or repeated breach of these Terms (an act listed under "Acts we will not allow" in §11 is a serious breach), for fraud, or for a safety concern:
    - except where safety or the law requires immediate action, we will **tell you why first**;
    - you will have **14 days to respond**;
    - you may **ask for a second review** by someone who was not involved in the first decision, where we have more than one person who can do it.
@@ -238,6 +240,7 @@ These apply to you as well as Part A if you tutor on Tutorlage.
 2. You cannot accept requests until Tutorlage has verified your profile.
 3. Your profile must be truthful: your name, your qualifications, and the subjects and grades you can really teach.
 4. **Only you may tutor under your account.**
+5. **Your public page.** Once you are verified, your first name, the subjects and grades you are approved for, your level, your price, your working hours in words and the lines that say how you were checked appear on a public page, tutorlage.com/t/ followed by your code. It shows no surname and no contact details. You can switch it off at any time on your Teach screen, and switching it off hides it at once.
 
 ## B2. Your status
 
@@ -295,7 +298,7 @@ These apply to you as well as Part A if you tutor on Tutorlage.
 ## B9. Conduct
 
 You agree to:
-- the rules in Part A §11;
+- the rules in Part A §11, including "Acts we will not allow" (they cover your profile text, photo and banner too);
 - the Tutorlage code of conduct;
 - being honest about what you do not know. Never present a guess as certain;
 - **helping the learner learn, not doing their assessed work.** Do not write, complete or answer homework, assignments, projects, tests or exams that will be marked, even if you are asked to. Explain, use similar examples, and check the learner's own attempt.
