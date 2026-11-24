@@ -240,7 +240,7 @@ These apply to you as well as Part A if you tutor on Tutorlage.
 2. You cannot accept requests until Tutorlage has verified your profile.
 3. Your profile must be truthful: your name, your qualifications, and the subjects and grades you can really teach.
 4. **Only you may tutor under your account.**
-5. **Your public page.** Once you are verified, your first name, the subjects and grades you are approved for, your level, your price, your working hours in words and the lines that say how you were checked appear on a public page, tutorlage.com/t/ followed by your code. It shows no surname and no contact details. You can switch it off at any time on your Teach screen, and switching it off hides it at once.
+5. **Your public page.** Once you are verified, your first name, the subjects and grades you are approved for, your level, your price, your working hours in words and the lines that say how you were checked and, once the company has approved it, your photo appear on a public page, tutorlage.com/t/ followed by your code. It shows no surname and no contact details. You can add, replace or remove your photo on your Teach screen: a new or replaced photo is checked by the company before it shows, and until then the page shows the last approved photo, or none. You can switch the page off at any time, and switching it off or removing your photo hides it at once.
 
 ## B2. Your status
 

@@ -410,3 +410,13 @@ export async function preparePhoto(file: File): Promise<CardPhoto> {
   if ('close' in bitmap) (bitmap as ImageBitmap).close();
   return { source: c };
 }
+
+// Her approved profile photo (a small JPEG data address from her public page answer) as a card photo: already a square, drawn into the circle. Read in her phone.
+export function photoFromDataUri(uri: string): Promise<CardPhoto> {
+  return new Promise((ok, bad) => {
+    const img = new Image();
+    img.onload = () => ok({ source: img });
+    img.onerror = () => bad(new Error('bad picture'));
+    img.src = uri;
+  });
+}

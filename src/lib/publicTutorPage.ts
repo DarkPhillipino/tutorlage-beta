@@ -22,6 +22,8 @@ export interface PublicTutorPage {
   checked: string[];
   hours: string | null;
   takingRequests: boolean;
+  // Her approved photo as a small JPEG data address, or null (no photo, or not yet approved: the database answers it only for an approved photo on a page that is on).
+  photo: string | null;
 }
 
 export const PUBLIC_PAGE_COPY = {
@@ -41,7 +43,7 @@ export const PUBLIC_PAGE_COPY = {
   cardOff: 'Switched off. Nobody can open your page.',
   cardOn: 'Your profile is live. Anyone with your link can open it. You can switch it off at any time.',
   consent:
-    'If you switch this on, anyone with your link will see your first name, your subjects and grades, your level and price, the checks we have done and your weekly hours. No photo, no surname, no contact details. You can switch it off at any time and the page disappears at once.',
+    'If you switch this on, anyone with your link will see your first name, your subjects and grades, your level and price, the checks we have done and your weekly hours, and your photo once the company has approved it. No surname and no contact details. You can switch it off at any time and the page disappears at once.',
   consentLabel: 'I understand and I want my page to be public',
   switchOn: 'Switch on my page',
   switchOff: 'Switch off my page',
@@ -71,6 +73,11 @@ export function capitaliseName(name: string): string {
   return name.trim().replace(/(^|[\s-])(\p{L})/gu, (_m, sep: string, ch: string) => sep + ch.toLocaleUpperCase('en-ZA'));
 }
 
+// Only a small JPEG data address is accepted as a photo: anything else is dropped, so a stray value can never reach an image tag.
+export function safePhoto(v: unknown): string | null {
+  return typeof v === 'string' && v.length <= 250000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(v) ? v : null;
+}
+
 // What the database answered, or null when there is no page (or the answer is odd).
 export function parsePublicPage(data: unknown): PublicTutorPage | null {
   if (!data || typeof data !== 'object') return null;
@@ -98,6 +105,7 @@ export function parsePublicPage(data: unknown): PublicTutorPage | null {
     checked: Array.isArray(d.checked) ? (d.checked as unknown[]).filter((x): x is string => typeof x === 'string') : [],
     hours: typeof d.hours === 'string' && d.hours !== '' ? d.hours : null,
     takingRequests: d.taking_requests === true,
+    photo: safePhoto(d.photo),
   };
 }
 

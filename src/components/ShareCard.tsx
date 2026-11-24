@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Download, Share2, Copy, Camera, ImagePlus, Trash2 } from 'lucide-react';
 import { fetchPublicPage, profileLink, type PublicPageClient, type PublicTutorPage } from '../lib/publicTutorPage';
 import {
-  SHARE_CARD_COPY as COPY, canvasToPng, drawShareCard, drawWeeklyCard, launchCaption, parseWeeklyPost, preparePhoto, weeklyCaption, type CardPhoto, type WeeklyPost,
+  SHARE_CARD_COPY as COPY, canvasToPng, drawShareCard, drawWeeklyCard, launchCaption, parseWeeklyPost, photoFromDataUri, preparePhoto, weeklyCaption, type CardPhoto, type WeeklyPost,
 } from '../lib/shareCard';
 
 // The share card and the weekly post on the Teach screen (JOBS CARD, WEEKLY, FACE). Loaded only when her page is on and she opens the Teach screen (lazy from
@@ -153,13 +153,19 @@ const PhotoPicker: React.FC<{ hasPhoto: boolean; failed: boolean; onFile: (f: Fi
 const ShareCard: React.FC<{ client: PublicPageClient; code: string }> = ({ client, code }) => {
   const [page, setPage] = useState<PublicTutorPage | null>(null);
   const [weekly, setWeekly] = useState<WeeklyPost | null>(null);
-  const [photo, setPhoto] = useState<CardPhoto | null>(null);
+  const [pickedPhoto, setPhoto] = useState<CardPhoto | null>(null);
+  const [storedPhoto, setStoredPhoto] = useState<CardPhoto | null>(null);
   const [photoFailed, setPhotoFailed] = useState(false);
   const link = profileLink(code);
 
   useEffect(() => {
     let live = true;
-    fetchPublicPage(client, code).then((p) => live && setPage(p));
+    fetchPublicPage(client, code).then((p) => {
+      if (!live) return;
+      setPage(p);
+      // Her approved profile photo is used on the card automatically; it comes with the page answer (a small JPEG), nothing else is fetched.
+      if (p?.photo) photoFromDataUri(p.photo).then((ph) => live && setStoredPhoto(ph), () => undefined);
+    });
     Promise.resolve(client.rpc('my_weekly_post')).then(
       ({ data, error }) => live && !error && setWeekly(parseWeeklyPost(data)),
       () => undefined,
@@ -174,6 +180,7 @@ const ShareCard: React.FC<{ client: PublicPageClient; code: string }> = ({ clien
     preparePhoto(f).then(setPhoto, () => setPhotoFailed(true));
   };
 
+  const photo = storedPhoto ?? pickedPhoto;
   const launchDraw = React.useCallback(
     (canvas: HTMLCanvasElement) => (page ? drawShareCard(canvas, { firstName: page.firstName, subjects: page.subjects, photo }) : Promise.reject(new Error('no page'))),
     [page, photo],
@@ -185,7 +192,7 @@ const ShareCard: React.FC<{ client: PublicPageClient; code: string }> = ({ clien
 
   return (
     <>
-      {page && page.subjects.length > 0 && <PhotoPicker hasPhoto={photo !== null} failed={photoFailed} onFile={onFile} onRemove={() => setPhoto(null)} />}
+      {page && page.subjects.length > 0 && !storedPhoto && <PhotoPicker hasPhoto={photo !== null} failed={photoFailed} onFile={onFile} onRemove={() => setPhoto(null)} />}
       {page && page.subjects.length > 0 && (
         <CardPanel
           heading={COPY.heading}

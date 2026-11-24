@@ -213,13 +213,13 @@ function partBSections(text: string): Set<string> {
   check('the clause is not duplicated and the old one-line respect rule still stands once',
     (t.match(/Acts we will not allow on Tutorlage/g) ?? []).length === 1 && (t.match(/\*\*Treat each other with respect\.\*\*/g) ?? []).length === 1);
   check('Part B names the public page, no surname, no contact, switch off at any time; B9 and section 17 point at the clause',
-    /\*\*Your public page\.\*\*[^\n]*first name[^\n]*no surname and no contact details[^\n]*switch it off at any time/.test(t) && /including "Acts we will not allow"/.test(t) && /an act listed under "Acts we will not allow" in §11/.test(t));
+    /\*\*Your public page\.\*\*[^\n]*first name[^\n]*once the company has approved it, your photo[^\n]*no surname and no contact details[^\n]*switch the page off at any time/.test(t) && /including "Acts we will not allow"/.test(t) && /an act listed under "Acts we will not allow" in §11/.test(t));
   check('the Privacy Policy names the public page, says it is on under the tutor Terms (it does not claim she consented) and that it sets no cookie',
-    /\*\*Anyone, on a verified tutor's public page\.\*\*/.test(pv) && /on for a verified tutor under the tutor Terms \(Part B\)/.test(pv) && !/public page[^\n]*you consent/i.test(pv) && /sets no cookie/.test(pv));
+    /\*\*Anyone, on a verified tutor's public page\.\*\*/.test(pv) && /on for a verified tutor under the tutor Terms \(Part B\)/.test(pv) && !/public page[^\n]*you consent/i.test(pv) && /sets no cookie/.test(pv) && /once the company has approved it, her photo/.test(pv));
   check('the new wording never says vetted, certified or background-checked',
     !/vetted|background-checked|\bcertified\b/i.test(clause) && !/vetted|background-checked/i.test(pv));
   const page = read('src/pages/LegalPage.tsx');
-  check('the version moved to 2026-11-24 with its date', /LEGAL_VERSION = '2026-11-24'/.test(page) && /LAST_UPDATED = '24 November 2026'/.test(page));
+  check('the version moved to 2026-11-24b (photo on the public page) with its date', /LEGAL_VERSION = '2026-11-24b'/.test(page) && /LAST_UPDATED = '24 November 2026'/.test(page));
 }
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} FAILED`);

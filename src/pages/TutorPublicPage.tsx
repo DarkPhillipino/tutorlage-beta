@@ -70,8 +70,13 @@ export default function TutorPublicPage({ client = supabase as unknown as Public
         <Link to="/" className="text-2xl font-extrabold tracking-tight text-[#0F172A]">Tutorlage</Link>
 
         <section className="bg-white rounded-2xl border border-slate-200 p-5">
-          <h1 className="font-serif text-3xl text-[#0F172A] leading-tight">{page.firstName}</h1>
-          <p className="text-sm text-slate-600 mt-1">Tutor on Tutorlage</p>
+          <div className="flex items-center gap-4">
+            {page.photo && <img src={page.photo} alt={`${page.firstName}, tutor on Tutorlage`} width={96} height={96} className="w-24 h-24 rounded-full object-cover shrink-0" data-testid="tutor-photo" />}
+            <div>
+              <h1 className="font-serif text-3xl text-[#0F172A] leading-tight">{page.firstName}</h1>
+              <p className="text-sm text-slate-600 mt-1">Tutor on Tutorlage</p>
+            </div>
+          </div>
         </section>
 
         <section className="bg-white rounded-2xl border border-slate-200 p-5">

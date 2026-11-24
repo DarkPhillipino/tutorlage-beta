@@ -34,6 +34,7 @@ async function main() {
   const p = parsePublicPage(good);
   check('a good answer is understood; odd subject and check entries are dropped', !!p && p.firstName === 'Tessa' && p.subjects.length === 1 && p.subjects[0].minGrade === 'Grade 8' && p.checked.length === 2 && p.takingRequests && p.hours === 'Monday to Friday, 5pm to 11pm' && p.price === 250);
   check('no page for null, an empty answer, a missing code or name, or a non-object', parsePublicPage(null) === null && parsePublicPage({}) === null && parsePublicPage({ first_name: 'A' }) === null && parsePublicPage({ code: 'A' }) === null && parsePublicPage('x') === null);
+  check('a photo is accepted only as a small JPEG data address (anything else is dropped)', parsePublicPage({ ...good, photo: 'data:image/jpeg;base64,/9j/4AAQ' })?.photo === 'data:image/jpeg;base64,/9j/4AAQ' && parsePublicPage({ ...good, photo: 'https://x.test/a.jpg' })?.photo === null && parsePublicPage({ ...good, photo: 'data:image/svg+xml;base64,AAAA' })?.photo === null && parsePublicPage({ ...good, photo: 'javascript:alert(1)' })?.photo === null && parsePublicPage(good)?.photo === null);
   check('no hours means no hours line and not taking requests', (() => { const q = parsePublicPage({ ...good, hours: null, taking_requests: false }); return !!q && q.hours === null && !q.takingRequests; })());
   const ok = { rpc: async (fn: string, args?: Record<string, unknown>) => ({ data: fn === 'public_tutor_page' && args?.p_code === 'TESSA' ? good : null, error: null }) };
   check('the page is asked for by its code, through the one public function', (await fetchPublicPage(ok, 'TESSA'))?.firstName === 'Tessa' && (await fetchPublicPage(ok, 'NOPE')) === null);
@@ -50,14 +51,14 @@ async function main() {
   // the words
   const allWords = JSON.stringify(PUBLIC_PAGE_COPY);
   check('no "vetted", "certified", "background-checked", "free" or "instant" in the page words', !/vetted|certified|background|\bfree\b|instant/i.test(allWords) && !/vetted|certified|background/i.test(read('src/pages/TutorPublicPage.tsx')));
-  check('the consent line says what is shown, that there is no photo or surname, and that it can be switched off at once', /first name, your subjects and grades, your level and price, the checks we have done and your weekly hours/.test(PUBLIC_PAGE_COPY.consent)
-    && /No photo, no surname, no contact details/.test(PUBLIC_PAGE_COPY.consent) && /switch it off at any time and the page disappears at once/.test(PUBLIC_PAGE_COPY.consent));
+  check('the consent line says what is shown (the photo only once approved), that there is no surname, and that it can be switched off at once', /first name, your subjects and grades, your level and price, the checks we have done and your weekly hours/.test(PUBLIC_PAGE_COPY.consent)
+    && /your photo once the company has approved it\. No surname and no contact details/.test(PUBLIC_PAGE_COPY.consent) && !/No photo/.test(PUBLIC_PAGE_COPY.consent) && /switch it off at any time and the page disappears at once/.test(PUBLIC_PAGE_COPY.consent));
   check('it never names a school, campus or faculty, nor claims "instant"', !/school|campus|faculty|university/i.test(allWords));
 
   // the page and its surroundings
   const page = code('src/pages/TutorPublicPage.tsx');
   check('the page says noindex, nofollow itself', /'noindex,nofollow'/.test(page));
-  check('the page shows no photo and no intro, and reads no table itself', !/<img|avatar|intro|headline/i.test(page) && !/\.from\(/.test(page) && !/\.insert\(|\.update\(|\.delete\(/.test(page));
+  check('the page shows only the approved photo (from the page answer, a JPEG data address), no intro, and reads no table itself', (page.match(/<img/g) ?? []).length === 1 && /page\.photo/.test(page) && !/avatar|intro|headline/i.test(page) && !/\.from\(/.test(page) && !/\.insert\(|\.update\(|\.delete\(/.test(page));
   check('Book is the sign-up link with her code (the sign-up flow itself is not touched)', /href=\{bookLink\(page\.code\)\}/.test(page));
   check('robots.txt disallows /t/ and the sitemap has no /t/ entry', /^Disallow: \/t\/$/m.test(robotsTxt(PAGE_META)) && !/\/t\//.test(sitemapXml(PAGE_META)) && !PAGE_META.some((m) => m.path.startsWith('/t/')));
   const main = read('src/main.tsx');
