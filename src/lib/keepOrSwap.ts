@@ -80,6 +80,8 @@ export const KEEP_OR_SWAP_COPY = {
   ratingNote: 'Rating is separate: trying someone else is not a bad rating.',
   notYours: 'Only the learner (if an adult) or the person who looks after them can choose.',
   bannerBookAgain: (name: string) => `Booking ${name} again`,
+  // A family that came from her own link: the first request is addressed to her.
+  bannerFromLink: (name: string) => `Booking with ${name}`,
   bannerNote: (name: string) =>
     `${name} has up to ${KEEP_WINDOW_HOURS} hours to accept, and never past the session time. If ${name} does not accept, you are not charged and you can send the request to any available tutor in one tap.`,
   bannerAsap: (name: string) =>

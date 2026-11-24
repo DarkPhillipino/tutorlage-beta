@@ -28,6 +28,7 @@ import { siteUrl } from './lib/siteUrl';
 import { closeAccountSetup, rememberClosure, type ClosureResult } from './lib/closeAccount';
 import { useAccountStatus } from './components/AccountGate';
 import { FEATURES } from './lib/features';
+import { supabase } from './lib/supabaseClient';
 import { LinkedLearner, fetchMyLearners } from './lib/guardian';
 
 import { BookingFormState, SuggestionItem, UserAccount, PriceLevel, Institution, AppNotification } from './types';
@@ -170,6 +171,31 @@ export default function App() {
   // Keep or swap (master 7aa; FEATURES.keepOrSwap): "Book again" from My tutors addresses the next request to that tutor.
   // The request page shows who it is addressed to and lets the learner send it to anyone instead.
   const [bookAgain, setBookAgain] = useState<{ tutorId: string; firstName: string } | null>(null);
+  // A family that signed up from a tutor's own link (/t/CODE): the database says whose code is on the account (my_linked_tutor: only while her page is on,
+  // and only until the family's first lesson), and the FIRST request is addressed to her. "Send it to any available tutor" turns it off for this visit.
+  const [linkTutor, setLinkTutor] = useState<{ tutorId: string; firstName: string; fromLink: true } | null>(null);
+  const [linkTutorDismissed, setLinkTutorDismissed] = useState(false);
+  useEffect(() => {
+    if (!user || role === 'tutor' || !FEATURES.keepOrSwap) {
+      setLinkTutor(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc('my_linked_tutor');
+        const d = data as { tutor_id?: unknown; first_name?: unknown } | null;
+        if (cancelled) return;
+        if (error || !d || typeof d.tutor_id !== 'string' || typeof d.first_name !== 'string') setLinkTutor(null);
+        else setLinkTutor({ tutorId: d.tutor_id, firstName: d.first_name, fromLink: true });
+      } catch {
+        if (!cancelled) setLinkTutor(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, role, view]);
 
   const handleBookAgain = async (tutor: MyTutor, forLearner: BookAgainLearner) => {
     setIsManageAccountOpen(false);
@@ -497,8 +523,11 @@ export default function App() {
             onClearLevel={() => setSelectedLevel(null)}
             selectedFormat={selectedFormat}
             onClearFormat={() => setSelectedFormat(null)}
-            bookAgain={FEATURES.keepOrSwap ? bookAgain : null}
-            onClearBookAgain={() => setBookAgain(null)}
+            bookAgain={FEATURES.keepOrSwap ? (bookAgain ?? (linkTutorDismissed ? null : linkTutor)) : null}
+            onClearBookAgain={() => {
+              setBookAgain(null);
+              setLinkTutorDismissed(true);
+            }}
           />
         ) : (
           <>
@@ -513,6 +542,23 @@ export default function App() {
                   className="text-xs font-bold text-[#15803D] hover:underline cursor-pointer"
                 >
                   Return to Learn Home →
+                </button>
+              </div>
+            )}
+
+            {FEATURES.keepOrSwap && linkTutor && !linkTutorDismissed && view === 'home' && activeNav === 'learn' && (
+              <div data-link-tutor className="mb-6 bg-emerald-50 rounded-2xl p-4 border border-emerald-200 flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-sm font-bold text-[#0F172A]">You came from {linkTutor.firstName}&apos;s page. Your first request can go to {linkTutor.firstName}.</div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveNav('learn');
+                    setView('prices');
+                    window.scrollTo({ top: 0 });
+                  }}
+                  className="text-xs font-bold text-white bg-[#15803D] rounded-lg px-3 py-2 hover:bg-[#166534] cursor-pointer"
+                >
+                  Book with {linkTutor.firstName}
                 </button>
               </div>
             )}

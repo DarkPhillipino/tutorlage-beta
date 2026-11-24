@@ -58,7 +58,7 @@ interface PricesPageProps {
   selectedFormat: SuggestionItem | null;
   onClearFormat: () => void;
   // Keep or swap (master 7aa): set when the learner chose "Book {name} again". The request is then addressed to that tutor.
-  bookAgain?: { tutorId: string; firstName: string } | null;
+  bookAgain?: { tutorId: string; firstName: string; fromLink?: boolean } | null;
   onClearBookAgain?: () => void;
 }
 
@@ -472,7 +472,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
           {/* Keep or swap: this request goes to a tutor the learner has had, with up to 48 hours to accept. */}
           {bookAgain && (
             <div className="mb-6 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-1.5">
-              <div className="text-xs font-bold text-[#15803D]">{KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName)}</div>
+              <div className="text-xs font-bold text-[#15803D]">{bookAgain.fromLink ? KEEP_OR_SWAP_COPY.bannerFromLink(bookAgain.firstName) : KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName)}</div>
               <p className="text-[11px] text-slate-600">{windowNote(bookAgain.firstName, formState.scheduleType)}</p>
               {onClearBookAgain && (
                 <button type="button" onClick={onClearBookAgain} className="text-[11px] font-bold text-slate-600 hover:underline cursor-pointer">
@@ -647,7 +647,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
             <div>
               <h2 className="text-lg font-extrabold text-[#0F172A]">
                 {bookAgain
-                  ? KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName)
+                  ? (bookAgain.fromLink ? KEEP_OR_SWAP_COPY.bannerFromLink(bookAgain.firstName) : KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName))
                   : `${tutorCount} tutor${tutorCount === 1 ? '' : 's'} available`}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -718,9 +718,11 @@ export const PricesPage: React.FC<PricesPageProps> = ({
                     keeps its heading and line: they say who the request goes to. */}
                 {bookAgain && (
                   <div className="text-left">
-                    <h3 className="text-base font-extrabold text-[#0F172A]">{KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName)}</h3>
+                    <h3 className="text-base font-extrabold text-[#0F172A]">{bookAgain.fromLink ? KEEP_OR_SWAP_COPY.bannerFromLink(bookAgain.firstName) : KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName)}</h3>
                     <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                      {`This request goes to ${bookAgain.firstName}. Choose the price level (the same as last time, or lower, because ${bookAgain.firstName} can only take levels up to their own).`}
+                      {bookAgain.fromLink
+                        ? `This request goes to ${bookAgain.firstName}. Choose the price level: ${bookAgain.firstName} can only take levels up to their own.`
+                        : `This request goes to ${bookAgain.firstName}. Choose the price level (the same as last time, or lower, because ${bookAgain.firstName} can only take levels up to their own).`}
                     </p>
                   </div>
                 )}
