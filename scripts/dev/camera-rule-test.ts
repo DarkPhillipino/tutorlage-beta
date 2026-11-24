@@ -57,8 +57,9 @@ check('the people flagged are everyone listed without a clear "camera allowed"',
 // The only two places in the app that can use a camera: the video room (this rule), and the tutor's document page, where
 // a file box lets a tutor photograph an ID or certificate with their phone ("capture"). Tutors must be 18 or older (B1, the
 // database refuses a younger one), so no learner under 18 ever reaches that page. Any new use of a camera must be added here
-// on purpose.
-const MAY_USE_CAMERA = new Set(['RoomPage.tsx', 'TutorDocumentsPage.tsx']);
+// on purpose. Added 24 Nov 2026 (PM lines 69 and 70): the tutor's share card on her Teach screen has a "Take a photo" file box (capture="user", one still picture
+// for her own card, drawn on her phone and never uploaded); tutors are 18 or older, and it is not a live camera (no getUserMedia).
+const MAY_USE_CAMERA = new Set(['RoomPage.tsx', 'TutorDocumentsPage.tsx', 'ShareCard.tsx']);
 check('nothing else in the app opens a camera (the video room is the only place a learner could)', ['src/components', 'src/pages', 'src/lib'].every((dir) => {
   const root = new URL(`../../${dir}/`, import.meta.url);
   return fs.readdirSync(root).filter((f) => /\.(ts|tsx)$/.test(f)).every((f) => {

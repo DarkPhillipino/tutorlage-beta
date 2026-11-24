@@ -1,51 +1,107 @@
-// The week-one share card (CEO, 24 Nov 2026; PM line 62, JOB CARD): a 9:16 picture a tutor posts on her WhatsApp status, and the caption that goes with it.
-// What is on it: TUTORLAGE, her first name, her subjects and grades, her link and a QR code of the link. Never a price, earnings, a surname, a contact detail or a campus.
-// Pure text helpers live here (tested); the drawing needs a canvas and is only reached from the lazy ShareCard component on the Teach screen, so none of this
-// (nor the QR code library) is loaded anywhere else.
+// The share card (CEO, 24 Nov 2026; PM lines 62, 69, 70): a 9:16 picture a tutor posts on her WhatsApp status, and the caption that goes with it.
+// What is on it: TUTORLAGE small top-left, her face (an optional photo of her own, in a circle), her first name, her subjects and grades. NOTHING ELSE:
+// no QR code and no link on the picture (the link lives in the caption, where WhatsApp makes it tappable). Never a price, earnings, a surname, a contact detail or a campus.
+// Two layouts by how many subjects she covers: three or fewer = A (larger type), four or more = B (compact); both group the subjects by grade range, widest first.
+// Pure text helpers live here (tested); the drawing needs a canvas and is only reached from the lazy ShareCard component on the Teach screen.
+// Her photo is read, cropped and drawn in her own phone and never uploaded, stored or sent (PM line 69).
 import { capitaliseName, gradesInWords, type PublicPageSubject } from './publicTutorPage';
 
 export const CARD_W = 1080;
 export const CARD_H = 1920;
-const MAX_LINES = 6;
+// Four subjects or more = layout B (the CEO's rule, line 70).
+export const LAYOUT_B_FROM = 4;
 
 // Capitalise the first letter of each part of a first name ("odirile" -> "Odirile", "mary-ann" -> "Mary-Ann"); the rest is left as typed.
 export const nameForCard = capitaliseName;
 
-// One line per subject: "Mathematics: Grades 8 to 12". The same subject twice (two grade bands) is shown twice, as she set it.
-export function subjectLines(subjects: PublicPageSubject[]): string[] {
+export type CardLayout = 'A' | 'B';
+
+function distinctNames(subjects: PublicPageSubject[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const s of subjects) {
-    const line = `${s.subject.trim()}: ${gradesInWords(s.minGrade, s.maxGrade)}`;
-    if (!s.subject.trim() || seen.has(line)) continue;
-    seen.add(line);
-    out.push(line);
+    const n = s.subject.trim();
+    if (!n || seen.has(n.toLowerCase())) continue;
+    seen.add(n.toLowerCase());
+    out.push(n);
   }
   return out;
 }
 
-// The lines drawn on the card: at most MAX_LINES, the last one saying how many more there are.
-export function cardSubjectLines(subjects: PublicPageSubject[]): string[] {
-  const all = subjectLines(subjects);
-  if (all.length <= MAX_LINES) return all;
-  return [...all.slice(0, MAX_LINES - 1), `and ${all.length - (MAX_LINES - 1)} more on my profile`];
+// How many different subjects she covers decides the layout (the same subject in two grade bands counts once).
+export function cardLayout(subjects: PublicPageSubject[]): CardLayout {
+  return distinctNames(subjects).length >= LAYOUT_B_FROM ? 'B' : 'A';
 }
 
-// "Mathematics (Grades 8 to 12), Physical Sciences (Grades 10 to 12)"
-export function subjectsInSentence(subjects: PublicPageSubject[]): string {
-  return subjectLines(subjects).map((l) => l.replace(/: /, ' (') + ')').join(', ');
+// "Grade 4 to 12", "Grade 10 to 12", "Grade 5" (one grade).
+export function gradeRangeLabel(min: string, max: string): string {
+  return gradesInWords(min, max).replace(/^Grades /, 'Grade ');
 }
 
-// The launch caption, in the CEO's words, copied in one tap.
-export function launchCaption(subjects: PublicPageSubject[], link: string): string {
-  return `I'm now tutoring online on Tutorlage. Subjects and grades: ${subjectsInSentence(subjects)}. My profile: ${link}. Please reshare this post to help support my business.`;
+// "Grade 8" -> 8, "Grade R" -> 0, anything else -> null
+function gradeNumber(g: string): number | null {
+  const m = /^Grade\s+(\S+)$/i.exec(g.trim());
+  if (!m) return null;
+  if (/^r$/i.test(m[1])) return 0;
+  const n = Number(m[1]);
+  return Number.isInteger(n) ? n : null;
 }
+
+export interface GradeGroup { range: string; subjects: string[] }
+
+const isEnglishHome = (n: string) => /^english\b.*\bhome language\b/i.test(n);
+const isEnglishFal = (n: string) => /^english\b.*\bfirst additional language\b/i.test(n);
+
+// Subjects grouped by grade range, widest range first, subjects that share a range merged into one group. When both English subjects share a range they
+// are joined as "English" (the CEO's example). Only the subjects and ranges the public page returns: nothing is invented.
+export function groupByGradeRange(subjects: PublicPageSubject[]): GradeGroup[] {
+  const groups: { range: string; width: number; min: number; subjects: string[] }[] = [];
+  for (const s of subjects) {
+    const name = s.subject.trim();
+    if (!name) continue;
+    const range = gradeRangeLabel(s.minGrade, s.maxGrade);
+    let g = groups.find((x) => x.range === range);
+    if (!g) {
+      const lo = gradeNumber(s.minGrade);
+      const hi = gradeNumber(s.maxGrade);
+      g = { range, width: lo !== null && hi !== null ? hi - lo : 99, min: lo ?? -1, subjects: [] };
+      groups.push(g);
+    }
+    if (!g.subjects.some((x) => x.toLowerCase() === name.toLowerCase())) g.subjects.push(name);
+  }
+  for (const g of groups) {
+    const h = g.subjects.findIndex(isEnglishHome);
+    const f = g.subjects.findIndex(isEnglishFal);
+    if (h >= 0 && f >= 0) {
+      const first = Math.min(h, f);
+      g.subjects = g.subjects.filter((_n, i) => i !== h && i !== f);
+      g.subjects.splice(first, 0, 'English');
+    }
+  }
+  groups.sort((a, b) => b.width - a.width || a.min - b.min);
+  return groups.map((g) => ({ range: g.range, subjects: g.subjects }));
+}
+
+// The launch caption: the CEO's words, then her link on its own line (WhatsApp makes it tappable). The subjects are on the card, not in the caption.
+export function launchCaption(link: string): string {
+  return `I'm now tutoring online on Tutorlage. Please reshare this post to help support my business.\n${link}`;
+}
+
+export const PHOTO_ADVICE = 'A photo of just you, shoulders up, in daylight, with a warm smile. No school or campus badges, no logos, no other people, no writing in the picture.';
 
 export const SHARE_CARD_COPY = {
   heading: 'Your share card',
-  how: 'Post this picture on your WhatsApp status with the caption below. Change the words as you like.',
+  how: 'Tap Share my profile to post this picture on your WhatsApp status. The link goes in the caption, so people can tap it. Change the words as you like.',
+  privacyLine: 'Before you post, check in WhatsApp status privacy that people can reshare your status.',
+  photoHeading: 'Your photo (optional)',
+  photoAdvice: PHOTO_ADVICE,
+  photoStays: 'Your photo stays on your phone. It is only drawn onto your card here; it is not uploaded or saved anywhere.',
+  photoTake: 'Take a photo',
+  photoChoose: 'Choose a photo',
+  photoRemove: 'Remove my photo',
+  photoFailed: 'Could not use that picture. Please choose a JPG, PNG or WebP photo.',
   download: 'Save the card',
-  share: 'Share the card',
+  share: 'Share my profile',
   copyCaption: 'Copy the caption',
   copied: 'Copied',
   captionLabel: 'Caption',
@@ -53,11 +109,26 @@ export const SHARE_CARD_COPY = {
   weeklyHeading: 'Your weekly post',
   weeklyHow: 'Made from your real numbers: the lessons you completed in the last 7 days. Post it on your WhatsApp status and change the words as you like.',
   failed: 'Could not make the card on this phone. You can still copy your link above.',
-  alt: 'Your share card: Tutorlage, your first name, your subjects and grades, and a QR code of your profile link.',
+  alt: 'Your share card: Tutorlage, your face if you added a photo, your first name, and your subjects and grades.',
 } as const;
 
-function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const words = text.split(/\s+/);
+// ---- drawing ---------------------------------------------------------------------------------------------------------------------------------------------
+const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+const BG = '#0F6E56';
+const INK = '#E1F5EE';
+const SOFT = '#5DCAA5';
+// The design (reference page, 360 x 640) drawn at three times its size on the real 1080 x 1920 card.
+const PAD_X = 78;
+const PAD_TOP = 84;
+const PAD_BOTTOM = 84;
+const INNER_W = CARD_W - PAD_X * 2;
+const BRAND_SIZE = 45;
+const MIN_GAP = 36;
+
+export interface Row { text: string; size: number; weight: number; color: string; mt: number; lh: number }
+
+export function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let cur = '';
   for (const w of words) {
@@ -71,88 +142,132 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): st
   return lines;
 }
 
-// Draws the card on a canvas of CARD_W x CARD_H. The QR code library is loaded here, on demand.
-export async function drawShareCard(canvas: HTMLCanvasElement, input: { firstName: string; subjects: PublicPageSubject[]; link: string }): Promise<void> {
-  const qrModule = await import('qrcode-generator');
-  const qrcode = (qrModule as unknown as { default?: typeof import('qrcode-generator') }).default ?? (qrModule as unknown as typeof import('qrcode-generator'));
-  const qr = qrcode(0, 'M');
-  qr.addData(input.link);
-  qr.make();
+interface Measured { row: Row; lines: string[] }
 
+function measure(ctx: CanvasRenderingContext2D, rows: Row[]): { items: Measured[]; height: number } {
+  let height = 0;
+  const items: Measured[] = rows.map((row, i) => {
+    ctx.font = `${row.weight} ${row.size}px ${FONT}`;
+    const lines = wrap(ctx, row.text, INNER_W);
+    height += (i === 0 ? 0 : row.mt) + lines.length * Math.round(row.size * row.lh);
+    return { row, lines };
+  });
+  return { items, height };
+}
+
+export interface CardPhoto { source: CanvasImageSource }
+
+// The rows of the subjects block for a layout. `s` shrinks the type (1 = the design size) when many groups have to fit.
+export function subjectRows(name: string, groups: GradeGroup[], layout: CardLayout, s: number): Row[] {
+  const nameSize = layout === 'A' ? 132 : 114;
+  const rows: Row[] = [{ text: name, size: nameSize, weight: 500, color: INK, mt: 0, lh: 1.15 }];
+  const size = Math.round((layout === 'A' ? 57 : 45) * s);
+  const mt = Math.round((layout === 'A' ? 36 : 27) * s);
+  const lhText = layout === 'A' ? 1.3 : 1.25;
+  groups.forEach((g, i) => {
+    rows.push({ text: g.range, size, weight: 600, color: '#FFFFFF', mt: i === 0 ? (layout === 'A' ? 36 : 18) : mt, lh: 1.2 });
+    rows.push({ text: g.subjects.join(', '), size, weight: 400, color: INK, mt: 0, lh: lhText });
+  });
+  return rows;
+}
+
+function fitName(ctx: CanvasRenderingContext2D, raw: string, size: number, weight: number): string {
+  ctx.font = `${weight} ${size}px ${FONT}`;
+  let name = nameForCard(raw) || 'Your tutor';
+  while (ctx.measureText(name).width > INNER_W && name.length > 3) name = name.slice(0, -1);
+  return name;
+}
+
+function drawBrand(ctx: CanvasRenderingContext2D): void {
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = INK;
+  ctx.font = `500 ${BRAND_SIZE}px ${FONT}`;
+  let x = PAD_X;
+  for (const ch of 'TUTORLAGE') {
+    ctx.fillText(ch, x, PAD_TOP);
+    x += ctx.measureText(ch).width + 12;
+  }
+}
+
+function drawFace(ctx: CanvasRenderingContext2D, cx: number, cy: number, d: number, photo: CardPhoto | null, initial: string): void {
+  const r = d / 2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.fillStyle = INK;
+  ctx.fill();
+  if (photo) {
+    ctx.clip();
+    ctx.drawImage(photo.source, cx - r, cy - r, d, d);
+  } else {
+    ctx.fillStyle = BG;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `600 ${Math.round(d * 0.5)}px ${FONT}`;
+    ctx.fillText(initial, cx, cy + d * 0.03);
+  }
+  ctx.restore();
+}
+
+// Lay out the card from the top: brand, then face and block spread with equal gaps, as in the design. Shrinks the face, then the type, until everything fits;
+// a subject is never cut off. Returns the final type scale and face size (for the test page).
+export function composeAndDraw(canvas: HTMLCanvasElement, opts: { name: string; photo: CardPhoto | null; makeRows: (s: number) => Row[]; faceD: number }): { scale: number; faceD: number; fits: boolean } {
   canvas.width = CARD_W;
   canvas.height = CARD_H;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('no canvas');
-  const font = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
-  const green = '#15803D';
-  const ink = '#0F172A';
-
-  ctx.fillStyle = '#FAF7F2';
+  ctx.fillStyle = BG;
   ctx.fillRect(0, 0, CARD_W, CARD_H);
-  ctx.fillStyle = green;
-  ctx.fillRect(0, 0, CARD_W, 24);
-  ctx.fillRect(0, CARD_H - 24, CARD_W, 24);
+  const avail = CARD_H - PAD_TOP - PAD_BOTTOM;
+  const brandH = Math.round(BRAND_SIZE * 1.2);
 
+  let faceD = opts.faceD;
+  let scale = 1;
+  let m = measure(ctx, opts.makeRows(scale));
+  const fits = () => brandH + faceD + m.height + MIN_GAP * 2 <= avail;
+  const smaller = () => {
+    scale = Math.round((scale - 0.02) * 100) / 100;
+    m = measure(ctx, opts.makeRows(scale));
+  };
+  while (!fits() && faceD > 300) faceD -= 30;
+  while (!fits() && scale > 0.62) smaller();
+  while (!fits() && faceD > 200) faceD -= 20;
+  while (!fits() && scale > 0.45) smaller();
+
+  drawBrand(ctx);
+  const gap = Math.max(MIN_GAP, (avail - brandH - faceD - m.height) / 2);
+  const faceTop = PAD_TOP + brandH + gap;
+  drawFace(ctx, CARD_W / 2, faceTop + faceD / 2, faceD, opts.photo, (opts.name[0] ?? 'T').toLocaleUpperCase('en-ZA'));
+
+  let y = faceTop + faceD + gap;
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = green;
-  ctx.font = `800 84px ${font}`;
-  ctx.fillText('TUTORLAGE', CARD_W / 2, 230);
-
-  ctx.fillStyle = ink;
-  ctx.font = `600 52px ${font}`;
-  ctx.fillText("I'm now tutoring online", CARD_W / 2, 420);
-  ctx.font = `800 120px ${font}`;
-  let name = nameForCard(input.firstName) || 'Your tutor';
-  while (ctx.measureText(name).width > CARD_W - 140 && name.length > 3) name = name.slice(0, -1);
-  ctx.fillText(name, CARD_W / 2, 560);
-
-  ctx.fillStyle = green;
-  ctx.font = `700 40px ${font}`;
-  ctx.fillText('Subjects and grades', CARD_W / 2, 680);
-
-  ctx.fillStyle = ink;
-  ctx.font = `500 44px ${font}`;
-  let y = 760;
-  for (const line of cardSubjectLines(input.subjects)) {
-    for (const part of wrap(ctx, line, CARD_W - 160)) {
-      ctx.fillText(part, CARD_W / 2, y);
-      y += 62;
+  ctx.textBaseline = 'top';
+  m.items.forEach((it, i) => {
+    if (i > 0) y += it.row.mt;
+    ctx.font = `${it.row.weight} ${it.row.size}px ${FONT}`;
+    ctx.fillStyle = it.row.color;
+    const step = Math.round(it.row.size * it.row.lh);
+    for (const line of it.lines) {
+      ctx.fillText(line, CARD_W / 2, y + (step - it.row.size) / 2);
+      y += step;
     }
-    y += 10;
-  }
-
-  drawQrAndLink(ctx, qr, input.link, 1180);
+  });
+  return { scale, faceD, fits: fits() };
 }
 
-type Qr = { getModuleCount(): number; isDark(r: number, c: number): boolean };
-
-// The QR code (white square, quiet zone included, centred), "Scan to see my profile" and the link, from y = qy down.
-function drawQrAndLink(ctx: CanvasRenderingContext2D, qr: Qr, link: string, qy: number): void {
-  const font = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
-  const count = qr.getModuleCount();
-  const quiet = 4;
-  const cell = Math.floor(520 / (count + quiet * 2));
-  const size = cell * (count + quiet * 2);
-  const qx = Math.round((CARD_W - size) / 2);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(qx, qy, size, size);
-  ctx.fillStyle = '#000000';
-  for (let r = 0; r < count; r += 1) {
-    for (let c = 0; c < count; c += 1) {
-      if (qr.isDark(r, c)) ctx.fillRect(qx + (c + quiet) * cell, qy + (r + quiet) * cell, cell, cell);
-    }
-  }
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#0F172A';
-  ctx.font = `600 40px ${font}`;
-  ctx.fillText('Scan to see my profile', CARD_W / 2, qy + size + 80);
-  ctx.fillStyle = '#15803D';
-  ctx.font = `700 44px ${font}`;
-  ctx.fillText(link.replace(/^https?:\/\//, ''), CARD_W / 2, qy + size + 150);
+// Draws the share card (layout A or B by how many subjects) on a canvas of CARD_W x CARD_H. Nothing is sent anywhere.
+export async function drawShareCard(canvas: HTMLCanvasElement, input: { firstName: string; subjects: PublicPageSubject[]; photo?: CardPhoto | null }): Promise<void> {
+  const layout = cardLayout(input.subjects);
+  const groups = groupByGradeRange(input.subjects);
+  const probe = document.createElement('canvas').getContext('2d');
+  if (!probe) throw new Error('no canvas');
+  const name = fitName(probe, input.firstName, layout === 'A' ? 132 : 114, 500);
+  composeAndDraw(canvas, { name, photo: input.photo ?? null, makeRows: (s) => subjectRows(name, groups, layout, s), faceD: layout === 'A' ? 510 : 450 });
 }
 
-// ---- The weekly card (JOB WEEKLY): her REAL numbers, counts only ----------------------------------------------------------------------------------------
+// ---- The weekly card (JOB WEEKLY): her REAL numbers, counts only; same design and rules as the share card ----------------------------------------------------
 // Lessons COMPLETED in the last 7 days (the database counts them; never scheduled, never invented). No price, earnings, learner or family detail.
 export interface WeeklyPost { week: number; lessons: number }
 
@@ -169,66 +284,83 @@ export function lessonsWord(n: number): string {
   return n === 1 ? '1 lesson' : `${n} lessons`;
 }
 
+// The CEO's weekly words; her link is on its own line (not on the picture).
 export function weeklyCaption(post: WeeklyPost, link: string): string {
   if (post.lessons >= 1) {
-    return `Week ${post.week}: I taught ${lessonsWord(post.lessons)}. Thank you to the families who trusted me. ${link}. Know a parent looking for a tutor? Please reshare this post.`;
+    return `Week ${post.week}: I taught ${lessonsWord(post.lessons)}. Thank you to the families who trusted me. Know a parent looking for a tutor? Please reshare this post.\n${link}`;
   }
-  return `Thank you to everyone who has supported me so far. I'm still looking for my first families. Please help me reach them by resharing this post, it would be greatly appreciated. ${link}`;
+  return `Thank you to everyone who has supported me so far. I'm still looking for my first families. Please help me reach them by resharing this post, it would be greatly appreciated.\n${link}`;
 }
 
-export async function drawWeeklyCard(canvas: HTMLCanvasElement, input: { firstName: string; post: WeeklyPost; link: string }): Promise<void> {
-  const qrModule = await import('qrcode-generator');
-  const qrcode = (qrModule as unknown as { default?: typeof import('qrcode-generator') }).default ?? (qrModule as unknown as typeof import('qrcode-generator'));
-  const qr = qrcode(0, 'M');
-  qr.addData(input.link);
-  qr.make();
-  canvas.width = CARD_W;
-  canvas.height = CARD_H;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('no canvas');
-  const font = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
-  const green = '#15803D';
-  const ink = '#0F172A';
-  ctx.fillStyle = '#FAF7F2';
-  ctx.fillRect(0, 0, CARD_W, CARD_H);
-  ctx.fillStyle = green;
-  ctx.fillRect(0, 0, CARD_W, 24);
-  ctx.fillRect(0, CARD_H - 24, CARD_W, 24);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = green;
-  ctx.font = `800 84px ${font}`;
-  ctx.fillText('TUTORLAGE', CARD_W / 2, 230);
-  ctx.fillStyle = ink;
-  ctx.font = `800 100px ${font}`;
-  let name = nameForCard(input.firstName) || 'Your tutor';
-  while (ctx.measureText(name).width > CARD_W - 140 && name.length > 3) name = name.slice(0, -1);
-  ctx.fillText(name, CARD_W / 2, 420);
-  ctx.fillStyle = green;
-  ctx.font = `700 56px ${font}`;
-  ctx.fillText(`Week ${input.post.week}`, CARD_W / 2, 510);
-  if (input.post.lessons >= 1) {
-    ctx.fillStyle = ink;
-    ctx.font = `800 300px ${font}`;
-    ctx.fillText(String(input.post.lessons), CARD_W / 2, 800);
-    ctx.font = `600 60px ${font}`;
-    ctx.fillText(input.post.lessons === 1 ? 'lesson taught this week' : 'lessons taught this week', CARD_W / 2, 890);
-    ctx.font = `500 46px ${font}`;
-    ctx.fillText('Thank you to the families who trusted me', CARD_W / 2, 1010);
+export function weeklyRows(name: string, post: WeeklyPost): Row[] {
+  const rows: Row[] = [
+    { text: name, size: 114, weight: 500, color: INK, mt: 0, lh: 1.15 },
+    { text: `Week ${post.week}`, size: 60, weight: 600, color: SOFT, mt: 18, lh: 1.2 },
+  ];
+  if (post.lessons >= 1) {
+    rows.push({ text: String(post.lessons), size: 260, weight: 700, color: '#FFFFFF', mt: 30, lh: 1.05 });
+    rows.push({ text: post.lessons === 1 ? 'lesson taught this week' : 'lessons taught this week', size: 54, weight: 500, color: INK, mt: 12, lh: 1.2 });
+    rows.push({ text: 'Thank you to the families who trusted me', size: 45, weight: 400, color: INK, mt: 48, lh: 1.3 });
   } else {
-    ctx.fillStyle = ink;
-    ctx.font = `800 76px ${font}`;
-    ctx.fillText('Thank you', CARD_W / 2, 740);
-    ctx.font = `500 46px ${font}`;
-    ctx.fillText('to everyone who has supported me', CARD_W / 2, 830);
-    ctx.fillText("I'm still looking for my first families", CARD_W / 2, 920);
-    ctx.fillText('Please reshare this post', CARD_W / 2, 1010);
+    rows.push({ text: 'Thank you', size: 90, weight: 600, color: '#FFFFFF', mt: 36, lh: 1.15 });
+    rows.push({ text: "to everyone who has supported me. I'm still looking for my first families. Please reshare this post.", size: 48, weight: 400, color: INK, mt: 24, lh: 1.3 });
   }
-  drawQrAndLink(ctx, qr, input.link, 1180);
+  return rows;
+}
+
+export async function drawWeeklyCard(canvas: HTMLCanvasElement, input: { firstName: string; post: WeeklyPost; photo?: CardPhoto | null }): Promise<void> {
+  const probe = document.createElement('canvas').getContext('2d');
+  if (!probe) throw new Error('no canvas');
+  const name = fitName(probe, input.firstName, 114, 500);
+  composeAndDraw(canvas, { name, photo: input.photo ?? null, makeRows: () => weeklyRows(name, input.post), faceD: 450 });
 }
 
 export function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('no picture'))), 'image/png');
   });
+}
+
+// ---- her photo: read, cropped to a square (the circle is drawn on the card) and kept in memory only ------------------------------------------------------------
+const PHOTO_SIZE = 720;
+
+// Turns the picture she picked into a square canvas (centred across, a little above the middle so a face stays in), turned the right way up. Never uploaded.
+export async function preparePhoto(file: File): Promise<CardPhoto> {
+  if (!/^image\//.test(file.type)) throw new Error('not a picture');
+  let bitmap: ImageBitmap | HTMLImageElement;
+  let w: number;
+  let h: number;
+  if (typeof createImageBitmap === 'function') {
+    const b = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    bitmap = b;
+    w = b.width;
+    h = b.height;
+  } else {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      await new Promise<void>((ok, bad) => {
+        img.onload = () => ok();
+        img.onerror = () => bad(new Error('bad picture'));
+        img.src = url;
+      });
+      bitmap = img;
+      w = img.naturalWidth;
+      h = img.naturalHeight;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+  if (!w || !h) throw new Error('empty picture');
+  const side = Math.min(w, h);
+  const sx = Math.round((w - side) / 2);
+  const sy = Math.round((h - side) * 0.3);
+  const c = document.createElement('canvas');
+  c.width = PHOTO_SIZE;
+  c.height = PHOTO_SIZE;
+  const cx = c.getContext('2d');
+  if (!cx) throw new Error('no canvas');
+  cx.drawImage(bitmap, sx, sy, side, side, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
+  if ('close' in bitmap) (bitmap as ImageBitmap).close();
+  return { source: c };
 }
