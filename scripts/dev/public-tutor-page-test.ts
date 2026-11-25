@@ -4,7 +4,7 @@
 // the sitemap has no /t/ entry; the page shows only the approved photo, no "checked" section and reads no table; the level card shows only this tutor's own basis; none of the words say "vetted", "certified",
 // "background-checked", "free" or "instant"; the routes exist. The database half is proved by supabase/tests/public_tutor_profile.sql and tutor_page_booking.sql.
 import { readFileSync } from 'node:fs';
-import { PUBLIC_PAGE_COPY, bookPath, fetchMyPublicProfile, fetchPublicPage, gradesInWords, parsePublicPage, priceLine, profileLink, setMyPublicProfile } from '../../src/lib/publicTutorPage';
+import { PUBLIC_PAGE_COPY, bookPath, fetchMyPublicProfile, fetchPublicPage, gradesInWords, parsePublicPage, priceLine, profileLink, setMyPublicProfile, tutorSubtitle } from '../../src/lib/publicTutorPage';
 import { PAGE_META } from '../../src/lib/pageMeta';
 import { robotsTxt, sitemapXml } from '../postbuild';
 
@@ -27,6 +27,10 @@ async function main() {
   check('grades: a range, one grade, a grade R start, and the plain words for a non-grade end',
     gradesInWords('Grade 8', 'Grade 12') === 'Grades 8 to 12' && gradesInWords('Grade 5', 'Grade 5') === 'Grade 5' && gradesInWords('Grade R', 'Grade 6') === 'Grades R to 6'
     && gradesInWords('Grade 10', 'Adult / Professional Development') === 'Grade 10 to Adult / Professional Development');
+  const range = (...r: [string, string][]) => tutorSubtitle(r.map(([minGrade, maxGrade]) => ({ minGrade, maxGrade })));
+  check('the line under the name is the lowest to the highest grade of the approved subjects, else the old words', range(['Grade 4', 'Grade 12'], ['Grade 4', 'Grade 9'], ['Grade 10', 'Grade 12']) === 'Tutor for Grades 4 to 12'
+    && range(['Grade 10', 'Grade 12'], ['Grade R', 'Grade 3']) === 'Tutor for Grades R to 12' && range(['Grade 5', 'Grade 5']) === 'Tutor for Grade 5' && range() === 'Tutor on Tutorlage'
+    && range(['Grade 8', 'Grade 12'], ['Grade 10', 'Adult / Professional Development']) === 'Tutor on Tutorlage' && range(['', '']) === 'Tutor on Tutorlage');
   check('the price reads in rands, an hour', priceLine({ price: 250, currency: 'ZAR' }) === 'R250 an hour' && priceLine({ price: 1250, currency: 'ZAR' }).endsWith('250 an hour') && priceLine({ price: 1250, currency: 'ZAR' }).startsWith('R1'));
   check('the profile link and the booking address are right (Book goes to this tutor\'s booking page)', profileLink('TESSA') === 'https://tutorlage.com/t/TESSA' && bookPath('TESSA') === '/t/TESSA/book' && bookPath('A B') === '/t/A%20B/book');
 
@@ -69,6 +73,8 @@ async function main() {
   const shell = code('src/components/LinkShell.tsx');
   check('the page shows only the approved photo (from the page answer), no intro, no "checked" section, and reads no table itself', (shell.match(/<img/g) ?? []).length === 1 && /photo=\{page\.photo\}/.test(page) && !/<img|avatar|intro|headline|checked/i.test(page) && !/\.from\(/.test(page) && !/\.insert\(|\.update\(|\.delete\(/.test(page));
   check('Book goes to this tutor\'s booking page, never to the start page or a code link', /to=\{bookPath\(page\.code\)\}/.test(page) && !/tutorCodeLink|\?code=/.test(page));
+  check('the Book button and its notes are inside the one level card, which stays in view in two columns from 1024 px',
+    /<TutorLevelCard page=\{page\}>[\s\S]*data-book[\s\S]*data-discount[\s\S]*<\/TutorLevelCard>/.test(page) && /lg:sticky lg:top-4/.test(page) && /<LinkShell wide /.test(page) && /\{children\}\s*<\/section>/.test(code('src/components/TutorLevelCard.tsx')));
   check('the colour rule is in the frame: a navy header and hero panel, cream page', /<header className="bg-\[#0F172A\]/.test(shell) && /bg-\[#0F172A\] text-white" data-hero/.test(shell) && /bg-\[#FAF7F2\]/.test(shell));
   check('robots.txt disallows /t/ and the sitemap has no /t/ entry', /^Disallow: \/t\/$/m.test(robotsTxt(PAGE_META)) && !/\/t\//.test(sitemapXml(PAGE_META)) && !PAGE_META.some((m) => m.path.startsWith('/t/')));
   const main = read('src/main.tsx');

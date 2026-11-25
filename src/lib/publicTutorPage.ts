@@ -45,6 +45,8 @@ export const PUBLIC_PAGE_COPY = {
   hoursHeading: 'When she teaches',
   subjectsHeading: 'What she teaches',
   subjectsPending: 'Her subjects are being approved.',
+  // The line under the name on the public page when no grade range can be worked out.
+  subtitle: 'Tutor on Tutorlage',
   credentialHeading: 'Credential on record',
   recordHeading: (name: string) => `${name} reached this level with:`,
   // On the tutor's own Teach screen
@@ -75,6 +77,21 @@ export function gradesInWords(min: string, max: string): string {
   if (a.toLowerCase() === b.toLowerCase()) return isGrade(a) ? `Grade ${gradeBit(a)}` : a;
   if (isGrade(a) && isGrade(b)) return `Grades ${gradeBit(a)} to ${gradeBit(b)}`;
   return `${a} to ${b}`;
+}
+
+// "Tutor for Grades 4 to 12": from the lowest and the highest grade among the approved subjects. With no subject, or with an end that is not a school grade, the plain "Tutor on Tutorlage".
+export function tutorSubtitle(subjects: Pick<PublicPageSubject, 'minGrade' | 'maxGrade'>[]): string {
+  const rank = (g: string): number | null => {
+    const m = /^Grade\s+(R|[1-9]|1[0-2])$/i.exec(g.trim());
+    return m ? (m[1].toUpperCase() === 'R' ? 0 : Number(m[1])) : null;
+  };
+  const ends = subjects.flatMap((s) => [rank(s.minGrade), rank(s.maxGrade)]);
+  const grades = ends.filter((e): e is number => e !== null);
+  if (grades.length === 0 || grades.length !== ends.length) return PUBLIC_PAGE_COPY.subtitle;
+  const low = Math.min(...grades);
+  const high = Math.max(...grades);
+  const word = (n: number) => (n === 0 ? 'R' : String(n));
+  return low === high ? `Tutor for Grade ${word(low)}` : `Tutor for Grades ${word(low)} to ${word(high)}`;
 }
 
 // "thandi" -> "Thandi", "mary-ann" -> "Mary-Ann": the first letter of each part is a capital, the rest is left as she typed it.

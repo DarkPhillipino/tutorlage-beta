@@ -41,13 +41,13 @@ export function LinkSignIn({ page }: { page: PublicTutorPage }) {
   return (
     <LinkShell homeTo={pagePath(page.code)} hero={<TutorHero name={page.firstName} photo={page.photo} title={`Book with ${page.firstName}`} subtitle="Sign in to choose your lesson" />}>
       <section className={LINK_CARD} data-link-signin>
-        <Link to={pagePath(page.code)} className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-600 hover:text-[#0F172A] py-2 -mt-1 mb-2">
+        <Link to={pagePath(page.code)} className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-600 hover:text-[#0F172A] py-2 -mt-2">
           <ArrowLeft className="w-4 h-4" aria-hidden="true" />
           <span>Back</span>
         </Link>
-        <h2 className="font-serif text-3xl mb-4">Welcome back</h2>
+        <h2 className="font-serif text-3xl mb-3">Welcome back</h2>
 
-        <div className="mb-4">
+        <div className="mb-3">
           <LinkRolePicker value={role} onChange={setRole} />
         </div>
 

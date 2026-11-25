@@ -7,13 +7,14 @@ import { LINK_CARD } from './LinkShell';
 
 // ONE level card for one tutor, in the style of the price ladder's card (PM line 79 B, 25 Nov 2026): the price per hour, the level, the tier's name and its line, and what THIS tutor's
 // level rests on. Only the tutor's own credential or own record is ever shown here; the list of what could reach a level belongs to the general price ladder and never appears.
-export function TutorLevelCard({ page }: { page: PublicTutorPage }) {
+// What is passed inside it (the public page's Book button and its notes) is drawn at the foot of the same card.
+export function TutorLevelCard({ page, children }: { page: PublicTutorPage; children?: React.ReactNode }) {
   const basis = page.basis;
   return (
     <section className={LINK_CARD} data-level-card={page.levelId} aria-label="Level and price per hour">
       <div className="flex items-start gap-4">
         <div className="w-24 shrink-0">
-          <div className="text-2xl font-black leading-tight">{page.currency === 'ZAR' ? 'R' : getCurrencySymbol(page.currency)}{formatRate(page.price)}</div>
+          <div className="text-2xl font-black leading-tight" data-price>{page.currency === 'ZAR' ? 'R' : getCurrencySymbol(page.currency)}{formatRate(page.price)}</div>
           <div className="text-[11px] text-slate-600 font-semibold">per hour</div>
           <div className="mt-1.5 inline-block rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600">Level {page.levelId}</div>
         </div>
@@ -35,6 +36,7 @@ export function TutorLevelCard({ page }: { page: PublicTutorPage }) {
           )}
         </div>
       </div>
+      {children}
     </section>
   );
 }

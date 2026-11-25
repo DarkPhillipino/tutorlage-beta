@@ -3,27 +3,33 @@ import { Link } from 'react-router-dom';
 
 // The frame of a tutor's own pages: the public page /t/CODE, the sign-in and sign-up screens reached from it and the tutor's booking page.
 // Colour rule 60 / 30 / 10 (CEO, 25 Nov 2026): a navy header bar and a navy hero panel (30), cream page and white cards (60), green only on the button and small accents (10).
+// Real screen sizes (PM line 80, 25 Nov 2026): header and hero together end at about 29 percent of the screen's height (never above 32 percent, from 360x640 phones to a 1280x585 laptop), so the
+// first thing to do on each page is on the first screen. tests/browser/tutor-layout.spec.ts measures it.
 interface Props {
   // Where the word "Tutorlage" in the header goes. On the booking path it stays on the tutor's own page, never the start page.
   homeTo: string;
   headerRight?: React.ReactNode;
   hero: React.ReactNode;
+  // From about 1024 px wide the page may use two columns (the public page).
+  wide?: boolean;
   children: React.ReactNode;
 }
 
-export function LinkShell({ homeTo, headerRight, hero, children }: Props) {
+export function LinkShell({ homeTo, headerRight, hero, wide, children }: Props) {
+  const column = `mx-auto w-full px-4 ${wide ? 'max-w-xl lg:max-w-5xl' : 'max-w-xl'}`;
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#0F172A]">
       <header className="bg-[#0F172A] text-white">
-        <div className="mx-auto w-full max-w-xl px-4 h-16 flex items-center justify-between gap-3">
+        <div className={`${column} h-14 flex items-center justify-between gap-3`}>
           <Link to={homeTo} className="text-2xl font-extrabold tracking-tight text-white py-2">Tutorlage</Link>
           {headerRight}
         </div>
       </header>
-      <div className="bg-[#0F172A] text-white" data-hero>
-        <div className="mx-auto w-full max-w-xl px-4 pt-8 pb-24 lg:pt-14 lg:pb-32">{hero}</div>
+      {/* The hero is at least 29 percent of the screen less the 3.5rem header; the cards below overlap its last 1.5rem. */}
+      <div className="flex flex-col justify-center pt-1 pb-8 min-h-[calc(29svh-3.5rem)] bg-[#0F172A] text-white" data-hero>
+        <div className={column}>{hero}</div>
       </div>
-      <main className="mx-auto w-full max-w-xl px-4 -mt-12 pb-10 space-y-4 flex-1">{children}</main>
+      <main className={`${column} -mt-6 pb-10 space-y-4 flex-1`}>{children}</main>
     </div>
   );
 }
@@ -32,10 +38,10 @@ export function LinkShell({ homeTo, headerRight, hero, children }: Props) {
 export function TutorHero({ name, photo, title, subtitle }: { name: string; photo: string | null; title: string; subtitle: string }) {
   return (
     <div className="flex items-center gap-4">
-      {photo && <img src={photo} alt={`${name}, tutor on Tutorlage`} width={96} height={96} className="w-24 h-24 rounded-full object-cover shrink-0 ring-4 ring-white" data-testid="tutor-photo" />}
+      {photo && <img src={photo} alt={`${name}, tutor on Tutorlage`} width={72} height={72} className="w-16 h-16 lg:w-[72px] lg:h-[72px] rounded-full object-cover shrink-0 ring-4 ring-white" data-testid="tutor-photo" />}
       <div className="min-w-0">
-        <h1 className="font-serif text-3xl leading-tight break-words">{title}</h1>
-        <p className="text-sm text-slate-300 mt-1">{subtitle}</p>
+        <h1 className="font-serif text-2xl sm:text-3xl leading-tight break-words">{title}</h1>
+        <p className="text-sm text-slate-300 mt-0.5">{subtitle}</p>
       </div>
     </div>
   );
