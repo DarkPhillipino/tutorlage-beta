@@ -1,7 +1,7 @@
 // The tutor's weekly working hours, as pure rules (no database, no screen): tick days, one time range, one save.
 // The stored data does not change: tutor_availability keeps ONE row per day and time range (day_of_week 0 = Sunday .. 6 = Saturday,
 // start_time, end_time, South African clock times) and repeats every week until the tutor changes it. This file only decides which rows
-// to insert and which to delete so that overlapping or touching ranges on a day become one range and nothing is lost.
+// to insert and which to delete so that the stored hours are the ones the tutor picked.
 
 export interface AvailabilityRow {
   id: string;
@@ -99,40 +99,80 @@ export interface SavePlan {
   changedDays: number[];
 }
 
-// What Save does. The ticked days all get the same range. On each day the new range is joined to every stored range it overlaps or
-// touches (one row for the joined range; the rows it swallowed are deleted). Other rows are never touched. `replaceIds` are the rows of a
-// range the tutor chose to change: they are deleted and the new range takes their place.
-export function planSave(rows: AvailabilityRow[], days: number[], startTime: string, endTime: string, replaceIds: string[] = []): SavePlan {
+// What Save does (25 Nov 2026: the tutor gets exactly what they pick; before this, Save joined the picked time to the stored one, so hours
+// could only ever widen).
+//  - mode 'replace' (Save, and Save change): every ticked day ends up with the picked time and nothing else.
+//  - Change: `replaceIds` are the rows of the range being changed. On that range's own day the other, separate times stay; a time the new one
+//    overlaps or touches is replaced by it (never joined). Every other ticked day is replaced, as in Save.
+//  - mode 'add' (the separate "Add as a second time" choice): the stored times stay and the picked time is added beside them. A time that
+//    overlaps or touches a stored one is refused in words.
+export type SaveMode = 'replace' | 'add';
+
+export function planSave(
+  rows: AvailabilityRow[], days: number[], startTime: string, endTime: string, replaceIds: string[] = [], mode: SaveMode = 'replace',
+): SavePlan {
   const start = toMinutes(startTime);
   const end = toMinutes(endTime);
   const ticked = [...new Set(days)].filter((d) => d >= 0 && d <= 6);
-  if (ticked.length === 0 && replaceIds.length === 0) return { message: 'Tick at least one day.', inserts: [], deleteIds: [], changedDays: [] };
-  if (end <= start) return { message: 'The end time must be after the start time.', inserts: [], deleteIds: [], changedDays: [] };
+  const refuse = (message: string): SavePlan => ({ message, inserts: [], deleteIds: [], changedDays: [] });
+  if (ticked.length === 0) return refuse('Tick at least one day.');
+  if (end <= start) return refuse('The end time must be after the start time.');
   const replacing = new Set(replaceIds);
-  const kept = rows.filter((r) => !replacing.has(r.id));
+  const homeDays = new Set(rows.filter((r) => replacing.has(r.id)).map((r) => r.dayOfWeek));
   const inserts: NewAvailabilityRow[] = [];
   const deleteIds = new Set<string>(replaceIds);
   const changedDays: number[] = [];
-  for (const day of ticked) {
-    const ranges = rangesForDay(kept, day);
-    let from = start;
-    let to = end;
-    const swallowed: DayRange[] = [];
-    for (const r of ranges) {
-      if (r.start <= to && r.end >= from) {
-        swallowed.push(r);
-        from = Math.min(from, r.start);
-        to = Math.max(to, r.end);
-      }
+  const meets = (r: { start: number; end: number }) => r.start <= end && r.end >= start;
+  for (const day of WEEK_ORDER) {
+    if (!ticked.includes(day)) {
+      if (homeDays.has(day)) changedDays.push(day); // the changed range moved away from this day
+      continue;
     }
-    // The new range sits inside one stored row already: nothing to write for this day.
-    const alreadyThere = swallowed.length === 1 && swallowed[0].ids.length === 1 && swallowed[0].start <= start && swallowed[0].end >= end;
-    if (alreadyThere) continue;
-    for (const r of swallowed) for (const id of r.ids) deleteIds.add(id);
-    inserts.push({ dayOfWeek: day, startTime: fromMinutes(from), endTime: fromMinutes(to) });
-    changedDays.push(day);
+    const own = rows.filter((r) => r.dayOfWeek === day);
+    const kept = own.filter((r) => !replacing.has(r.id));
+    let goes: AvailabilityRow[] = [];
+    if (mode === 'add') {
+      const clash = rangesForDay(kept, day).find(meets);
+      if (clash) {
+        return refuse(`${DAY_NAMES[day]} already has ${formatRange(clash)}, which overlaps or touches this time. To change those hours, press Save instead.`);
+      }
+    } else if (homeDays.has(day)) {
+      const hit = new Set(rangesForDay(kept, day).filter(meets).flatMap((r) => r.ids));
+      goes = own.filter((r) => replacing.has(r.id) || hit.has(r.id));
+    } else {
+      goes = own;
+    }
+    // A stored row that is already exactly the picked time stays as it is (no delete, no second copy).
+    const same = own.find((r) => toMinutes(r.startTime) === start && toMinutes(r.endTime) === end);
+    for (const r of goes) if (r !== same) deleteIds.add(r.id);
+    if (same) deleteIds.delete(same.id);
+    else inserts.push({ dayOfWeek: day, startTime: fromMinutes(start), endTime: fromMinutes(end) });
+    if (!same || goes.some((r) => r !== same)) changedDays.push(day);
   }
   return { message: null, inserts, deleteIds: [...deleteIds], changedDays };
+}
+
+// True when the stored rows hold exactly this time on this day (as a row of its own).
+export function hasExactRow(rows: AvailabilityRow[], day: number, startTime: string, endTime: string): boolean {
+  return rows.some((r) => r.dayOfWeek === day && toMinutes(r.startTime) === toMinutes(startTime) && toMinutes(r.endTime) === toMinutes(endTime));
+}
+
+// The stored hours of some days in words, from the rows as they are: "Monday to Friday: 16:00 to 20:00; Saturday: 09:00 to 12:00 and 14:00 to 16:00".
+export function describeHours(rows: AvailabilityRow[], days: number[]): string {
+  const groups: { words: string; days: number[] }[] = [];
+  for (const day of WEEK_ORDER.filter((d) => days.includes(d))) {
+    const ranges = rangesForDay(rows, day);
+    const words = ranges.length === 0 ? 'not available' : ranges.map(formatRange).join(' and ');
+    const group = groups.find((g) => g.words === words);
+    if (group) group.days.push(day);
+    else groups.push({ words, days: [day] });
+  }
+  return groups
+    .map((g) => {
+      const named = describeDays(g.days);
+      return `${named.charAt(0).toUpperCase()}${named.slice(1)}: ${g.words}`;
+    })
+    .join('; ');
 }
 
 export function idsForDay(rows: AvailabilityRow[], day: number): string[] {

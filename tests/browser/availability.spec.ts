@@ -5,7 +5,7 @@ import { audit, blocking, PHONE } from './mobile';
 // THE TUTOR'S WORKING-HOURS EDITOR (J4, 18 Nov 2026): tick days, one time range, one Save. At 375 x 812 with touch, in chromium, with a database
 // answered by this file (a small in-memory table of tutor_availability: nothing real is called). It proves: the CEO's example (Mon to Fri 17:00 to 23:00,
 // then Sat and Sun 19:00 to 23:00) takes two Saves and writes seven rows; the screen says the hours repeat every week; the week view shows each day;
-// an end before the start is refused in words and writes nothing; overlapping ranges join; "Clear day" and "Remove" take rows away; the screen has no
+// an end before the start is refused in words and writes nothing; Save replaces the ticked day; "Clear day" and "Remove" take rows away; the screen has no
 // sideways scroll, no target under 24 px and no axe violation (WCAG 2.0, 2.1 and 2.2 A and AA) with rows in it and with a message showing.
 // Run it on a finished build:  npm run build  then  npx playwright test tests/browser/availability.spec.ts --project=chromium
 test.use({ viewport: PHONE, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
@@ -76,7 +76,7 @@ test('the CEO\'s example: Mon to Fri 17:00 to 23:00, then Sat and Sun 19:00 to 2
   await endOf(page).selectOption('23:00');
   await expect(page.getByText('Monday to Friday, 17:00 to 23:00, every week.')).toBeVisible();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByText(/Saved: Monday to Friday, 17:00 to 23:00\. This repeats every week/)).toBeVisible();
+  await expect(page.getByText(/Saved\. Monday to Friday: 17:00 to 23:00\. This repeats every week/)).toBeVisible();
   expect(table.length).toBe(5);
   expect(writes.filter((w) => w.method === 'POST').length, 'one insert request for the five days').toBe(1);
 
@@ -84,7 +84,7 @@ test('the CEO\'s example: Mon to Fri 17:00 to 23:00, then Sat and Sun 19:00 to 2
   await startOf(page).selectOption('19:00');
   await endOf(page).selectOption('23:00');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByText(/Saved: Saturday and Sunday, 19:00 to 23:00/)).toBeVisible();
+  await expect(page.getByText(/Saved\. Saturday and Sunday: 19:00 to 23:00/)).toBeVisible();
   expect(table.length).toBe(7);
   const week = page.getByLabel('Your week');
   await expect(week.getByText('17:00 to 23:00')).toHaveCount(5);
@@ -110,7 +110,7 @@ test('an end before the start is refused in words and writes nothing; no ticked 
   expect(blocking(record), 'with the error showing').toEqual([]);
 });
 
-test('overlapping ranges join into one; Clear day and Remove take rows away; Change replaces one range', async ({ page }) => {
+test('Save replaces the ticked day; a second time is its own button; Change, Remove and Clear all work', async ({ page }) => {
   const seed: Row[] = [
     { id: 'a1', tutor_id: ME, day_of_week: 1, start_time: '09:00:00', end_time: '12:00:00' },
     { id: 'a2', tutor_id: ME, day_of_week: 1, start_time: '14:00:00', end_time: '16:00:00' },
@@ -120,14 +120,35 @@ test('overlapping ranges join into one; Clear day and Remove take rows away; Cha
   const week = page.getByLabel('Your week');
   await expect(week.getByText('09:00 to 12:00')).toHaveCount(2);
 
-  // Monday 11:00 to 15:00 overlaps both Monday ranges: one row 09:00 to 16:00 is left, Tuesday is untouched.
+  // Monday 11:00 to 15:00 REPLACES both Monday times, Tuesday is untouched; the screen says first what will go.
   await day(page, 'Mon').click();
   await startOf(page).selectOption('11:00');
   await endOf(page).selectOption('15:00');
+  await expect(page.getByTestId('hours-will-replace')).toHaveText('Save replaces what is there now. Monday: 09:00 to 12:00 and 14:00 to 16:00.');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByText(/Saved: Monday, 11:00 to 15:00/)).toBeVisible();
-  expect(table.filter((r) => r.day_of_week === 1).map((r) => `${r.start_time}-${r.end_time}`)).toEqual(['09:00:00-16:00:00']);
+  await expect(page.getByText(/Saved\. Monday: 11:00 to 15:00\./)).toBeVisible();
+  expect(table.filter((r) => r.day_of_week === 1).map((r) => `${r.start_time}-${r.end_time}`)).toEqual(['11:00:00-15:00:00']);
   expect(table.filter((r) => r.day_of_week === 2).length).toBe(1);
+
+  // Narrowing keeps the narrow time.
+  await day(page, 'Mon').click();
+  await startOf(page).selectOption('12:00');
+  await endOf(page).selectOption('14:00');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText(/Saved\. Monday: 12:00 to 14:00\./)).toBeVisible();
+  expect(table.filter((r) => r.day_of_week === 1).map((r) => `${r.start_time}-${r.end_time}`)).toEqual(['12:00:00-14:00:00']);
+
+  // A second time on the same day is its own button, and one that overlaps is refused.
+  await day(page, 'Mon').click();
+  await startOf(page).selectOption('13:00');
+  await endOf(page).selectOption('15:00');
+  await page.getByRole('button', { name: 'Add as a second time' }).click();
+  await expect(page.getByRole('alert')).toContainText('Monday already has 12:00 to 14:00');
+  await startOf(page).selectOption('18:00');
+  await endOf(page).selectOption('19:00');
+  await page.getByRole('button', { name: 'Add as a second time' }).click();
+  await expect(page.getByText(/Saved\. Monday: 12:00 to 14:00 and 18:00 to 19:00\./)).toBeVisible();
+  expect(table.filter((r) => r.day_of_week === 1).length).toBe(2);
 
   // Change Tuesday's range to 10:00 to 13:00.
   await page.getByRole('button', { name: 'Change Tuesday 09:00 to 12:00' }).click();
@@ -135,13 +156,13 @@ test('overlapping ranges join into one; Clear day and Remove take rows away; Cha
   await startOf(page).selectOption('10:00');
   await endOf(page).selectOption('13:00');
   await page.getByRole('button', { name: 'Save change' }).click();
-  await expect(page.getByText(/Saved: Tuesday, 10:00 to 13:00/)).toBeVisible();
+  await expect(page.getByText(/Saved\. Tuesday: 10:00 to 13:00\./)).toBeVisible();
   expect(table.filter((r) => r.day_of_week === 2).map((r) => `${r.start_time}-${r.end_time}`)).toEqual(['10:00:00-13:00:00']);
 
-  // Remove Monday's range, in one tap.
-  await page.getByRole('button', { name: 'Remove Monday 09:00 to 16:00' }).click();
-  await expect(page.getByText('Removed Monday 09:00 to 16:00.')).toBeVisible();
-  expect(table.filter((r) => r.day_of_week === 1).length).toBe(0);
+  // Remove one of Monday's times, in one tap.
+  await page.getByRole('button', { name: 'Remove Monday 18:00 to 19:00' }).click();
+  await expect(page.getByText('Removed Monday 18:00 to 19:00.')).toBeVisible();
+  expect(table.filter((r) => r.day_of_week === 1).length).toBe(1);
 
   // Clear everything: needs a second tap.
   await page.getByRole('button', { name: 'Clear all days' }).click();
@@ -149,3 +170,26 @@ test('overlapping ranges join into one; Clear day and Remove take rows away; Cha
   await expect(page.getByText('All your working hours were cleared.')).toBeVisible();
   expect(table.length).toBe(0);
 });
+
+// Screenshots for the report (only when SHOTS_DIR is set): the editor as the tutor sees it while narrowing weekday hours, and after the save.
+for (const size of [{ width: 360, height: 640 }, { width: 1280, height: 585 }]) {
+  test(`screens: the hours editor at ${size.width}x${size.height}`, async ({ page }) => {
+    const out = process.env.SHOTS_DIR;
+    test.skip(!out, 'set SHOTS_DIR to write the pictures');
+    await page.setViewportSize(size);
+    const seed: Row[] = [1, 2, 3, 4, 5].map((d) => ({ id: `w${d}`, tutor_id: ME, day_of_week: d, start_time: '17:00:00', end_time: '23:00:00' }));
+    await open(page, seed);
+    await page.getByRole('button', { name: 'Weekdays' }).click();
+    await startOf(page).selectOption('16:00');
+    await endOf(page).selectOption('20:00');
+    await page.getByRole('button', { name: 'Save', exact: true }).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${out}/1-hours-editor-before-save-${size.width}x${size.height}.png` });
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    const notice = page.getByText(/Saved\. Monday to Friday: 16:00 to 20:00\./);
+    await expect(notice).toBeVisible();
+    await notice.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${out}/1-hours-editor-saved-${size.width}x${size.height}.png` });
+  });
+}

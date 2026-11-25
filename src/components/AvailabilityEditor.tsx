@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Clock, AlertCircle, CheckCircle2, Repeat } from 'lucide-react';
 import { TutorAvailabilitySlot } from '../types';
-import { saveTutorAvailabilityChanges } from '../lib/queries';
+import { fetchTutorAvailability, saveTutorAvailabilityChanges } from '../lib/queries';
 import { getErrorMessage } from '../lib/errors';
 import { supabase } from '../lib/supabaseClient';
 import {
@@ -14,12 +14,15 @@ import {
   WEEKENDS,
   WEEK_ORDER,
   describeDays,
+  describeHours,
   formatRange,
   fromMinutes,
+  hasExactRow,
   idsForDay,
   planSave,
   rangesForDay,
   withValue,
+  type SaveMode,
 } from '../lib/availabilityPlan';
 
 interface AvailabilityEditorProps {
@@ -37,7 +40,8 @@ const rowButtonClass =
 
 // Lets a tutor set their own weekly working hours: tick the days, pick one start and one end time, press Save. The hours repeat every week
 // until the tutor changes them (tutor_availability holds a repeating weekly pattern, one row per day and time range, so nothing expires).
-// RLS: "Tutors manage own availability" (auth.uid() = tutor_id). What Save writes is decided in lib/availabilityPlan.ts.
+// RLS: "Tutors manage own availability" (auth.uid() = tutor_id). What Save writes is decided in lib/availabilityPlan.ts: the picked
+// time REPLACES the hours of the ticked days; a second time on a day is its own button.
 export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId, availability, onChange }) => {
   const [days, setDays] = useState<number[]>([]);
   const [startTime, setStartTime] = useState('09:00');
@@ -96,23 +100,47 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId,
     }
   };
 
-  const handleSave = async () => {
-    const plan = planSave(rows, days, startTime, endTime, replaceIds);
-    if (plan.message) {
-      setError(plan.message);
-      setNotice(null);
-      return;
-    }
-    const what = days.length > 0 ? `${describeDays(days)}, ${startTime} to ${endTime}` : '';
-    const done =
-      plan.inserts.length === 0 && plan.deleteIds.length === 0
-        ? `Those hours were already saved (${what}).`
-        : `Saved: ${what}. This repeats every week until you change it.`;
-    const ok = await run(plan.inserts, plan.deleteIds, done, 'Could not save those hours.');
-    if (ok) {
+  // Save works from the rows as they are stored NOW, and the notice is worded from the rows read back afterwards, never from the pickers.
+  const handleSave = async (mode: SaveMode) => {
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    try {
+      const current = await fetchTutorAvailability(tutorId);
+      const plan = planSave(current, days, startTime, endTime, replaceIds, mode);
+      if (plan.message) {
+        onChange(current);
+        setError(plan.message);
+        return;
+      }
+      const nothing = plan.inserts.length === 0 && plan.deleteIds.length === 0;
+      const fresh = nothing ? current : await saveTutorAvailabilityChanges(tutorId, plan.inserts, plan.deleteIds);
+      onChange(fresh);
+      const shown = [...new Set([...days, ...plan.changedDays])];
+      // Every picked day must now hold the picked time, and every replaced row must be gone: otherwise say so instead of "Saved".
+      const missing = days.some((d) => !hasExactRow(fresh, d, startTime, endTime));
+      const leftOver = plan.deleteIds.some((id) => fresh.some((x) => x.id === id));
+      if (missing || leftOver) {
+        setError(`Your hours were not saved as you picked them. They are now: ${describeHours(fresh, shown)}. Please try again.`);
+        return;
+      }
+      setNotice(
+        nothing
+          ? `Those hours were already saved. ${describeHours(fresh, shown)}.`
+          : `Saved. ${describeHours(fresh, shown)}. This repeats every week until you change it.`,
+      );
       setReplaceIds([]);
       setReplaceLabel(null);
       setDays([]);
+    } catch (e) {
+      setError(getErrorMessage(e, 'Could not save those hours.'));
+      try {
+        onChange(await fetchTutorAvailability(tutorId)); // show what is really stored after a half-finished save
+      } catch {
+        /* the message above stands */
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -143,6 +171,12 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId,
   const startOptions = withValue(START_OPTIONS, startTime);
   const endOptions = withValue(END_OPTIONS, endTime);
   const editing = replaceLabel !== null;
+  // What Save will take away: on the day of a range being changed, only the other times the new one overlaps or touches; on every other
+  // ticked day, everything there that differs from the picked time.
+  const preview = days.length > 0 ? planSave(rows, days, startTime, endTime, replaceIds) : null;
+  const losing = preview ? days.filter((d) => rows.some((r) => r.dayOfWeek === d && preview.deleteIds.includes(r.id) && !replaceIds.includes(r.id))) : [];
+  // The second-time choice shows when a ticked day already has hours.
+  const canAddSecond = !editing && days.some((d) => rows.some((r) => r.dayOfWeek === d));
 
   return (
     <div>
@@ -224,7 +258,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId,
 
       {/* One step: days, one time range, one Save. */}
       <div className="bg-white rounded-2xl p-3 border border-slate-200 space-y-3">
-        <p className="text-xs font-bold text-[#0F172A]">{editing ? `Change ${replaceLabel}` : 'Add hours'}</p>
+        <p className="text-xs font-bold text-[#0F172A]">{editing ? `Change ${replaceLabel}` : 'Set your hours'}</p>
 
         <fieldset>
           <legend className="text-[11px] font-bold text-slate-500 mb-1.5">Which days?</legend>
@@ -294,16 +328,26 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId,
             {describeDays(days)}, {startTime} to {endTime}, every week.
           </p>
         )}
+        {losing.length > 0 && (
+          <p className="text-xs font-semibold text-[#0F172A]" data-testid="hours-will-replace">
+            {editing ? 'Save change' : 'Save'} replaces what is there now. {describeHours(rows, losing)}.
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={handleSave}
+            onClick={() => handleSave('replace')}
             disabled={busy}
             className="bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-sm font-bold px-4 min-h-11 rounded-lg transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#15803D]/40 focus:ring-offset-1"
           >
             {busy ? 'Saving…' : editing ? 'Save change' : 'Save'}
           </button>
+          {canAddSecond && (
+            <button type="button" onClick={() => handleSave('add')} disabled={busy} className={shortcutClass}>
+              Add as a second time
+            </button>
+          )}
           {editing && (
             <button type="button" onClick={cancelChange} disabled={busy} className={shortcutClass}>
               Cancel
