@@ -60,13 +60,14 @@ const hostOf = (link: string) => {
   }
 };
 
-const DocumentsPanelBody: React.FC<{ tutorId: string }> = ({ tutorId }) => {
+// `verified`: registration is over, so nothing here speaks of the police certificate's age (it counts only when a tutor registers).
+const DocumentsPanelBody: React.FC<{ tutorId: string; verified: boolean }> = ({ tutorId, verified }) => {
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [documentType, setDocumentType] = useState(DOCUMENT_TYPES[0].value);
   const [isUploading, setIsUploading] = useState(false);
   const [linkText, setLinkText] = useState('');
-  // Police clearance only (CEO, 21 Oct 2026): accepting a request needs a certificate issued in the last 6 months, so the date is asked for here too.
+  // Police clearance only: the date on the certificate is asked for here too (while registering it must be from the last 6 months).
   const [issuedOn, setIssuedOn] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [reloadCount, setReloadCount] = useState(0);
@@ -111,7 +112,7 @@ const DocumentsPanelBody: React.FC<{ tutorId: string }> = ({ tutorId }) => {
     }
     const isPolice = documentType === 'police_clearance';
     if (isPolice) {
-      const dateProblem = policeCertificateProblem(issuedOn);
+      const dateProblem = policeCertificateProblem(issuedOn, todayIsoSAST(), !verified);
       if (dateProblem) {
         setError(dateProblem);
         return;
@@ -171,7 +172,7 @@ const DocumentsPanelBody: React.FC<{ tutorId: string }> = ({ tutorId }) => {
       </h4>
       <div className="bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
         <p className="text-[11px] text-slate-500">
-          Tutorlage checks these before you can accept requests. Only you and Tutorlage's review team can see them.
+          {verified ? 'Tutorlage checks each document you add.' : 'Tutorlage checks these before you can accept requests.'} Only you and Tutorlage's review team can see them.
         </p>
         <p className="text-[11px] text-slate-500">
           Forgot something at sign-up? Add it here at any time. Your teaching qualification, your years of teaching and your experience on
@@ -236,13 +237,13 @@ const DocumentsPanelBody: React.FC<{ tutorId: string }> = ({ tutorId }) => {
         {documentType === 'police_clearance' && (
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1" htmlFor="police-issued-on">
-              Date on the certificate (it must be from the last {POLICE_MAX_AGE_MONTHS} months)
+              {verified ? 'Date on the certificate' : `Date on the certificate (it must be from the last ${POLICE_MAX_AGE_MONTHS} months)`}
             </label>
             <input
               id="police-issued-on"
               type="date"
               value={issuedOn}
-              min={addMonthsIso(todayIsoSAST(), -POLICE_MAX_AGE_MONTHS) ?? undefined}
+              min={verified ? undefined : addMonthsIso(todayIsoSAST(), -POLICE_MAX_AGE_MONTHS) ?? undefined}
               max={todayIsoSAST()}
               disabled={isUploading}
               onChange={(e) => {
@@ -251,7 +252,9 @@ const DocumentsPanelBody: React.FC<{ tutorId: string }> = ({ tutorId }) => {
               }}
               className="bg-slate-100 text-xs font-semibold text-[#0F172A] rounded-lg px-2.5 py-2 focus:outline-none"
             />
-            <p className="text-[10px] text-slate-500 mt-1">Enter this date first, then upload. You need a current certificate to accept requests.</p>
+            <p className="text-[10px] text-slate-500 mt-1">
+              {verified ? 'Enter this date first, then upload.' : 'Enter this date first, then upload. You need a current certificate to accept requests.'}
+            </p>
           </div>
         )}
         <p className="text-[10px] text-slate-500">PDF, JPG or PNG, up to 5 MB.</p>
@@ -301,8 +304,8 @@ const DocumentsPanelBody: React.FC<{ tutorId: string }> = ({ tutorId }) => {
 
 // Founding tutors list (CEO, 10 Nov 2026; the gate is off until he says on): a tutor whose place has not opened sees the plain sentence here instead of the upload
 // (the database refuses the upload as well). With the gate off, or if the database cannot say, this is the panel exactly as before.
-export const VerificationDocumentsPanel: React.FC<{ tutorId: string }> = ({ tutorId }) => (
+export const VerificationDocumentsPanel: React.FC<{ tutorId: string; verified: boolean }> = ({ tutorId, verified }) => (
   <FoundingDocumentsGate>
-    <DocumentsPanelBody tutorId={tutorId} />
+    <DocumentsPanelBody tutorId={tutorId} verified={verified} />
   </FoundingDocumentsGate>
 );

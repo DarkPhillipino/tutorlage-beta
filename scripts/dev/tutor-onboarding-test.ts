@@ -79,6 +79,8 @@ async function main() {
   check('police: one day over 6 months is refused, and says the earliest date in words', !!old && old.includes('13 April 2026') && /6 months/.test(old), old ?? '');
   check('formatIsoLong writes a date in words', formatIsoLong('2026-04-13') === '13 April 2026' && formatIsoLong('2027-01-05') === '5 January 2027' && formatIsoLong('nope') === 'nope');
   check('police: a future date is refused', /future/.test(policeCertificateProblem('2026-10-14', today) ?? ''));
+  check('police: a verified tutor is not held to the age, and a future date is still refused', policeCertificateProblem('2020-01-01', today, false) === null && /future/.test(policeCertificateProblem('2026-10-14', today, false) ?? ''));
+  check('the one rule in the app: a verified tutor never meets the sign-up pages or the reminder', /if \(verified \|\| onboarding\?\.grandfathered\) return 'not-needed';/.test(readFileSync('src/lib/useTutorOnboarding.ts', 'utf8')) && /verified: profile\.data\?\.is_verified === true/.test(readFileSync('src/lib/useTutorOnboarding.ts', 'utf8')));
   check('police: an empty date is refused', /Enter the date/.test(policeCertificateProblem('', today) ?? ''));
   check('police: a made-up date is refused', /real date/.test(policeCertificateProblem('2026-02-30', today) ?? ''));
   check('police: expires 6 months after issue', policeExpiresOn('2026-04-13') === '2026-10-13' && policeExpiresOn('2026-08-31') === '2027-02-28');

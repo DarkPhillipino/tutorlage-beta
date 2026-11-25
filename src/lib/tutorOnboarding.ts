@@ -210,11 +210,13 @@ export function formatIsoLong(iso: string): string {
   return p ? `${p.d} ${MONTH_NAMES[p.m - 1]} ${p.y}` : iso;
 }
 
-// null when the certificate's issue date is acceptable; otherwise the sentence to show the tutor.
-export function policeCertificateProblem(issuedOn: string, today = todayIsoSAST()): string | null {
+// null when the certificate's issue date is acceptable; otherwise the sentence to show the tutor. The certificate's age counts only at
+// registration: pass ageApplies = false for a verified tutor.
+export function policeCertificateProblem(issuedOn: string, today = todayIsoSAST(), ageApplies = true): string | null {
   if (!issuedOn) return 'Enter the date your police clearance certificate was issued.';
   if (!parseIsoDate(issuedOn)) return 'Enter the issue date as a real date.';
   if (issuedOn > today) return 'The issue date cannot be in the future.';
+  if (!ageApplies) return null;
   const oldestAllowed = addMonthsIso(today, -POLICE_MAX_AGE_MONTHS)!;
   if (issuedOn < oldestAllowed) {
     return `This certificate is more than ${POLICE_MAX_AGE_MONTHS} months old. Please upload one issued on or after ${formatIsoLong(oldestAllowed)}.`;

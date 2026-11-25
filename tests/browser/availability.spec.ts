@@ -19,7 +19,7 @@ const ME = '00000000-0000-4000-8000-000000000001';
 
 interface Row { id: string; tutor_id: string; day_of_week: number; start_time: string; end_time: string }
 
-async function open(page: Page, seed: Row[] = []) {
+async function open(page: Page, seed: Row[] = [], over: { onboarding?: unknown } = {}) {
   const table: Row[] = [...seed];
   const writes: { method: string; body: unknown; url: string }[] = [];
   let next = 100;
@@ -34,7 +34,7 @@ async function open(page: Page, seed: Row[] = []) {
     if (rpc === 'my_pending_acceptances') return route.fulfill(json([]));
     if (rpc === 'my_needs_surname') return route.fulfill(json(false));
     if (rpc === 'card_checkout_available') return route.fulfill(json(true));
-    if (/\/rest\/v1\/tutor_onboarding/.test(url)) return route.fulfill(json({ track: 'qualified', grandfathered: true, consented_at: null, consent_version: null }));
+    if (/\/rest\/v1\/tutor_onboarding/.test(url)) return route.fulfill(json(over.onboarding ?? { track: 'qualified', grandfathered: true, consented_at: null, consent_version: null }));
     if (/\/rest\/v1\/tutor_profiles/.test(url)) {
       return route.fulfill(json({ id: ME, headline: 'Maths and science', hourly_rate: 150, currency_code: 'ZAR', is_verified: true, onboarding_status: 'approved', avg_rating: 0, total_reviews_count: 0, total_completed_hours: 0, total_sessions_completed: 0, teaching_mode: 'online', is_dispatch_active: true, current_sub_tier_id: null, repeat_student_rate_pct: 0, avg_grade_uplift_pct: 0, qualified_uplift_students_count: 0, institution_id: null, profiles: { full_name: 'Browser Test', avatar_url: null }, tutor_subject_competencies: [], tier_definitions: null, schools_institutions: null }));
     }
@@ -169,6 +169,14 @@ test('Save replaces the ticked day; a second time is its own button; Change, Rem
   await page.getByRole('button', { name: 'Yes, clear all' }).click();
   await expect(page.getByText('All your working hours were cleared.')).toBeVisible();
   expect(table.length).toBe(0);
+});
+
+test('a verified tutor with an old certificate is taken into the app: no sign-up documents page and no reminder', async ({ page }) => {
+  await open(page, [], { onboarding: { track: 'experienced', grandfathered: false, consented_at: '2026-05-20T10:00:00Z', consent_version: 'x' } });
+  await expect(page.getByText('Finish your documents')).toHaveCount(0);
+  await expect(page.getByText('over 6 months old', { exact: false })).toHaveCount(0);
+  await page.goto('/tutor-documents');
+  await expect(page).toHaveURL(/\/$/);
 });
 
 // Screenshots for the report (only when SHOTS_DIR is set): the editor as the tutor sees it while narrowing weekday hours, and after the save.

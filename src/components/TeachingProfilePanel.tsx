@@ -301,7 +301,7 @@ export const TeachingProfilePanel: React.FC<TeachingProfilePanelProps> = ({ tuto
       </div>
 
       {/* Documents Tutorlage checks before verifying the tutor (7h); off in test phase 1 (7bq) */}
-      {FEATURES.verificationDocuments && <VerificationDocumentsPanel tutorId={tutor.id} />}
+      {FEATURES.verificationDocuments && <VerificationDocumentsPanel tutorId={tutor.id} verified={tutor.verified} />}
 
       {/* Phase 2: the Tier 1 route (item 7), switched on with FEATURES.tier1Pipeline */}
       {FEATURES.tier1Pipeline && <Tier1Panel tutorId={tutor.id} />}
