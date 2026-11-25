@@ -219,7 +219,9 @@ function partBSections(text: string): Set<string> {
   check('the new wording never says vetted, certified or background-checked',
     !/vetted|background-checked|\bcertified\b/i.test(clause) && !/vetted|background-checked/i.test(pv));
   const page = read('src/pages/LegalPage.tsx');
-  check('the version moved to 2026-11-24b (photo on the public page) with its date', /LEGAL_VERSION = '2026-11-24b'/.test(page) && /LAST_UPDATED = '24 November 2026'/.test(page));
+  check('both texts say the page shows the qualification, study or other basis the level rests on, and no longer the lines about how the tutor was checked (25 Nov 2026)',
+    /the qualification, study or other basis your level rests on/.test(t) && /the qualification, study or other basis her level rests on/.test(pv) && !/lines that say how (you were|she was) checked/.test(t + pv));
+  check('the version moved to 2026-11-25 (the basis of the level on the public page) with its date', /LEGAL_VERSION = '2026-11-25'/.test(page) && /LAST_UPDATED = '25 November 2026'/.test(page));
 }
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} FAILED`);

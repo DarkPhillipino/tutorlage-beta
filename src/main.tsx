@@ -1,6 +1,6 @@
 import {StrictMode, Suspense} from 'react';
 import {createRoot} from 'react-dom/client';
-import {BrowserRouter, Routes, Route} from 'react-router-dom';
+import {BrowserRouter, Routes, Route, Navigate} from 'react-router-dom';
 import {RecoveryRedirect} from './lib/RecoveryRedirect.tsx';
 import {FEATURES} from './lib/features.ts';
 import {AuthProvider, useAuth} from './lib/AuthContext.tsx';
@@ -14,6 +14,7 @@ import {installGlobalErrorLogging, setErrorSender} from './lib/errorLog.ts';
 import {sendClientError} from './lib/errorLogSender.ts';
 import {rememberPromoCodeFromUrl} from './lib/promoCode.ts';
 import {countCodeOpenFromUrl} from './lib/foundingCount.ts';
+import {pendingBookingCode} from './lib/bookingPath.ts';
 // Side-effect import: initializes i18next before anything renders.
 import './lib/i18n.ts';
 // Ignore missing type declarations for CSS side-effect import
@@ -40,6 +41,8 @@ loadCurrencySymbols();
 const Landing = lazyRoute(() => import('./pages/Landing.tsx'));
 const NotFound = lazyRoute(() => import('./pages/NotFound.tsx'));
 const TutorPublicPage = lazyRoute(() => import('./pages/TutorPublicPage.tsx'));
+const TutorBook = lazyRoute(() => import('./pages/TutorBook.tsx'));
+const TutorSignUp = lazyRoute(() => import('./pages/TutorSignUp.tsx'));
 const Login = lazyRoute(() => import('./pages/Login.tsx'));
 const SignIn = lazyRoute(() => import('./pages/SignIn.tsx'));
 const CreateAccount = lazyRoute(() => import('./pages/CreateAccount.tsx'));
@@ -58,10 +61,13 @@ const GuardedTutorDocuments = lazyRoute(() => import('./pages/guarded.tsx').then
 
 // The address "/": a visitor who is not signed in sees the start page; someone signed in goes straight to the app. While the sign-in
 // state is still being read (and an email link's tokens are being turned into a session) it waits, so the start page never flashes.
+// An account just made on a tutor's booking path (the confirmation e-mail lands here, on any phone) goes straight to that tutor's booking page, with no home page in between.
 function HomeRoute() {
   const {session, loading} = useAuth();
   if (loading) return <PageLoading />;
-  return session ? <GuardedApp /> : <Landing />;
+  if (!session) return <Landing />;
+  const booking = pendingBookingCode(session.user);
+  return booking ? <Navigate to={`/t/${booking}/book`} replace /> : <GuardedApp />;
 }
 
 createRoot(document.getElementById('root')!).render(
@@ -115,6 +121,9 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<HomeRoute />} />
           {/* Any other address: a plain "we can't find that page" (it used to open the app, or bounce a visitor to sign-in). */}
           <Route path="/t/:code" element={<TutorPublicPage />} />
+          {/* From a tutor's page to booking that tutor (PM line 79, 25 Nov 2026): sign-in and the booking page at /book, sign-up at /signup. */}
+          <Route path="/t/:code/book" element={<TutorBook />} />
+          <Route path="/t/:code/signup" element={<TutorSignUp />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         </Suspense>

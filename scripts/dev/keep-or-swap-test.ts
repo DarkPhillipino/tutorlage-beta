@@ -207,7 +207,7 @@ const row = (p: Record<string, unknown> = {}) => ({
   check('the switch is ON (the CEO switched all seven built features on, 16 Oct 2026)', /keepOrSwap:\s*true\b/.test(features));
   check('My tutors and the choice on a completed session are shown only with the switch', /FEATURES\.keepOrSwap\s*&&\s*onBookAgain/.test(sessionsPanel) && (sessionsPanel.match(/FEATURES\.keepOrSwap\s*&&\s*<KeepOrSwapChoice/g) ?? []).length === 2);
   check('the tutor\'s "Learners you have taught" is shown only with the switch', /FEATURES\.keepOrSwap\s*&&\s*<LearnersITaughtPanel/.test(tutorSessions));
-  check('"Book again" reaches the request page only with the switch', /onBookAgain=\{FEATURES\.keepOrSwap \? handleBookAgain : undefined\}/.test(app) && /bookAgain=\{FEATURES\.keepOrSwap \? \(bookAgain \?\? \(linkTutorDismissed \? null : linkTutor\)\) : null\}/.test(app));
+  check('"Book again" reaches the request page only with the switch', /onBookAgain=\{FEATURES\.keepOrSwap \? handleBookAgain : undefined\}/.test(app) && /bookAgain=\{FEATURES\.keepOrSwap \? bookAgain : null\}/.test(app));
 
   // The queries use the migration's names
   const rpcWith = (name: string, params: string[]) => new RegExp(`rpc\\('${name}',\\s*\\{[^}]*${params.map((p) => `${p}:`).join('[^}]*')}`).test(queries);

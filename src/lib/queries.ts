@@ -969,6 +969,8 @@ export async function createSessionRequest(params: {
   // "Book again" (keep or swap, master 7aa): address the request to a tutor the learner has had a session with. The
   // database checks that (and the level, the subject and the 3-waiting limit) and refuses with a plain sentence if not.
   requestedTutorId?: string | null;
+  // Sent from a tutor's own booking page (/t/CODE/book): the notices then never point the family to another tutor.
+  viaTutorPage?: boolean;
 }): Promise<{ id: string; requestedStart: string; chargedAmount: number }> {
   const {
     studentId,
@@ -984,6 +986,7 @@ export async function createSessionRequest(params: {
     curriculumId = null,
     paystackReference,
     requestedTutorId = null,
+    viaTutorPage = false,
   } = params;
 
   const requestedStart = requestStartIso(scheduleType, scheduledDate, scheduledTime);
@@ -1013,6 +1016,7 @@ export async function createSessionRequest(params: {
       paystack_reference: paystackReference,
       // Only sent when set, so an ordinary request still works on a database without the keep-or-swap migration.
       ...(requestedTutorId ? { requested_tutor_id: requestedTutorId } : {}),
+      ...(viaTutorPage ? { via_tutor_page: true } : {}),
       // Same for the curriculum answer (session_requests.curriculum_id exists only after the 19 Oct 2026 migration).
       ...(curriculumId ? { curriculum_id: curriculumId } : {}),
     })

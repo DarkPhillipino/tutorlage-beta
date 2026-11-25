@@ -20,6 +20,8 @@ interface BankMainCheckoutProps {
   // The card way (its test note, the "not open" notice and its button), folded under "Pay with a card instead". Built by the booking page.
   // null = this person may not pay by card (the card allowlist): no card link, no card words, nothing about a provider.
   cardSection: React.ReactNode | null;
+  // Passed to the credit box: what happens to the held price (one tutor's booking page names the tutor).
+  heldNote?: string;
   // The booking page's "you changed the subject" line, which belongs above whichever way is shown.
   children?: React.ReactNode;
 }
@@ -28,7 +30,7 @@ interface BankMainCheckoutProps {
 // The wallet box is open: enough money -> "Pay R... from your wallet"; not enough -> what is missing and "Add money by bank" (Add money then goes straight to
 // the bank). The card stays, folded under "Pay with a card instead". The "Test mode" note shows only when the Worker said `test`.
 export const BankMainCheckout: React.FC<BankMainCheckoutProps> = ({
-  price, promoLine, state, walletEnough, isSending, test, provider, onAddMoney, onRetry, onPayFromWallet, cardSection, children,
+  price, promoLine, state, walletEnough, isSending, test, provider, onAddMoney, onRetry, onPayFromWallet, cardSection, children, heldNote,
 }) => {
   const [showCard, setShowCard] = useState(false);
   return (
@@ -39,7 +41,7 @@ export const BankMainCheckout: React.FC<BankMainCheckoutProps> = ({
         </p>
       )}
       {children}
-      <WalletPayBox price={price} promoLine={promoLine} state={state} onAddMoney={onAddMoney} onRetry={onRetry} addLabel={ONLINE_COPY.addByBank} />
+      <WalletPayBox price={price} promoLine={promoLine} state={state} onAddMoney={onAddMoney} onRetry={onRetry} addLabel={ONLINE_COPY.addByBank} heldNote={heldNote} />
       {walletEnough && (
         <button
           type="button"

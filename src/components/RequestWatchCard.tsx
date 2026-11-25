@@ -5,6 +5,7 @@ import { getErrorMessage } from '../lib/errors';
 import { formatSaDateTime } from '../lib/saTime';
 import { rand0 } from '../lib/wallet';
 import {
+  NAMED_WATCH_COPY,
   WATCH_COPY,
   detailsLine,
   endedSentence,
@@ -33,6 +34,8 @@ interface Props {
   onCancelled: () => void | Promise<void>;
   onSessions: () => void;
   onNewRequest: () => void;
+  // Set when the request was sent from one tutor's booking page: the words then name that tutor.
+  tutorName?: string | null;
 }
 
 const primary = 'px-5 py-2.5 bg-[#15803D] text-white font-bold rounded-xl text-sm hover:bg-[#166534] transition-all cursor-pointer';
@@ -117,7 +120,7 @@ const Badge = ({ children, tone }: { children: React.ReactNode; tone: 'good' | '
   );
 };
 
-export function RequestWatchCard({ view, mode, stopped, lookFailed, busy, onRefresh, onCancelled, onSessions, onNewRequest }: Props) {
+export function RequestWatchCard({ view, mode, stopped, lookFailed, busy, onRefresh, onCancelled, onSessions, onNewRequest, tutorName = null }: Props) {
   const request = view.request;
   const payMode = payModeOf(request, mode);
 
@@ -126,8 +129,10 @@ export function RequestWatchCard({ view, mode, stopped, lookFailed, busy, onRefr
   let body: React.ReactNode = null;
 
   if (view.kind === 'waiting') {
-    title = view.confirming ? WATCH_COPY.confirmingTitle : WATCH_COPY.waitingTitle;
-    body = view.confirming ? WATCH_COPY.confirmingBody : WATCH_COPY.waitingLead;
+    title = view.confirming
+      ? (tutorName ? NAMED_WATCH_COPY.confirmingTitle(tutorName) : WATCH_COPY.confirmingTitle)
+      : (tutorName ? NAMED_WATCH_COPY.waitingTitle(tutorName) : WATCH_COPY.waitingTitle);
+    body = view.confirming ? WATCH_COPY.confirmingBody : (tutorName ? NAMED_WATCH_COPY.waitingLead(tutorName) : WATCH_COPY.waitingLead);
   } else if (view.kind === 'booked') {
     tone = 'good';
     title = WATCH_COPY.bookedTitle;
@@ -139,7 +144,7 @@ export function RequestWatchCard({ view, mode, stopped, lookFailed, busy, onRefr
   } else if (view.kind === 'ended') {
     tone = 'bad';
     title = endedTitle(view.why);
-    body = endedSentence(view.why, request);
+    body = endedSentence(view.why, request, tutorName);
   } else {
     tone = view.why === 'completed' ? 'good' : 'bad';
     title = view.why === 'completed' ? WATCH_COPY.sessionDoneTitle : WATCH_COPY.sessionCancelledTitle;
@@ -171,8 +176,8 @@ export function RequestWatchCard({ view, mode, stopped, lookFailed, busy, onRefr
               ...(payMode === 'wallet' && price ? ([['On hold in your credit', price]] as Array<[string, string]>) : []),
             ]}
           />
-          <p className="text-xs text-slate-700 mb-5">{waitingLine(payMode)}</p>
-          {stopped && <p className="text-xs font-semibold text-slate-700 mb-3" data-watch-stopped>{WATCH_COPY.stopped}</p>}
+          <p className="text-xs text-slate-700 mb-5">{waitingLine(payMode, tutorName)}</p>
+          {stopped && <p className="text-xs font-semibold text-slate-700 mb-3" data-watch-stopped>{tutorName ? NAMED_WATCH_COPY.stopped(tutorName) : WATCH_COPY.stopped}</p>}
         </>
       )}
 

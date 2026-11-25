@@ -43,7 +43,8 @@ export function useAccountStatus(): AccountStatus {
   return status;
 }
 
-export const AccountGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+// `frame`: another surround for the gate's screens (a tutor's booking path puts them in its own frame). The rules and the forms are the same.
+export const AccountGate: React.FC<{ children: React.ReactNode; frame?: (content: React.ReactNode) => React.ReactElement }> = ({ children, frame }) => {
   const { user, profile, signOut } = useAuth();
   const [state, setState] = useState<AccountGateState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -66,7 +67,7 @@ export const AccountGate: React.FC<{ children: React.ReactNode }> = ({ children 
     load();
   }, [load]);
 
-  const shell = (content: React.ReactNode) => (
+  const shell = (content: React.ReactNode) => frame ? frame(content) : (
     <div className="min-h-screen flex items-center justify-center bg-[#FAF7F2] px-6 py-12">
       <div className="w-full max-w-md bg-white rounded-2xl p-8 shadow-sm border border-slate-200/80">{content}</div>
     </div>

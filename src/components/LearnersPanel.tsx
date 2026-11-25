@@ -35,9 +35,11 @@ interface LearnersPanelProps {
   onSelectLearner: (learner: LinkedLearner | null) => void;
   // Close this learner's account (legal B1): left out, the button is not shown.
   closeSetup?: CloseAccountSetup;
+  // Set on one tutor's booking page: the words are about that lesson, school results are left out, and an only learner is chosen for the parent.
+  tutorName?: string;
 }
 
-export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, selectedLearnerId, onSelectLearner, closeSetup }) => {
+export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, selectedLearnerId, onSelectLearner, closeSetup, tutorName }) => {
   const [learners, setLearners] = useState<LinkedLearner[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -85,6 +87,14 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
 
   useEffect(load, [load]);
 
+  // On a tutor's booking page an only learner is chosen for the parent, once a phone number is saved (adding the first learner continues the booking).
+  useEffect(() => {
+    if (!tutorName || !phoneReady || selectedLearnerId) return;
+    const bookable = (learners ?? []).filter((l) => l.canBook);
+    if (bookable.length === 1) onSelectLearner(bookable[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tutorName, phoneReady, learners, selectedLearnerId]);
+
   const handleWithdraw = async (learner: LinkedLearner) => {
     setActionError(null);
     try {
@@ -106,13 +116,13 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
           </div>
           <div>
             <h2 className="text-base font-extrabold text-[#0F172A]">Your learners</h2>
-            <p className="text-xs text-slate-500">Choose who you're booking for, then search below.</p>
+            <p className="text-xs text-slate-500">{tutorName ? `Choose who the lesson with ${tutorName} is for.` : "Choose who you're booking for, then search below."}</p>
           </div>
         </div>
         {!isAdding && (
           <button
             onClick={() => { setIsAdding(true); setJustAdded(null); }}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#15803D] hover:underline cursor-pointer"
+            className="inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap text-xs font-bold text-[#15803D] hover:underline cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Add a learner
           </button>
@@ -213,7 +223,7 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
                       <button onClick={() => setConfirmWithdrawId(null)} className="font-bold text-slate-500 hover:underline cursor-pointer">Keep</button>
                     </span>
                   )}
-                  {FEATURES.schoolResults && learner.canBook && (
+                  {!tutorName && FEATURES.schoolResults && learner.canBook && (
                     <button
                       onClick={() => setResultsOpenId(resultsOpenId === learner.id ? null : learner.id)}
                       className="text-[11px] font-bold text-[#15803D] hover:underline cursor-pointer"
@@ -252,7 +262,7 @@ export const LearnersPanel: React.FC<LearnersPanelProps> = ({ guardianId, select
               )}
               {isSelected && (
                 <p className="text-[11px] text-slate-500 mt-1.5 px-1">
-                  Now enter a subject in the Book a tutor box below and press See prices.
+                  {tutorName ? 'Now choose the subject and time below.' : 'Now enter a subject in the Book a tutor box below and press See prices.'}
                 </p>
               )}
               {FEATURES.schoolResults && resultsOpenId === learner.id && (

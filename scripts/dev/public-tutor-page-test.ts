@@ -1,10 +1,10 @@
 // Checks on the tutor's public page /t/CODE (CEO, 24 Nov 2026; job P slice 1; migration 20261124120000). Run: npx tsx scripts/dev/public-tutor-page-test.ts
 // Proves, on the pure words in src/lib/publicTutorPage.ts and by reading the sources: the grades read in words; the database's answer is understood tolerantly (an error, a throw or an odd value all mean "no page");
-// the price reads "R... an hour"; the profile link and the Book link are the right addresses (Book is the same sign-up link her code link has always been); the page says noindex, nofollow, robots.txt disallows /t/,
-// the sitemap has no /t/ entry; the page shows no photo, no intro and reads no table; none of the words say "vetted", "certified", "background-checked", "free" or "instant"; the route exists; the only change to
-// the Teach screen is the card. The database half (who sees what, the checked lines, the hours in words, consent and withdrawal) is proved by supabase/tests/public_tutor_profile.sql.
+// the price reads "R... an hour"; the profile link and the booking addresses are right (Book goes to /t/CODE/book, never to the start page); the page says noindex, nofollow, robots.txt disallows /t/,
+// the sitemap has no /t/ entry; the page shows only the approved photo, no "checked" section and reads no table; the level card shows only this tutor's own basis; none of the words say "vetted", "certified",
+// "background-checked", "free" or "instant"; the routes exist. The database half is proved by supabase/tests/public_tutor_profile.sql and tutor_page_booking.sql.
 import { readFileSync } from 'node:fs';
-import { PUBLIC_PAGE_COPY, bookLink, fetchMyPublicProfile, fetchPublicPage, gradesInWords, parsePublicPage, priceLine, profileLink, setMyPublicProfile } from '../../src/lib/publicTutorPage';
+import { PUBLIC_PAGE_COPY, bookPath, fetchMyPublicProfile, fetchPublicPage, gradesInWords, parsePublicPage, priceLine, profileLink, setMyPublicProfile } from '../../src/lib/publicTutorPage';
 import { PAGE_META } from '../../src/lib/pageMeta';
 import { robotsTxt, sitemapXml } from '../postbuild';
 
@@ -19,7 +19,7 @@ const code = (p: string) => read(p).replace(/\/\/.*$/gm, '').replace(/\{\/\*[\s\
 const good = {
   code: 'TESSA', first_name: 'Tessa', level_id: '1A', level_name: 'Foundation', price: 250, currency: 'ZAR',
   subjects: [{ subject: 'Mathematics', min_grade: 'Grade 8', max_grade: 'Grade 12' }, { foo: 1 }, 5],
-  checked: ['ID checked', 7, 'Police clearance checked, November 2026'], hours: 'Monday to Friday, 5pm to 11pm', taking_requests: true,
+  tier_line: null, basis: { kind: 'credential', label: 'Student teacher enrolled in a B.Ed or PGCE (proof of enrolment)' }, discount: { percent: 10, lessons: 3 }, hours: 'Monday to Friday, 5pm to 11pm', taking_requests: true,
 };
 
 async function main() {
@@ -28,11 +28,16 @@ async function main() {
     gradesInWords('Grade 8', 'Grade 12') === 'Grades 8 to 12' && gradesInWords('Grade 5', 'Grade 5') === 'Grade 5' && gradesInWords('Grade R', 'Grade 6') === 'Grades R to 6'
     && gradesInWords('Grade 10', 'Adult / Professional Development') === 'Grade 10 to Adult / Professional Development');
   check('the price reads in rands, an hour', priceLine({ price: 250, currency: 'ZAR' }) === 'R250 an hour' && priceLine({ price: 1250, currency: 'ZAR' }).endsWith('250 an hour') && priceLine({ price: 1250, currency: 'ZAR' }).startsWith('R1'));
-  check('the profile link and the Book link are the right addresses (Book = her code link, relative)', profileLink('TESSA') === 'https://tutorlage.com/t/TESSA' && bookLink('TESSA') === '/?code=TESSA' && bookLink('A B') === '/?code=A%20B');
+  check('the profile link and the booking address are right (Book goes to this tutor\'s booking page)', profileLink('TESSA') === 'https://tutorlage.com/t/TESSA' && bookPath('TESSA') === '/t/TESSA/book' && bookPath('A B') === '/t/A%20B/book');
 
   // the answer
   const p = parsePublicPage(good);
-  check('a good answer is understood; odd subject and check entries are dropped', !!p && p.firstName === 'Tessa' && p.subjects.length === 1 && p.subjects[0].minGrade === 'Grade 8' && p.checked.length === 2 && p.takingRequests && p.hours === 'Monday to Friday, 5pm to 11pm' && p.price === 250);
+  check('a good answer is understood; odd subject entries are dropped', !!p && p.firstName === 'Tessa' && p.subjects.length === 1 && p.subjects[0].minGrade === 'Grade 8' && p.takingRequests && p.hours === 'Monday to Friday, 5pm to 11pm' && p.price === 250 && p.discount?.percent === 10 && p.tierLine === null);
+  check('the basis is the tutor\'s own credential label', p?.basis?.kind === 'credential' && p.basis.label === 'Student teacher enrolled in a B.Ed or PGCE (proof of enrolment)');
+  const rec = parsePublicPage({ ...good, basis: { kind: 'record', min_hours: 10, min_rating: 4.8, min_repeat_rate_pct: 0, min_reviews: 0, min_uplift_students: 0, required_uplift_pct: 0, outside_hours: false } })?.basis;
+  const outside = parsePublicPage({ ...good, basis: { kind: 'record', min_hours: 10, outside_hours: true } })?.basis;
+  check('a level reached by record shows that level\'s minimums; hours from outside are not called taught on Tutorlage', rec?.kind === 'record' && rec.lines.join('|') === '10 or more hours taught on Tutorlage|Rated 4.8 or higher' && outside?.kind === 'record' && outside.lines[0] === '10 or more hours of teaching');
+  check('no basis, an odd basis or an empty one shows nothing', parsePublicPage({ ...good, basis: null })?.basis === null && parsePublicPage({ ...good, basis: { kind: 'credential' } })?.basis === null && parsePublicPage({ ...good, basis: { kind: 'record' } })?.basis === null && parsePublicPage({ ...good, basis: 'x' })?.basis === null);
   check('no page for null, an empty answer, a missing code or name, or a non-object', parsePublicPage(null) === null && parsePublicPage({}) === null && parsePublicPage({ first_name: 'A' }) === null && parsePublicPage({ code: 'A' }) === null && parsePublicPage('x') === null);
   check('a photo is accepted only as a small JPEG data address (anything else is dropped)', parsePublicPage({ ...good, photo: 'data:image/jpeg;base64,/9j/4AAQ' })?.photo === 'data:image/jpeg;base64,/9j/4AAQ' && parsePublicPage({ ...good, photo: 'https://x.test/a.jpg' })?.photo === null && parsePublicPage({ ...good, photo: 'data:image/svg+xml;base64,AAAA' })?.photo === null && parsePublicPage({ ...good, photo: 'javascript:alert(1)' })?.photo === null && parsePublicPage(good)?.photo === null);
   check('no hours means no hours line and not taking requests', (() => { const q = parsePublicPage({ ...good, hours: null, taking_requests: false }); return !!q && q.hours === null && !q.takingRequests; })());
@@ -49,20 +54,25 @@ async function main() {
     && (await setMyPublicProfile({ rpc: async () => { throw new Error('x'); } }, false)) === 'Could not change your page. Try again.');
 
   // the words
-  const allWords = JSON.stringify(PUBLIC_PAGE_COPY);
-  check('no "vetted", "certified", "background-checked", "free" or "instant" in the page words', !/vetted|certified|background|\bfree\b|instant/i.test(allWords) && !/vetted|certified|background/i.test(read('src/pages/TutorPublicPage.tsx')));
-  check('the consent line says what is shown (the photo only once approved), that there is no surname, and that it can be switched off at once', /first name, your subjects and grades, your level and price, the checks we have done and your weekly hours/.test(PUBLIC_PAGE_COPY.consent)
+  const c = PUBLIC_PAGE_COPY;
+  const allWords = JSON.stringify(c) + [c.bookNote('A'), c.discountNote(10, 3), c.notTaking('A'), c.hoursNote('A'), c.recordHeading('A')].join(' ');
+  check('the discount is said of a new parent or learner account only; the time is asked for and booked only on acceptance; no other tutor is offered',
+    c.discountNote(10, 3) === 'A new parent or learner account created from this page pays 10% less on its first 3 lessons.' && /booked only when A accepts/.test(c.hoursNote('A')) && !/another tutor|any tutor/i.test(allWords));
+  check('no "vetted", "certified", "background-checked", "free", "instant" or "wallet" in the page words', !/vetted|certified|background|\bfree\b|instant|wallet/i.test(allWords) && !/vetted|certified|background/i.test(read('src/pages/TutorPublicPage.tsx') + read('src/components/TutorLevelCard.tsx')));
+  check('the consent line says what is shown (the photo only once approved), that there is no surname, and that it can be switched off at once', /first name, your subjects and grades, your level and price, the qualification, study or other basis your level rests on, your weekly hours/.test(PUBLIC_PAGE_COPY.consent)
     && /your photo once the company has approved it\. No surname and no contact details/.test(PUBLIC_PAGE_COPY.consent) && !/No photo/.test(PUBLIC_PAGE_COPY.consent) && /switch it off at any time and the page disappears at once/.test(PUBLIC_PAGE_COPY.consent));
   check('it never names a school, campus or faculty, nor claims "instant"', !/school|campus|faculty|university/i.test(allWords));
 
   // the page and its surroundings
   const page = code('src/pages/TutorPublicPage.tsx');
-  check('the page says noindex, nofollow itself', /'noindex,nofollow'/.test(page));
-  check('the page shows only the approved photo (from the page answer, a JPEG data address), no intro, and reads no table itself', (page.match(/<img/g) ?? []).length === 1 && /page\.photo/.test(page) && !/avatar|intro|headline/i.test(page) && !/\.from\(/.test(page) && !/\.insert\(|\.update\(|\.delete\(/.test(page));
-  check('Book is the sign-up link with her code (the sign-up flow itself is not touched)', /href=\{bookLink\(page\.code\)\}/.test(page));
+  check('the page says noindex, nofollow itself', /useNoIndex\(\);/.test(page) && /'noindex,nofollow'/.test(read('src/lib/publicTutorHooks.ts')));
+  const shell = code('src/components/LinkShell.tsx');
+  check('the page shows only the approved photo (from the page answer), no intro, no "checked" section, and reads no table itself', (shell.match(/<img/g) ?? []).length === 1 && /photo=\{page\.photo\}/.test(page) && !/<img|avatar|intro|headline|checked/i.test(page) && !/\.from\(/.test(page) && !/\.insert\(|\.update\(|\.delete\(/.test(page));
+  check('Book goes to this tutor\'s booking page, never to the start page or a code link', /to=\{bookPath\(page\.code\)\}/.test(page) && !/tutorCodeLink|\?code=/.test(page));
+  check('the colour rule is in the frame: a navy header and hero panel, cream page', /<header className="bg-\[#0F172A\]/.test(shell) && /bg-\[#0F172A\] text-white" data-hero/.test(shell) && /bg-\[#FAF7F2\]/.test(shell));
   check('robots.txt disallows /t/ and the sitemap has no /t/ entry', /^Disallow: \/t\/$/m.test(robotsTxt(PAGE_META)) && !/\/t\//.test(sitemapXml(PAGE_META)) && !PAGE_META.some((m) => m.path.startsWith('/t/')));
   const main = read('src/main.tsx');
-  check('the route /t/:code exists, before the catch-all', /<Route path="\/t\/:code" element=\{<TutorPublicPage \/>\} \/>/.test(main) && main.indexOf('/t/:code') < main.indexOf('path="*"'));
+  check('the routes /t/:code, /book and /signup exist, before the catch-all', /<Route path="\/t\/:code" element=\{<TutorPublicPage \/>\} \/>/.test(main) && /<Route path="\/t\/:code\/book"/.test(main) && /<Route path="\/t\/:code\/signup"/.test(main) && main.indexOf('/t/:code/signup') < main.indexOf('path="*"'));
   const teach = read('src/components/TeachGoScreen.tsx');
   check('the Teach screen has the card and says it is WAVE-marked', /<PublicPageCard \/>/.test(teach) && /WAVE-MARKED/.test(teach));
   const card = code('src/components/PublicPageCard.tsx');

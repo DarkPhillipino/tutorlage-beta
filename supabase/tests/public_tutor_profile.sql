@@ -79,29 +79,29 @@ begin
     j := public.public_tutor_page(lower(ca));
     r := r || pg_temp.chk('C1', 'the code is read in any case and gives the page', (j is not null)::text, 'true');
     r := r || pg_temp.chk('C2', 'the first name only', j ->> 'first_name', 'Tessa');
-    r := r || pg_temp.chk('C3', 'the fixed set of keys, nothing else', (select string_agg(k, ',' order by k) from jsonb_object_keys(j) k), 'checked,code,currency,first_name,hours,level_id,level_name,photo,price,subjects,taking_requests');
+    r := r || pg_temp.chk('C3', 'the fixed set of keys, nothing else', (select string_agg(k, ',' order by k) from jsonb_object_keys(j) k), 'basis,code,currency,discount,first_name,hours,level_id,level_name,photo,price,subjects,taking_requests,tier_line');
     r := r || pg_temp.chk('C4', 'no surname, e-mail address or learner anywhere in the answer', (j::text ilike '%surnamesson%' or j::text ilike '%example.invalid%' or j::text ilike '%' || lrn::text || '%' or j::text ilike '%' || ta::text || '%')::text, 'false');
     r := r || pg_temp.chk('C5', 'only the VERIFIED subject, with its grades', (select string_agg((s ->> 'subject') || ' ' || (s ->> 'min_grade') || '-' || (s ->> 'max_grade'), ',') from jsonb_array_elements(j -> 'subjects') s), 'Mathematics Grade 8-Grade 12');
     r := r || pg_temp.chk('C6', 'the level and its price are the same as the Prices page reads', (j ->> 'level_id') || ' ' || (j ->> 'level_name') || ' ' || (j ->> 'price') || ' ' || (j ->> 'currency'),
       (select s.id || ' ' || t.public_name || ' ' || s.max_allowed_rate::text || ' ' || trim(t.currency_code) from sub_tier_definitions s join tier_definitions t on t.id = s.tier_id where s.id = '1A'));
     ymon := to_char((now() at time zone 'Africa/Johannesburg')::date - 20, 'FMMonth YYYY');
-    r := r || pg_temp.chk('C7', 'the checked lines, in the agreed words, with the month the certificate was issued', (select string_agg(x, ' | ' order by x) from jsonb_array_elements_text(j -> 'checked') x), 'ID checked | Police clearance checked, ' || ymon || ' | Results or qualification checked');
+    r := r || pg_temp.chk('C7', 'the checked lines (no longer on the page since 25 Nov 2026), in the agreed words, with the month the certificate was issued', (select string_agg(x, ' | ' order by x) from unnest(public.tutor_checked_lines(ta)) x), 'ID checked | Police clearance checked, ' || ymon || ' | Results or qualification checked');
     r := r || pg_temp.chk('C8', 'never "vetted", "certified" or "background-checked", anywhere in the answer', (j::text ~* '(vetted|certified|background)')::text, 'false');
     r := r || pg_temp.chk('C9', 'the hours in words (a day with two ranges reads as two)', j ->> 'hours', 'Monday to Friday, 5pm to 11pm; Saturday and Sunday, 8am to 12pm and 2pm to 5:30pm');
     r := r || pg_temp.chk('C10', 'she takes requests (she has hours)', j ->> 'taking_requests', 'true');
 
     -- D. the checks follow the documents live
     update tutor_verification_documents set issued_on = ((now() at time zone 'Africa/Johannesburg')::date - interval '7 months')::date where tutor_id = ta and document_type::text = 'police_clearance';
-    r := r || pg_temp.chk('D1', 'a police clearance older than 6 months KEEPS its line (24 Nov 2026: its age matters only at registration; the month is the month it was issued)', (select string_agg(x, ' | ' order by x) from jsonb_array_elements_text(public.public_tutor_page(ca) -> 'checked') x), 'ID checked | Police clearance checked, ' || to_char(((now() at time zone 'Africa/Johannesburg')::date - interval '7 months')::date, 'FMMonth YYYY') || ' | Results or qualification checked');
+    r := r || pg_temp.chk('D1', 'a police clearance older than 6 months KEEPS its line (24 Nov 2026: its age matters only at registration; the month is the month it was issued)', (select string_agg(x, ' | ' order by x) from unnest(public.tutor_checked_lines(ta)) x), 'ID checked | Police clearance checked, ' || to_char(((now() at time zone 'Africa/Johannesburg')::date - interval '7 months')::date, 'FMMonth YYYY') || ' | Results or qualification checked');
     update tutor_verification_documents set status = 'rejected' where tutor_id = ta and document_type::text = 'matric_certificate';
-    r := r || pg_temp.chk('D2', 'a results document that is no longer verified drops its line', (select string_agg(x, ' | ' order by x) from jsonb_array_elements_text(public.public_tutor_page(ca) -> 'checked') x), 'ID checked | Police clearance checked, ' || to_char(((now() at time zone 'Africa/Johannesburg')::date - interval '7 months')::date, 'FMMonth YYYY'));
+    r := r || pg_temp.chk('D2', 'a results document that is no longer verified drops its line', (select string_agg(x, ' | ' order by x) from unnest(public.tutor_checked_lines(ta)) x), 'ID checked | Police clearance checked, ' || to_char(((now() at time zone 'Africa/Johannesburg')::date - interval '7 months')::date, 'FMMonth YYYY'));
     delete from tutor_availability where tutor_id = ta;
     r := r || pg_temp.chk('D3', 'no hours: the page says so and she is not "taking requests"', coalesce(public.public_tutor_page(ca) ->> 'hours', 'null') || '/' || (public.public_tutor_page(ca) ->> 'taking_requests'), 'null/false');
 
     -- E. withdrawal, and the other tutors
     r := r || pg_temp.chk('E1', 'a tutor with a pending ID has no ID line (and has not switched on: no page)', coalesce(public.public_tutor_page(cb)::text, 'null'), 'null');
     t := pg_temp.run_as(tb, 'select public.set_my_public_profile(true)::text');
-    r := r || pg_temp.chk('E2', 'a second tutor switches on: only checks that are true: none for the pending ID; the old but verified certificate keeps its line', (select count(*)::text from jsonb_array_elements_text(public.public_tutor_page(cb) -> 'checked')), '1');
+    r := r || pg_temp.chk('E2', 'a second tutor switches on: only checks that are true: none for the pending ID; the old but verified certificate keeps its line', (select cardinality(public.tutor_checked_lines(tb))::text), '1');
     r := r || pg_temp.chk('E3', 'her first name comes from her own name, not from another tutor', public.public_tutor_page(cb) ->> 'first_name', 'Bongani');
     t := pg_temp.run_as(ta, 'select public.set_my_public_profile(false)::text');
     r := r || pg_temp.chk('E4', 'switching off hides her page at once and records the withdrawal', coalesce(public.public_tutor_page(ca)::text, 'null') || '/' || (select (withdrawn_at is not null)::text || (consent_at is not null)::text || (not is_public)::text from public.tutor_public_profile where tutor_id = ta), 'null/truetruetrue');

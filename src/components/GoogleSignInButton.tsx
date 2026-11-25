@@ -9,6 +9,9 @@ interface GoogleSignInButtonProps {
   role: SignupRole;
   label: string; // e.g. "Continue with Google" / "Sign up with Google"
   onError: (message: string) => void;
+  // Left switched off until the person has made a choice (a tutor's booking path: "Parent or guardian" or "Learner").
+  disabled?: boolean;
+  bookingCode?: string;
 }
 
 // The multi-color "G" mark, inline — no icon library ships Google's actual
@@ -23,7 +26,7 @@ const GoogleMark: React.FC = () => (
   </svg>
 );
 
-export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ role, label, onError }) => {
+export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ role, label, onError, disabled = false, bookingCode }) => {
   const [isSigningIn, setIsSigningIn] = useState(false);
 
   // FEATURES.googleSignIn (src/lib/features.ts) hides Google everywhere in one word. The pages that render this
@@ -33,7 +36,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ role, la
   const handleClick = async () => {
     setIsSigningIn(true);
     try {
-      await signInWithGoogle(role);
+      await signInWithGoogle(role, bookingCode);
       // On success the browser navigates away to Google — this component
       // never re-renders past this point during the happy path.
     } catch (e) {
@@ -46,8 +49,8 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ role, la
     <button
       type="button"
       onClick={handleClick}
-      disabled={isSigningIn}
-      className="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-50 disabled:opacity-60 text-[#0F172A] font-bold py-3 px-6 rounded-xl border border-slate-300 transition-all cursor-pointer text-sm"
+      disabled={disabled || isSigningIn}
+      className="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed text-[#0F172A] font-bold py-3 px-6 rounded-xl border border-slate-300 transition-all cursor-pointer text-sm"
     >
       {isSigningIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleMark />}
       <span>{label}</span>

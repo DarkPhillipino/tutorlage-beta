@@ -6,6 +6,8 @@ import { takePendingOAuthRole } from '../lib/oauth';
 import { convertNewAccountRole } from '../lib/queries';
 import { claimRememberedPromoCode } from '../lib/promoCode';
 import { promoDb } from '../lib/promoHooks';
+import { isNewAccount, takeGoogleBooking } from '../lib/bookingPath';
+import { bookPath } from '../lib/publicTutorPage';
 
 // Where Google sends the browser back after OAuth (see signInWithGoogle in
 // src/lib/oauth.ts). Supabase's client library exchanges the auth code for
@@ -50,7 +52,9 @@ export default function AuthCallback() {
       }
 
       const pendingRole = takePendingOAuthRole();
-      if (pendingRole === 'tutor' || pendingRole === 'parent') {
+      // Set when Google was started from a tutor's booking path. There only a NEW account takes the "Parent or guardian" choice; an existing one stays as it is.
+      const booking = takeGoogleBooking();
+      if ((pendingRole === 'tutor' || pendingRole === 'parent') && (!booking || isNewAccount(session.user.created_at))) {
         try {
           await convertNewAccountRole(pendingRole);
         } catch (e) {
@@ -64,7 +68,7 @@ export default function AuthCallback() {
       // database refuses anything else). Never blocks the sign-in.
       await claimRememberedPromoCode(promoDb);
 
-      navigate('/', { replace: true });
+      navigate(booking ? bookPath(booking) : '/', { replace: true });
     };
 
     finish();

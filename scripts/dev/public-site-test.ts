@@ -72,7 +72,7 @@ check('package.json runs the postbuild step after vite build', /"build": "vite b
 
 // ---- routes ----
 check('"/" is the start page for a visitor and the app for a signed-in person, and every other address is the not-found page', /path="\/" element=\{<HomeRoute \/>\}/.test(mainTsx) && /path="\*" element=\{<NotFound \/>\}/.test(mainTsx) && !/path="\/\*"/.test(mainTsx));
-check('HomeRoute waits for the sign-in state before choosing (the start page never flashes at someone signed in)', /if \(loading\) return <PageLoading \/>;\s*return session \? <GuardedApp \/> : <Landing \/>;/.test(mainTsx));
+check('HomeRoute waits for the sign-in state before choosing (the start page never flashes at someone signed in)', /if \(loading\) return <PageLoading \/>;\s*if \(!session\) return <Landing \/>;\s*const booking = pendingBookingCode\(session\.user\);\s*return booking \? <Navigate [^>]+ replace \/> : <GuardedApp \/>;/.test(mainTsx));
 check('every page is loaded on demand (no static page imports remain in main.tsx)', !/^import (Login|SignIn|CreateAccount|ForgotPassword|ResetPassword|PaymentCallback|AuthCallback|AccountClosed|LegalPage|RoomPage|TutorDocuments|App) from/m.test(mainTsx));
 
 // ---- the start page ----

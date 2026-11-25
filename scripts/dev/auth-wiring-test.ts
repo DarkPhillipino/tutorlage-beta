@@ -68,7 +68,7 @@ async function main() {
   check('sign-up and the new-password page share one password rule', /validateNewPassword\(/.test(createAccount) && /validateNewPassword\(/.test(source('src/pages/ResetPassword.tsx')));
 
   // ---- 3. Google switch ---------------------------------------------------------------------------------------
-  const googleFiles = ['src/pages/SignIn.tsx', 'src/pages/CreateAccount.tsx'];
+  const googleFiles = ['src/pages/SignIn.tsx', 'src/pages/CreateAccount.tsx', 'src/components/LinkSignIn.tsx', 'src/pages/TutorSignUp.tsx'];
   for (const file of googleFiles) {
     const text = source(file);
     check(`${file}: the Google button, "or" line and note sit inside FEATURES.googleSignIn`, /FEATURES\.googleSignIn\s*&&\s*\(/.test(text) && text.indexOf('FEATURES.googleSignIn') < text.indexOf('<GoogleSignInButton'));

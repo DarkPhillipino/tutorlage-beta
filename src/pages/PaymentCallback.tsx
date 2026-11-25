@@ -5,7 +5,11 @@ import { verifyPayment } from '../lib/payments';
 import { getErrorMessage } from '../lib/errors';
 import { FREE_FOR_NOW_NOTICE } from '../lib/freeSessions';
 import { useAuth } from '../lib/AuthContext';
-import { fetchRequestIdByReference, isRequestId, type WatchMode } from '../lib/requestWatch';
+import { NAMED_WATCH_COPY, fetchRequestIdByReference, isRequestId, type WatchMode } from '../lib/requestWatch';
+import { supabase } from '../lib/supabaseClient';
+import { normalisePromoCode } from '../lib/promoCode';
+import { bookPath, type PublicPageClient } from '../lib/publicTutorPage';
+import { usePublicTutor } from '../lib/publicTutorHooks';
 import { useRequestWatch, watchDb } from '../lib/requestWatchHooks';
 import { RequestWatchCard } from '../components/RequestWatchCard';
 
@@ -35,6 +39,10 @@ export default function PaymentCallback() {
   const watchId = state === 'wallet' || state === 'free' ? (isRequestId(urlRequest) ? urlRequest : null) : state === 'success' ? cardRequestId : null;
   const mode: WatchMode = state === 'free' ? 'free' : state === 'wallet' ? 'wallet' : 'card';
   const watch = useRequestWatch(watchId, userId);
+  // `&tutor=<code>`: the request was sent from that tutor's booking page. It only changes the words and where "Send a new request" goes.
+  const tutorCode = normalisePromoCode(searchParams.get('tutor'));
+  const tutorPage = usePublicTutor(supabase as unknown as PublicPageClient, tutorCode ?? '');
+  const tutorName = tutorCode ? (tutorPage?.firstName ?? 'your tutor') : null;
 
   useEffect(() => {
     if (state !== 'success' || !userId) return;
@@ -110,7 +118,8 @@ export default function PaymentCallback() {
             onRefresh={() => void watch.refresh()}
             onCancelled={watch.refresh}
             onSessions={() => navigate('/?view=sessions')}
-            onNewRequest={() => navigate('/')}
+            onNewRequest={() => navigate(tutorCode ? bookPath(tutorCode) : '/')}
+            tutorName={tutorName}
           />
         )}
         {state === 'checking' && (
@@ -127,7 +136,9 @@ export default function PaymentCallback() {
             </div>
             <h1 className="text-lg font-extrabold text-[#0F172A] mb-1">Request sent</h1>
             <p className="text-xs text-slate-500 mb-5">
-              {state === 'free'
+              {tutorName && state === 'wallet'
+                ? NAMED_WATCH_COPY.sent(tutorName)
+                : state === 'free'
                 ? `${FREE_FOR_NOW_NOTICE} Your request is now visible to qualifying tutors, and we'll let you know when one accepts.`
                 : state === 'wallet'
                 ? "Your request is sent. The price is on hold in your credit. If nobody accepts in time, it goes straight back. We'll let you know when a tutor accepts."

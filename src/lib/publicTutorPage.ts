@@ -1,8 +1,9 @@
-// A TUTOR'S OWN PUBLIC PAGE, /t/CODE (CEO, 24 Nov 2026; job P slice 1; migration 20261124120000). The tutor chooses whether it is public (default off, an explicit consent). A visitor sees the first name only, the
-// verified subjects and grades, the level and its price, the "checked" lines, the weekly hours in words and whether she takes requests. NO photo, NO intro, NO surname, NO contact details, NO ratings and no
-// learner data: the database answers with a fixed shape (public_tutor_page) and this file only puts it into words. The checked lines are decided by the database, live, in the agreed wording (never "vetted",
-// "certified" or "background-checked"). The database client is passed in so scripts/dev/public-tutor-page-test.ts can hand in a fake. Everything is TOLERANT: any error answers "no page".
-import { tutorCodeLink } from './tutorCode';
+// A TUTOR'S OWN PUBLIC PAGE, /t/CODE (CEO, 24 and 25 Nov 2026; migrations 20261124120000 and 20261125150000). A visitor sees the first name only, the approved photo, the verified subjects and grades, one
+// level card (price, level, tier name and what THAT tutor's level rests on), the weekly hours in words and the Book button. NO intro, NO surname, NO contact details, NO ratings and no learner data: the
+// database answers with a fixed shape (public_tutor_page) and this file only puts it into words. The basis is decided by the database: the tutor's own record where it meets the level's minimums, else the
+// tutor's own recorded credential, never the list of what could reach the level (never "vetted", "certified" or "background-checked"). The database client is passed in so
+// scripts/dev/public-tutor-page-test.ts can hand in a fake. Everything is TOLERANT: any error answers "no page".
+import { requirementLines, type LadderRow } from './ladderCopy';
 
 interface DbError { code?: string; message?: string }
 interface DbResult { data: unknown; error: DbError | null }
@@ -11,6 +12,8 @@ export interface PublicPageClient {
 }
 
 export interface PublicPageSubject { subject: string; minGrade: string; maxGrade: string }
+// What the level rests on: the tutor's own record (the lines to show) or the label of the tutor's own credential.
+export type LevelBasis = { kind: 'credential'; label: string } | { kind: 'record'; lines: string[] };
 export interface PublicTutorPage {
   code: string;
   firstName: string;
@@ -19,7 +22,11 @@ export interface PublicTutorPage {
   price: number;
   currency: string;
   subjects: PublicPageSubject[];
-  checked: string[];
+  // The tier's one-line description, only where the database says it is true for this tutor.
+  tierLine: string | null;
+  basis: LevelBasis | null;
+  // What a new parent or learner account made from the page gets (the code's own numbers), or null.
+  discount: { percent: number; lessons: number } | null;
   hours: string | null;
   takingRequests: boolean;
   // Her approved photo as a small JPEG data address, or null (no photo, or not yet approved: the database answers it only for an approved photo on a page that is on).
@@ -30,20 +37,22 @@ export const PUBLIC_PAGE_COPY = {
   notFound: 'This page is not available.',
   notFoundMore: 'The link may be wrong, or the tutor has not made her page public.',
   book: 'Book a lesson',
-  bookNote: 'You sign up (or sign in) with her code, so your first 3 lessons cost 10% less. Then you send your request.',
-  notTaking: 'She has not set her working hours yet. You can still sign up with her code and send your request to any tutor who fits.',
-  otherTutorNote: 'If she cannot take a request, another tutor who fits will.',
+  bookNote: (name: string) => `Sign in or create an account, choose a subject and a time, and send your request to ${name}.`,
+  discountNote: (percent: number, lessons: number) =>
+    `A new parent or learner account created from this page pays ${percent}% less on its first ${lessons === 1 ? 'lesson' : `${lessons} lessons`}.`,
+  notTaking: (name: string) => `${name} has not set working hours yet, so a lesson cannot be requested at the moment.`,
+  hoursNote: (name: string) => `South African time. You ask for a time inside these hours, and the lesson is booked only when ${name} accepts.`,
   hoursHeading: 'When she teaches',
   subjectsHeading: 'What she teaches',
-  checkedHeading: 'What we have checked',
-  checkedNote: 'Tutorlage checks these documents by hand before a tutor can teach.',
-  levelHeading: 'Level and price',
+  subjectsPending: 'Her subjects are being approved.',
+  credentialHeading: 'Credential on record',
+  recordHeading: (name: string) => `${name} reached this level with:`,
   // On the tutor's own Teach screen
   cardTitle: 'Your public page',
   cardOff: 'Switched off. Nobody can open your page.',
   cardOn: 'Your profile is live. Anyone with your link can open it. You can switch it off at any time.',
   consent:
-    'If you switch this on, anyone with your link will see your first name, your subjects and grades, your level and price, the checks we have done and your weekly hours, and your photo once the company has approved it. No surname and no contact details. You can switch it off at any time and the page disappears at once.',
+    'If you switch this on, anyone with your link will see your first name, your subjects and grades, your level and price, the qualification, study or other basis your level rests on, your weekly hours, and your photo once the company has approved it. No surname and no contact details. You can switch it off at any time and the page disappears at once.',
   consentLabel: 'I understand and I want my page to be public',
   switchOn: 'Switch on my page',
   switchOff: 'Switch off my page',
@@ -68,7 +77,7 @@ export function gradesInWords(min: string, max: string): string {
   return `${a} to ${b}`;
 }
 
-// "odirile" -> "Odirile", "mary-ann" -> "Mary-Ann": the first letter of each part is a capital, the rest is left as she typed it.
+// "thandi" -> "Thandi", "mary-ann" -> "Mary-Ann": the first letter of each part is a capital, the rest is left as she typed it.
 export function capitaliseName(name: string): string {
   return name.trim().replace(/(^|[\s-])(\p{L})/gu, (_m, sep: string, ch: string) => sep + ch.toLocaleUpperCase('en-ZA'));
 }
@@ -76,6 +85,28 @@ export function capitaliseName(name: string): string {
 // Only a small JPEG data address is accepted as a photo: anything else is dropped, so a stray value can never reach an image tag.
 export function safePhoto(v: unknown): string | null {
   return typeof v === 'string' && v.length <= 250000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(v) ? v : null;
+}
+
+export function parseBasis(v: unknown): LevelBasis | null {
+  if (!v || typeof v !== 'object') return null;
+  const d = v as Record<string, unknown>;
+  if (d.kind === 'credential') return str(d.label) ? { kind: 'credential', label: str(d.label) } : null;
+  if (d.kind !== 'record') return null;
+  // The same words the price ladder uses for a level's minimums; hours counted from outside Tutorlage are not called "taught on Tutorlage".
+  const row = {
+    minHours: Number(d.min_hours) || 0, minRating: Number(d.min_rating) || 0, minRepeatRatePct: Number(d.min_repeat_rate_pct) || 0,
+    minReviews: Number(d.min_reviews) || 0, minUpliftStudents: Number(d.min_uplift_students) || 0, requiredUpliftPct: Number(d.required_uplift_pct) || 0,
+  } as LadderRow;
+  const lines = requirementLines(row).map((l) => (d.outside_hours === true ? l.replace('hours taught on Tutorlage', 'hours of teaching') : l));
+  return lines.length > 0 ? { kind: 'record', lines } : null;
+}
+
+function parseDiscount(v: unknown): { percent: number; lessons: number } | null {
+  if (!v || typeof v !== 'object') return null;
+  const d = v as Record<string, unknown>;
+  const percent = whole(d.percent);
+  const lessons = whole(d.lessons);
+  return percent > 0 && lessons > 0 ? { percent, lessons } : null;
 }
 
 // What the database answered, or null when there is no page (or the answer is odd).
@@ -102,7 +133,9 @@ export function parsePublicPage(data: unknown): PublicTutorPage | null {
     price: whole(d.price),
     currency: str(d.currency) || 'ZAR',
     subjects,
-    checked: Array.isArray(d.checked) ? (d.checked as unknown[]).filter((x): x is string => typeof x === 'string') : [],
+    tierLine: str(d.tier_line) || null,
+    basis: parseBasis(d.basis),
+    discount: parseDiscount(d.discount),
     hours: typeof d.hours === 'string' && d.hours !== '' ? d.hours : null,
     takingRequests: d.taking_requests === true,
     photo: safePhoto(d.photo),
@@ -128,8 +161,10 @@ export function priceLine(page: Pick<PublicTutorPage, 'price' | 'currency'>): st
 // The address of her page, the link she shares.
 export const profileLink = (code: string, origin = 'https://tutorlage.com'): string => `${origin}/t/${encodeURIComponent(code)}`;
 
-// Where "Book a lesson" goes: the same sign-up link her own code link has always been (src/main.tsx reads ?code= before anything else).
-export const bookLink = (code: string): string => tutorCodeLink(code, '');
+// The addresses of the booking path of one tutor (inside the app: the router adds the site's base path).
+export const bookPath = (code: string): string => `/t/${encodeURIComponent(code)}/book`;
+export const signUpPath = (code: string): string => `/t/${encodeURIComponent(code)}/signup`;
+export const pagePath = (code: string): string => `/t/${encodeURIComponent(code)}`;
 
 // The tutor's own switch
 export interface MyPublicProfile { isTutor: boolean; code: string | null; canBePublic: boolean; isPublic: boolean }

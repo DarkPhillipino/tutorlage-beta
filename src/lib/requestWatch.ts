@@ -1,3 +1,4 @@
+import { capitaliseName } from './publicTutorPage';
 import { formatSaDateTime } from './saTime';
 import { FREE_CANCEL_NOTE, FREE_FOR_NOW_NOTICE } from './freeSessions';
 import { WALLET_COPY, rand0 } from './wallet';
@@ -180,7 +181,7 @@ export async function fetchWatchSession(db: WatchClient, sessionId: string): Pro
     status: str(r.status),
     scheduledStart: str(r.scheduled_start),
     durationHours: Number(r.duration_hours),
-    tutorName: typeof name === 'string' && name.trim() ? name.trim() : 'Your tutor',
+    tutorName: typeof name === 'string' && name.trim() ? capitaliseName(name) : 'Your tutor',
     subjectName: subjectOf(r),
     walletPaid: r.wallet_paid === true,
   };
@@ -252,7 +253,18 @@ export const WATCH_COPY = {
   },
 } as const;
 
-export function waitingLine(mode: WatchMode): string {
+// A request sent from one tutor's booking page goes to that tutor alone, so the words name the tutor and speak of no other.
+export const NAMED_WATCH_COPY = {
+  waitingTitle: (n: string) => `Waiting for ${n} to accept`,
+  confirmingTitle: (n: string) => `${n} said yes`,
+  waitingLead: (n: string) => `Your request is sent to ${n}. This page updates by itself when ${n} accepts, so you can leave it open.`,
+  waitingWallet: (n: string) => `The price is on hold in your credit. If ${n} does not accept in time, it goes straight back.`,
+  sent: (n: string) => `Your request is sent to ${n}. If ${n} does not accept in time, the price goes straight back into your credit.`,
+  stopped: (n: string) => `We stopped checking automatically. Press Check now, or open My sessions at any time. We will also tell you in your bell when ${n} accepts.`,
+} as const;
+
+export function waitingLine(mode: WatchMode, tutorName: string | null = null): string {
+  if (tutorName && mode === 'wallet') return NAMED_WATCH_COPY.waitingWallet(tutorName);
   return mode === 'wallet' ? WATCH_COPY.waitingWallet : mode === 'free' ? WATCH_COPY.waitingFree : WATCH_COPY.waitingCard;
 }
 
@@ -271,8 +283,12 @@ export function endedTitle(why: EndedWhy): string {
   return why === 'cancelled' ? WATCH_COPY.requestCancelledTitle : WATCH_COPY.endedTitle;
 }
 
-export function endedSentence(why: EndedWhy, request: WatchRequest): string {
-  const lead = why === 'expired' ? 'No tutor accepted in time.' : why === 'declined' ? 'The tutor could not take this request.' : 'Your request was cancelled.';
+export function endedSentence(why: EndedWhy, request: WatchRequest, tutorName: string | null = null): string {
+  const lead = why === 'expired'
+    ? (tutorName ? `${tutorName} did not accept in time.` : 'No tutor accepted in time.')
+    : why === 'declined'
+      ? (tutorName ? `${tutorName} could not take this request.` : 'The tutor could not take this request.')
+      : 'Your request was cancelled.';
   return `${lead} ${moneyBackSentence(request)}`;
 }
 

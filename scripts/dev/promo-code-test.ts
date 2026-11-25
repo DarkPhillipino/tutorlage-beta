@@ -140,7 +140,7 @@ async function main() {
   const main = code('src/main.tsx');
   check('start: the address is read before any page or redirect can drop the query string', /rememberPromoCodeFromUrl\(\)/.test(main) && main.indexOf('rememberPromoCodeFromUrl()') < main.indexOf('createRoot('));
   const cb = code('src/pages/AuthCallback.tsx');
-  check('Google: the remembered code is claimed after the session lands, before going on', /await claimRememberedPromoCode\(promoDb\)/.test(cb) && cb.indexOf('claimRememberedPromoCode(promoDb)') < cb.indexOf("navigate('/', { replace: true })"));
+  check('Google: the remembered code is claimed after the session lands, before going on', /await claimRememberedPromoCode\(promoDb\)/.test(cb) && cb.indexOf('claimRememberedPromoCode(promoDb)') < cb.indexOf("navigate(booking ? bookPath(booking) : '/', { replace: true })"));
   const prices = code('src/components/PricesPage.tsx');
   check('booking: the quote is asked only on the wallet path', /usePromoQuote\(walletMode, price\)/.test(prices));
   check('booking: the wallet check, the button, the shortfall and the top-up suggestion all use the discounted price',

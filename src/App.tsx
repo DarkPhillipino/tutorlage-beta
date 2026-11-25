@@ -39,6 +39,7 @@ import { fetchUpcomingStudentSessions, fetchUpcomingTutorSessions, fetchStudentG
 import { isMissingDatabaseFunction } from './lib/keepOrSwap';
 import { defaultBookAgainSchedule, type MyTutor } from './lib/keepOrSwap';
 import type { BookAgainLearner } from './components/MyTutorsPanel';
+import { bookPath, capitaliseName } from './lib/publicTutorPage';
 import { rememberInstitution, recallInstitution } from './lib/institutionMemory';
 import { institutionSaveTarget, institutionMessage, savesOnOwnProfile } from './lib/institutionSave';
 
@@ -171,10 +172,10 @@ export default function App() {
   // Keep or swap (master 7aa; FEATURES.keepOrSwap): "Book again" from My tutors addresses the next request to that tutor.
   // The request page shows who it is addressed to and lets the learner send it to anyone instead.
   const [bookAgain, setBookAgain] = useState<{ tutorId: string; firstName: string } | null>(null);
-  // A family that signed up from a tutor's own link (/t/CODE): the database says whose code is on the account (my_linked_tutor: only while her page is on,
-  // and only until the family's first lesson), and the FIRST request is addressed to her. "Send it to any available tutor" turns it off for this visit.
-  const [linkTutor, setLinkTutor] = useState<{ tutorId: string; firstName: string; fromLink: true; hours: string | null } | null>(null);
-  const [linkTutorDismissed, setLinkTutorDismissed] = useState(false);
+  // A family that signed up from a tutor's own link (/t/CODE): the database says whose code is on the account (my_linked_tutor: only while the tutor's page is on,
+  // and only until the family's first lesson). The home page then offers one button to that tutor's own booking page (/t/CODE/book, PM line 79). The general
+  // request page is never addressed to the tutor.
+  const [linkTutor, setLinkTutor] = useState<{ firstName: string; code: string } | null>(null);
   useEffect(() => {
     if (!user || role === 'tutor' || !FEATURES.keepOrSwap) {
       setLinkTutor(null);
@@ -184,10 +185,10 @@ export default function App() {
     void (async () => {
       try {
         const { data, error } = await supabase.rpc('my_linked_tutor');
-        const d = data as { tutor_id?: unknown; first_name?: unknown; hours?: unknown } | null;
+        const d = data as { first_name?: unknown; code?: unknown } | null;
         if (cancelled) return;
-        if (error || !d || typeof d.tutor_id !== 'string' || typeof d.first_name !== 'string') setLinkTutor(null);
-        else setLinkTutor({ tutorId: d.tutor_id, firstName: d.first_name, fromLink: true, hours: typeof d.hours === 'string' ? d.hours : null });
+        if (error || !d || typeof d.first_name !== 'string' || typeof d.code !== 'string') setLinkTutor(null);
+        else setLinkTutor({ firstName: capitaliseName(d.first_name), code: d.code });
       } catch {
         if (!cancelled) setLinkTutor(null);
       }
@@ -523,11 +524,8 @@ export default function App() {
             onClearLevel={() => setSelectedLevel(null)}
             selectedFormat={selectedFormat}
             onClearFormat={() => setSelectedFormat(null)}
-            bookAgain={FEATURES.keepOrSwap ? (bookAgain ?? (linkTutorDismissed ? null : linkTutor)) : null}
-            onClearBookAgain={() => {
-              setBookAgain(null);
-              setLinkTutorDismissed(true);
-            }}
+            bookAgain={FEATURES.keepOrSwap ? bookAgain : null}
+            onClearBookAgain={() => setBookAgain(null)}
           />
         ) : (
           <>
@@ -546,16 +544,12 @@ export default function App() {
               </div>
             )}
 
-            {FEATURES.keepOrSwap && linkTutor && !linkTutorDismissed && view === 'home' && activeNav === 'learn' && (
+            {FEATURES.keepOrSwap && linkTutor && view === 'home' && activeNav === 'learn' && (
               <div data-link-tutor className="mb-6 bg-emerald-50 rounded-2xl p-4 border border-emerald-200 flex items-center justify-between gap-3 flex-wrap">
                 <div className="text-sm font-bold text-[#0F172A]">You came from {linkTutor.firstName}&apos;s page. Your first request can go to {linkTutor.firstName}.</div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setActiveNav('learn');
-                    setView('prices');
-                    window.scrollTo({ top: 0 });
-                  }}
+                  onClick={() => navigate(bookPath(linkTutor.code))}
                   className="text-xs font-bold text-white bg-[#15803D] rounded-lg px-3 py-2 hover:bg-[#166534] cursor-pointer"
                 >
                   Book with {linkTutor.firstName}

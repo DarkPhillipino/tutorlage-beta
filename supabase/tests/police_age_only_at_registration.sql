@@ -111,8 +111,8 @@ begin
     if exists (select 1 from public.tutor_public_profile x join public.promo_codes pc on pc.owner_tutor_id = x.tutor_id and pc.active
                 where x.is_public and pc.code = 'ODI') then
       odi_page := public.public_tutor_page('ODI');
-      r := r || pg_temp.chk('E1', 'the ODI page answers with her data and no longer lacks the police line (an aged certificate does not hide it)',
-        (odi_page is not null)::text || ' / ' || coalesce((odi_page -> 'checked')::text ~ 'Police clearance checked, ', false)::text, 'true / true');
+      r := r || pg_temp.chk('E1', 'the ODI page answers with her data (an aged certificate does not hide it); the checked lines are not on the page since 25 Nov 2026',
+        (odi_page is not null)::text || ' / ' || (odi_page ? 'checked')::text, 'true / false');
       r := r || pg_temp.chk('E2', 'the ODI page never says vetted, certified or background-checked', (coalesce(odi_page::text, '') ~* '(vetted|certified|background)')::text, 'false');
     else
       r := r || 'E1 SKIP the ODI page is not on in this database' || E'\n';

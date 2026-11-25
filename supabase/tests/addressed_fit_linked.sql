@@ -156,11 +156,11 @@ begin
     r := r || pg_temp.chk('P2', 'parent from the link, inside the hours: sent and in the queue',
       pg_temp.run_as(pa, format('select public.send_request_wallet(%L) ->> ''mode''', q)) || '/' || pg_temp.run_as(ta, format('select count(*)::text from public.available_requests_for_tutor() where id = %L and sent_to_you', q)), 'wallet/1');
 
-    -- S. a stranger learns nothing
-    r := r || pg_temp.chk('S1', 'stranger outside the hours: the same words as ever', pg_temp.ask(ls, ls, ta, e_ls, pg_temp.at_sa(3, '15:00')), m_str);
-    r := r || pg_temp.chk('S2', 'stranger inside the hours: the same words', pg_temp.ask(ls, ls, ta, e_ls, pg_temp.at_sa(3, '10:00')), m_str);
-    r := r || pg_temp.chk('S3', 'stranger calling the check directly gets nothing',
-      pg_temp.run_as(ls, format('select public.addressed_fit_problem(%L, %L, %L, %L, null, null, %L, 1)', ls, ls, ta, e_ls, pg_temp.at_sa(3, '15:00'))), 'null');
+    -- S. since 25 Nov 2026 (JOB LINK) a learner with no code gets the same fit check while the tutor's page is on; with the page off, a stranger learns nothing (S6)
+    r := r || pg_temp.chk('S1', 'no code, outside the hours: refused by the fit check', pg_temp.ask(ls, ls, ta, e_ls, pg_temp.at_sa(3, '15:00')), m_time);
+    r := r || pg_temp.chk('S2', 'no code, inside the hours: accepted', (pg_temp.ask(ls, ls, ta, e_ls, pg_temp.at_sa(3, '10:00')) !~ '^ERR')::text, 'true');
+    r := r || pg_temp.chk('S3', 'no code, calling the check directly: the same answer',
+      pg_temp.run_as(ls, format('select public.addressed_fit_problem(%L, %L, %L, %L, null, null, %L, 1)', ls, ls, ta, e_ls, pg_temp.at_sa(3, '15:00'))), substr(m_time, 6));
     r := r || pg_temp.chk('S4', 'nobody can use the check in the name of the linked family',
       pg_temp.run_as(ls, format('select public.addressed_fit_problem(%L, %L, %L, %L, null, null, %L, 1)', ln, ln, ta, e_ln, pg_temp.at_sa(3, '15:00'))), 'null');
     r := r || pg_temp.chk('S5', 'the new send check is closed to the app',
@@ -182,7 +182,7 @@ begin
     t := pg_temp.run_as(pa, 'select public.my_linked_tutor()::text');
     r := r || pg_temp.chk('H2', 'after a first accepted lesson there is no linked tutor, as before', pg_temp.run_as(ln, 'select coalesce(public.my_linked_tutor()::text, ''null'')'), 'null');
     r := r || pg_temp.chk('H1', 'the linked tutor answer: id, first name, hours in words, nothing else',
-      ((t::jsonb ->> 'first_name') = 'Tessa' and (t::jsonb ->> 'hours') like 'Every day, %' and (select count(*) from jsonb_object_keys(t::jsonb)) = 3)::text, 'true');
+      ((t::jsonb ->> 'first_name') = 'Tessa' and (t::jsonb ->> 'hours') like 'Every day, %' and (t::jsonb ? 'code') and (select count(*) from jsonb_object_keys(t::jsonb)) = 4)::text, 'true');
   exception when others then
     r := r || E'ABORT before the end: ' || sqlerrm || E'\n';
   end;

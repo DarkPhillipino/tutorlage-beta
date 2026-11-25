@@ -201,7 +201,7 @@ async function main(): Promise<void> {
   check('the waiting screen is shown only when the request id is a real id and the person is signed in', /isRequestId\(urlRequest\)/.test(callback) && /showWatch = !!watchId && !!userId/.test(callback));
   check('the booking page puts ONLY the request id in the address, for wallet and for free', /payment\/callback\?free=1&request=\$\{created\.id\}`\)/.test(prices) && /payment\/callback\?wallet=1&request=\$\{created\.id\}`\)/.test(prices) && !/callback\?(free|wallet)=1&(?!request=)/.test(prices));
   check('"View my sessions" lands on the Sessions page (a separate one-time effect; the wallet one is untouched)', /params\.get\('view'\) !== 'sessions'/.test(app) && /openSessionsPage\(\);/.test(app) && /params\.get\('view'\) !== 'wallet'/.test(app) && /openWalletPage\(\);/.test(app) && /navigate\('\/\?view=sessions'\)/.test(callback));
-  check('"Send a new request" goes to the booking page', /onNewRequest=\{\(\) => navigate\('\/'\)\}/.test(callback));
+  check('"Send a new request" goes to the booking page (the tutor\'s own one when the request was sent from there)', /onNewRequest=\{\(\) => navigate\(tutorCode \? bookPath\(tutorCode\) : '\/'\)\}/.test(callback));
   check('the screen adds no new colour or font: only colours the old page and the Sessions page already use', !/#[0-9a-fA-F]{3,6}/.test(card.replace(/#(0F172A|15803D|166534|FAF7F2)/g, '')) );
 
   console.log(failed === 0 ? '\nALL PASS' : `\n${failed} FAILED`);
