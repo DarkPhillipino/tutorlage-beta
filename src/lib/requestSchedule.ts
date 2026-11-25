@@ -100,9 +100,9 @@ export function curriculumQuestionNeeded(curricula: SchoolCurriculum[]): boolean
   return curricula.length > 1;
 }
 
-// What the request page says when tutors teach this but none is free at the chosen time and length (no waiting-list offer: a
+// What the request page says when tutors teach this but none is available at the chosen time and length (no waiting-list offer: a
 // tutor exists, so waiting for one would be wrong). Shown as a heading and a line under it.
-export const NO_TUTOR_FREE_TITLE = 'No tutor is free at that time';
+export const NO_TUTOR_FREE_TITLE = 'No tutor is available at that time';
 export const NO_TUTOR_FREE_HINT = 'Choose another day or time.';
 export const NO_TUTOR_FREE_AT_TIME = `${NO_TUTOR_FREE_TITLE}. ${NO_TUTOR_FREE_HINT}`;
 

@@ -91,7 +91,7 @@ async function main() {
   check('the request page uses the chosen length (not a fixed one hour) for the price and the request', !/const durationHours = 1;/.test(prices) && /const durationHours = formState\.durationHours;/.test(prices) && /hours: formState\.durationHours/.test(prices));
   check('the heading and the empty state come from the largest count, with the plain tutor search only as the fallback', /counts\.levels\.reduce\(\(most, l\) => Math\.max\(most, l\.tutors\), 0\)/.test(prices) && /const tutorCount = countedTutors \?\? fallbackCount;/.test(prices));
   check('with nobody free the counts are asked again without the time; if that has tutors the page says no tutor is free at that time, and offers no waiting list',
-    /fetchAvailablePriceLevels\(search\)\)\.length > 0/.test(prices) && /noTutorFreeAtThatTime \? NO_TUTOR_FREE_TITLE/.test(prices) && /!noTutorFreeAtThatTime && FEATURES\.tutorWaitlist/.test(prices) && NO_TUTOR_FREE_AT_TIME === 'No tutor is free at that time. Choose another day or time.');
+    /fetchAvailablePriceLevels\(search\)\)\.length > 0/.test(prices) && /noTutorFreeAtThatTime \? NO_TUTOR_FREE_TITLE/.test(prices) && /!noTutorFreeAtThatTime && FEATURES\.tutorWaitlist/.test(prices) && NO_TUTOR_FREE_AT_TIME === 'No tutor is available at that time. Choose another day or time.');
   check('the schedule button on the request page and on the home page shows the date, time and length', /describeSchedule\(formState\)/.test(prices) && /describeSchedule\(formState\)/.test(read('src/components/BookingForm.tsx')));
   check('the form state starts at one hour with no curriculum chosen', /durationHours: DEFAULT_SESSION_HOURS,\s*curriculumId: null,/.test(app));
 

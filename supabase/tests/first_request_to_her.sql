@@ -49,7 +49,7 @@ begin
     -- C. her page on: her family's first request can be addressed to her
     insert into tutor_public_profile (tutor_id, is_public, consent_at) values (ta, true, now()) on conflict (tutor_id) do update set is_public = true, consent_at = now(), withdrawn_at = null;
     j := (pg_temp.run_as(lrn, 'select public.my_linked_tutor()::text'))::jsonb;
-    r := r || pg_temp.chk('C1', 'the linked tutor is her, first name only', ((j ->> 'tutor_id') = ta::text and (j ->> 'first_name') = 'Tessa' and (select count(*) from jsonb_object_keys(j)) = 2 and j::text not ilike '%surnamesson%')::text, 'true');
+    r := r || pg_temp.chk('C1', 'the linked tutor is her: id, first name and (since 25 Nov 2026) working hours in words', ((j ->> 'tutor_id') = ta::text and (j ->> 'first_name') = 'Tessa' and (j ? 'hours') and (select count(*) from jsonb_object_keys(j)) = 3 and j::text not ilike '%surnamesson%')::text, 'true');
     r := r || pg_temp.chk('C2', 'the request addressed to her is allowed', pg_temp.run_as(lrn, format('select coalesce(public.addressed_request_problem(%L, %L, %L, null, null, null), ''allowed'')', lrn, lrn, ta)), 'allowed');
     r := r || pg_temp.chk('C3', 'a request to a DIFFERENT tutor is still refused', pg_temp.run_as(lrn, format('select public.addressed_request_problem(%L, %L, %L, null, null, null)', lrn, lrn, tb)), 'You can only ask for a tutor you have had a session with.');
     r := r || pg_temp.chk('C4', 'another learner with no code cannot use her link', pg_temp.run_as(lr2, format('select public.addressed_request_problem(%L, %L, %L, null, null, null)', lr2, lr2, ta)), 'You can only ask for a tutor you have had a session with.');

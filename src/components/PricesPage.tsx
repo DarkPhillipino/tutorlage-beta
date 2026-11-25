@@ -35,7 +35,7 @@ import { useAuth } from '../lib/AuthContext';
 import { getErrorMessage } from '../lib/errors';
 import { useAccountStatus } from './AccountGate';
 import { COPY } from '../lib/accountRules';
-import { KEEP_OR_SWAP_COPY, windowNote } from '../lib/keepOrSwap';
+import { KEEP_OR_SWAP_COPY, isAddressedRefusal, windowNote } from '../lib/keepOrSwap';
 import { FEATURES, PAYMENTS_NOT_OPEN, PAYMENTS_NOT_OPEN_NOTICE } from '../lib/features';
 import { WaitlistPrompt } from './WaitlistPrompt';
 
@@ -58,7 +58,7 @@ interface PricesPageProps {
   selectedFormat: SuggestionItem | null;
   onClearFormat: () => void;
   // Keep or swap (master 7aa): set when the learner chose "Book {name} again". The request is then addressed to that tutor.
-  bookAgain?: { tutorId: string; firstName: string; fromLink?: boolean } | null;
+  bookAgain?: { tutorId: string; firstName: string; fromLink?: boolean; hours?: string | null } | null;
   onClearBookAgain?: () => void;
 }
 
@@ -91,6 +91,14 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // a render late, this flag is read at once. Cleared only when sending failed, so the person can try again.
   const sendingRef = useRef(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  // JOB FIT (25 Nov 2026): set when the database refused the request to the tutor asked for; remembers how the person was paying,
+  // so "Send to any available tutor" is one tap.
+  const [refused, setRefused] = useState<{ useWallet: boolean } | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // On a phone the send button is below the message: bring the message into view.
+    if (sendError) errorRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+  }, [sendError]);
   const [retryCount, setRetryCount] = useState(0);
   const [gradeLevelUnrecognized, setGradeLevelUnrecognized] = useState(false);
 
@@ -336,7 +344,8 @@ export const PricesPage: React.FC<PricesPageProps> = ({
   // saves the card (backlog 7a). The server, not this page, confirms it with
   // Paystack on /payment/callback and the database makes the request visible
   // to tutors. The price is charged only when a tutor accepts.
-  const handleSendRequest = async (useWallet = false) => {
+  // `toAnyone`: the one tap after a refusal. The same request, not addressed to anyone.
+  const handleSendRequest = async (useWallet = false, toAnyone = false) => {
     if (PAYMENTS_NOT_OPEN && !freeOpen && !useWallet) return;
     if (useWallet && !(walletMode && walletEnough)) return;
     if (sendingRef.current) return;
@@ -360,6 +369,8 @@ export const PricesPage: React.FC<PricesPageProps> = ({
       return;
     }
     setSendError(null);
+    setRefused(null);
+    if (toAnyone) onClearBookAgain?.();
     sendingRef.current = true;
     setIsSending(true);
     try {
@@ -380,7 +391,7 @@ export const PricesPage: React.FC<PricesPageProps> = ({
         curriculumId: answeredCurriculumId,
         paystackReference: reference,
         // "Book again": addressed to a tutor the learner has had; the database checks it and says why if it refuses.
-        requestedTutorId: bookAgain?.tutorId ?? null,
+        requestedTutorId: toAnyone ? null : (bookAgain?.tutorId ?? null),
       });
 
       // `&request=<id>` in the confirmation address only says WHICH of the payer's own requests that page should watch (the database decides whether it is theirs).
@@ -402,13 +413,23 @@ export const PricesPage: React.FC<PricesPageProps> = ({
 
       window.location.href = authorizationUrl;
     } catch (e) {
-      setSendError(getErrorMessage(e, useWallet ? 'Could not send your request from your credit.' : 'Could not start the card check.'));
+      const message = getErrorMessage(e, useWallet ? 'Could not send your request from your credit.' : 'Could not start the card check.');
+      setSendError(message);
+      if (bookAgain && !toAnyone && isAddressedRefusal(message)) setRefused({ useWallet });
       // The wallet changed under us (money spent elsewhere): read it again so the page shows the real shortfall.
       if (e instanceof WalletRefusal) wallet.reload();
       sendingRef.current = false;
       setIsSending(false);
     }
   };
+
+  // A refusal belongs to what was asked for: changing the time, length, subject, level or tutor clears it.
+  useEffect(() => {
+    setSendError(null);
+    setRefused(null);
+  }, [timeKey, formState.durationHours, appliedSubject, gradeLevel, formState.institutionId, answeredCurriculumId, selectedLevel?.id, bookAgain?.tutorId]);
+  // Is there another tutor to send it to? Counted by the database for this subject, grade, time and level.
+  const othersCanTake = !!selectedLevel && (available?.get(selectedLevel.id) ?? 0) > 0;
 
   // The pieces of the payment part that are used in BOTH layouts: the card as the main way (as before) and the card folded under the bank (BankMainCheckout).
   const cardNote = (
@@ -473,6 +494,9 @@ export const PricesPage: React.FC<PricesPageProps> = ({
           {bookAgain && (
             <div className="mb-6 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-1.5">
               <div className="text-xs font-bold text-[#15803D]">{bookAgain.fromLink ? KEEP_OR_SWAP_COPY.bannerFromLink(bookAgain.firstName) : KEEP_OR_SWAP_COPY.bannerBookAgain(bookAgain.firstName)}</div>
+              {bookAgain.hours && (
+                <p data-tutor-hours className="text-[11px] font-semibold text-[#0F172A]">{KEEP_OR_SWAP_COPY.bannerHours(bookAgain.firstName, bookAgain.hours)}</p>
+              )}
               <p className="text-[11px] text-slate-600">{windowNote(bookAgain.firstName, formState.scheduleType)}</p>
               {onClearBookAgain && (
                 <button type="button" onClick={onClearBookAgain} className="text-[11px] font-bold text-slate-600 hover:underline cursor-pointer">
@@ -663,9 +687,37 @@ export const PricesPage: React.FC<PricesPageProps> = ({
 
           <div className="p-6 space-y-4 bg-[#FAF7F2]">
             {sendError && (
-              <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs font-semibold text-rose-700">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{sendError}</span>
+              <div ref={errorRef} role="alert" className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs font-semibold text-rose-700">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{sendError}</span>
+                </div>
+                {refused && bookAgain && (
+                  <div data-addressed-refusal className="mt-2 pl-6">
+                    <p className="text-slate-700">{KEEP_OR_SWAP_COPY.refusedNothingHeld}</p>
+                    {bookAgain.hours && <p className="mt-1 text-slate-700">{KEEP_OR_SWAP_COPY.bannerHours(bookAgain.firstName, bookAgain.hours)}</p>}
+                    {!othersCanTake && counts.status === 'ok' && <p className="mt-1 text-slate-700">{KEEP_OR_SWAP_COPY.refusedNobodyElse}</p>}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button type="button" onClick={onOpenScheduleModal} className="px-4 py-2.5 rounded-xl bg-[#0F172A] hover:bg-slate-800 text-white text-xs font-bold cursor-pointer">
+                        {KEEP_OR_SWAP_COPY.refusedChangeTime}
+                      </button>
+                      {othersCanTake ? (
+                        <button
+                          type="button"
+                          disabled={isSending}
+                          onClick={() => handleSendRequest(refused.useWallet, true)}
+                          className="px-4 py-2.5 rounded-xl bg-[#15803D] hover:bg-[#166534] disabled:opacity-60 text-white text-xs font-bold cursor-pointer"
+                        >
+                          {KEEP_OR_SWAP_COPY.refusedSendToAnyone}
+                        </button>
+                      ) : onClearBookAgain ? (
+                        <button type="button" onClick={onClearBookAgain} className="px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-[#0F172A] text-xs font-bold cursor-pointer">
+                          {KEEP_OR_SWAP_COPY.refusedSeeOthers}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             {isLoading && !addressed ? (

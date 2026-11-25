@@ -87,6 +87,13 @@ export const KEEP_OR_SWAP_COPY = {
   bannerAsap: (name: string) =>
     `"As soon as possible" gives ${name} about ${AFTER_START_GRACE_MINUTES} minutes. Choose a time later than that to give ${name} up to ${KEEP_WINDOW_HOURS} hours.`,
   bannerClear: (name: string) => `Not ${name}? Send it to any available tutor`,
+  // JOB FIT (25 Nov 2026): the tutor's working hours beside "Booking with", and what is shown when a request to one tutor is refused.
+  bannerHours: (name: string, hours: string) => `${name}'s working hours (South African time): ${hours}.`,
+  refusedNothingHeld: 'Nothing was sent and no credit was held.',
+  refusedChangeTime: 'Change the time',
+  refusedSendToAnyone: 'Send to any available tutor',
+  refusedNobodyElse: 'No other tutor can be counted for this time at this price level.',
+  refusedSeeOthers: 'See other options',
   tutorSentToYou: 'Sent to you',
   tutorDecline: "Can't take this one",
   tutorDeclineConfirm: 'Tell the learner you cannot take this request? They will not be charged and can send it to someone else.',
@@ -98,6 +105,13 @@ export const KEEP_OR_SWAP_COPY = {
   tutorHeading: 'Learners you have taught',
   tutorIntro: 'If you cannot carry on with a learner, say so here. It is private: the learner is only told, in neutral words, that you cannot continue.',
 };
+
+// ---- a refused request to one tutor ------------------------------------------------------------------------------------------
+// True for the database's own refusals about the tutor who was asked for (addressed_fit_problem, addressed_request_problem and
+// addressed_send_problem): the page then offers a new time or any available tutor. A network fault or a money message is not one.
+export function isAddressedRefusal(message: string): boolean {
+  return /\b(this|that) tutor\b|any available tutor|only ask for a tutor/i.test(message);
+}
 
 // ---- when a request addressed to a tutor ends ------------------------------------------------------------------------------
 // The database sets expires_at = the earlier of "48 hours after sending" and "30 minutes after the session's start".

@@ -173,7 +173,7 @@ export default function App() {
   const [bookAgain, setBookAgain] = useState<{ tutorId: string; firstName: string } | null>(null);
   // A family that signed up from a tutor's own link (/t/CODE): the database says whose code is on the account (my_linked_tutor: only while her page is on,
   // and only until the family's first lesson), and the FIRST request is addressed to her. "Send it to any available tutor" turns it off for this visit.
-  const [linkTutor, setLinkTutor] = useState<{ tutorId: string; firstName: string; fromLink: true } | null>(null);
+  const [linkTutor, setLinkTutor] = useState<{ tutorId: string; firstName: string; fromLink: true; hours: string | null } | null>(null);
   const [linkTutorDismissed, setLinkTutorDismissed] = useState(false);
   useEffect(() => {
     if (!user || role === 'tutor' || !FEATURES.keepOrSwap) {
@@ -184,10 +184,10 @@ export default function App() {
     void (async () => {
       try {
         const { data, error } = await supabase.rpc('my_linked_tutor');
-        const d = data as { tutor_id?: unknown; first_name?: unknown } | null;
+        const d = data as { tutor_id?: unknown; first_name?: unknown; hours?: unknown } | null;
         if (cancelled) return;
         if (error || !d || typeof d.tutor_id !== 'string' || typeof d.first_name !== 'string') setLinkTutor(null);
-        else setLinkTutor({ tutorId: d.tutor_id, firstName: d.first_name, fromLink: true });
+        else setLinkTutor({ tutorId: d.tutor_id, firstName: d.first_name, fromLink: true, hours: typeof d.hours === 'string' ? d.hours : null });
       } catch {
         if (!cancelled) setLinkTutor(null);
       }

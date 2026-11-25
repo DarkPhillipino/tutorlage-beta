@@ -22,7 +22,7 @@ check('the notice is the CEO\'s own line, word for word', PAYMENTS_NOT_OPEN_NOTI
 check('by default (no switch set, and under Node where there is no import.meta.env) booking is open as before', PAYMENTS_NOT_OPEN === false);
 check('the switch is a deploy variable read as exactly "1", not a code edit', /PAYMENTS_NOT_OPEN = import\.meta\.env\?\.VITE_PAYMENTS_NOT_OPEN === '1'/.test(features));
 check('on the booking screen the notice is shown only when the switch is on, and the send button is off then', /PAYMENTS_NOT_OPEN && !freeOpen && \(\s*<p role="status" data-payments-not-open[\s\S]{0,260}\{PAYMENTS_NOT_OPEN_NOTICE\}/.test(prices) && /disabled=\{isSending \|\| \(PAYMENTS_NOT_OPEN && !freeOpen\)\}/.test(prices));
-check('the send handler refuses too (not only the disabled button)', /const handleSendRequest = async \(useWallet = false\) => \{\s*if \(PAYMENTS_NOT_OPEN && !freeOpen && !useWallet\) return;/.test(prices));
+check('the send handler refuses too (not only the disabled button)', /const handleSendRequest = async \(useWallet = false, toAnyone = false\) => \{\s*if \(PAYMENTS_NOT_OPEN && !freeOpen && !useWallet\) return;/.test(prices));
 // 1 Nov 2026: found that the live bundle was built WITHOUT the switch (its compiled constant was false, so booking was open on tutorlage.com
 // although payments are dropped). The deploy workflow now sets it; delete that one line (and flip this check) when payments return.
 check('the deploy workflow does NOT set the switch (10 Nov 2026, CEO: card checkout is back for the Paystack demos)', !/VITE_PAYMENTS_NOT_OPEN\s*:/.test(workflow));

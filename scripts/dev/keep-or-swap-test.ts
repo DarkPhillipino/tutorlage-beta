@@ -207,7 +207,7 @@ const row = (p: Record<string, unknown> = {}) => ({
   check('the switch is ON (the CEO switched all seven built features on, 16 Oct 2026)', /keepOrSwap:\s*true\b/.test(features));
   check('My tutors and the choice on a completed session are shown only with the switch', /FEATURES\.keepOrSwap\s*&&\s*onBookAgain/.test(sessionsPanel) && (sessionsPanel.match(/FEATURES\.keepOrSwap\s*&&\s*<KeepOrSwapChoice/g) ?? []).length === 2);
   check('the tutor\'s "Learners you have taught" is shown only with the switch', /FEATURES\.keepOrSwap\s*&&\s*<LearnersITaughtPanel/.test(tutorSessions));
-  check('"Book again" reaches the request page only with the switch', /onBookAgain=\{FEATURES\.keepOrSwap \? handleBookAgain : undefined\}/.test(app) && /bookAgain=\{FEATURES\.keepOrSwap \? bookAgain : null\}/.test(app));
+  check('"Book again" reaches the request page only with the switch', /onBookAgain=\{FEATURES\.keepOrSwap \? handleBookAgain : undefined\}/.test(app) && /bookAgain=\{FEATURES\.keepOrSwap \? \(bookAgain \?\? \(linkTutorDismissed \? null : linkTutor\)\) : null\}/.test(app));
 
   // The queries use the migration's names
   const rpcWith = (name: string, params: string[]) => new RegExp(`rpc\\('${name}',\\s*\\{[^}]*${params.map((p) => `${p}:`).join('[^}]*')}`).test(queries);
@@ -229,7 +229,7 @@ const row = (p: Record<string, unknown> = {}) => ({
   check('the tutor\'s list tries the new function first, then falls back to the old read only when the function is missing', /rpc\('available_requests_for_tutor'\)[\s\S]{0,1800}if \(!isMissingDatabaseFunction\(inbox\.error\)\) throw inbox\.error;\s*return fetchAvailableRequestsFromTable\(tutorId\)/.test(queries));
   check('My tutors is an empty list, not an error, before the migration', /fetchMyTutors[\s\S]{0,300}if \(isMissingDatabaseFunction\(error\)\) return \[\]/.test(queries));
   check('an ordinary request does not send the new column (so it works before the migration)', /\.\.\.\(requestedTutorId \? \{ requested_tutor_id: requestedTutorId \} : \{\}\)/.test(queries));
-  check('the request page sends the tutor only when a "book again" is active', /requestedTutorId:\s*bookAgain\?\.tutorId\s*\?\?\s*null/.test(prices));
+  check('the request page sends the tutor only when a "book again" is active', /requestedTutorId:\s*toAnyone \? null : \(bookAgain\?\.tutorId\s*\?\?\s*null\)/.test(prices));
 
   // Privacy (7db): what reaches a tutor's browser
   check('the tutor\'s request type no longer carries the learner\'s id', !/studentId/.test(types.slice(types.indexOf('export interface AvailableSessionRequest'), types.indexOf('export interface PayoutAccount'))));
