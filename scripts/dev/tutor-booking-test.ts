@@ -4,6 +4,7 @@
 // supabase/tests/tutor_page_booking.sql; the screens in a browser are tests/browser/tutor-link.spec.ts.
 import { readFileSync } from 'node:fs';
 import { BOOKING_COPY, bookingRefusalWords, fetchBookingPage, gradesFor, parseBookingPage, parseTimes, subjectNames } from '../../src/lib/tutorBooking';
+import { BOOKS_ON_CONFIRM_SENTENCE, CONFIRM_COPY, CONFIRM_TERMS_VERSION, OFFER_COPY, lessonTimes, longDate, offersNewTerms, parseBooked, wasRefused } from '../../src/lib/pageConfirm';
 import { BOOKING_META_KEY, forgetGoogleBooking, isNewAccount, noteBookingLanded, pendingBookingCode, rememberGoogleBooking, takeGoogleBooking } from '../../src/lib/bookingPath';
 
 let failed = 0;
@@ -46,6 +47,15 @@ async function main() {
   const said = database.map((m) => bookingRefusalWords(m, 'Tessa'));
   check('every refusal is said about the tutor and none offers another', said.every((s) => s.length > 0 && !/any available|another tutor|\bfree\b/i.test(s)) && said[0] === "Tessa isn't available at that time. Choose another time.", JSON.stringify(said));
   check('a money or phone message is shown as it is', bookingRefusalWords('Your credit has R0. This session is R50. Add R50 or more.', 'Tessa') === 'Your credit has R0. This session is R50. Add R50 or more.');
+  // booked on confirm (PM line 81 C)
+  const terms = readFileSync('src/content/legal/terms.md', 'utf8');
+  check('the lesson times and the date read in words', lessonTimes('14:00', 1.5) === '14:00 to 15:30' && lessonTimes('09:30', 1) === '09:30 to 10:30' && longDate('2026-11-28') === 'Saturday 28 November 2026');
+  check('only a real booking answer counts as booked', parseBooked({ booked: true, session_id: 's', paid_rand: 280, available_rand: 20 })?.paidRand === 280 && parseBooked({ booked: true }) === null && parseBooked(null) === null);
+  check('a database refusal is told apart from no answer', wasRefused({ code: 'P0001' }) && !wasRefused(new Error('Failed to fetch')) && !wasRefused({ code: '' }));
+  check("the cancellation rule on the confirm step is the Terms' own words", terms.includes(CONFIRM_COPY.cancelSelf) && /We always refund in full when:/.test(terms) && /the tutor cancels, or does not turn up/.test(terms) && CONFIRM_COPY.cancelTutor === 'We always refund in full when the tutor cancels, or does not turn up.');
+  check('only a new enough Terms version is offered to a tutor', offersNewTerms([{ document: 'terms', version: CONFIRM_TERMS_VERSION }]) && offersNewTerms([{ document: 'terms', version: '2026-12-01' }]) && !offersNewTerms([{ document: 'terms', version: '2026-11-25' }]) && !offersNewTerms([{ document: 'privacy', version: CONFIRM_TERMS_VERSION }]) && !offersNewTerms(null));
+  check('the migration and the app name the same version', readFileSync('supabase/migrations/20261125180000_page_booking_confirm.sql', 'utf8').includes(`'"${CONFIRM_TERMS_VERSION}"'::jsonb`));
+  check('no accept or request wording on a booking confirmed this way, and no banned word', !/request|accept it\b(?! first)/i.test([CONFIRM_COPY.heading, CONFIRM_COPY.youBook('T'), CONFIRM_COPY.creditNote, CONFIRM_COPY.bookedMore('T'), CONFIRM_COPY.confirm].join(' ')) && !/\bfree\b|instant|wallet|vetted|certified|background-checked/i.test(JSON.stringify([BOOKS_ON_CONFIRM_SENTENCE, OFFER_COPY, CONFIRM_COPY, CONFIRM_COPY.note('T'), CONFIRM_COPY.bookedMore('T')])));
   const words = [BOOKING_COPY.title('Tessa'), BOOKING_COPY.waitAsap('Tessa'), BOOKING_COPY.waitScheduled('Tessa'), BOOKING_COPY.toHer('Tessa'), BOOKING_COPY.tutorAccount, BOOKING_COPY.noTimes('Tessa')].join(' ');
   check('the notes keep the time limit (30 minutes, 48 hours), name the tutor and offer no other', /about 30 minutes/.test(words) && /up to 48 hours/.test(words) && !/any available|another tutor|Not Tessa|\bfree\b|instant|wallet/i.test(words));
 

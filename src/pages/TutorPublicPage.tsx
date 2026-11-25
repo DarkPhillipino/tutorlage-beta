@@ -59,7 +59,7 @@ export default function TutorPublicPage({ client = supabase as unknown as Public
                 >
                   {COPY.book}
                 </Link>
-                <p className="text-xs text-slate-600">{page.takingRequests ? COPY.bookNote(page.firstName) : COPY.notTaking(page.firstName)}</p>
+                <p className="text-xs text-slate-600">{page.takingRequests ? COPY.bookNote(page.firstName, page.booksOnConfirm) : COPY.notTaking(page.firstName, page.booksOnConfirm)}</p>
                 {page.discount && <p className="text-xs text-slate-600" data-discount>{COPY.discountNote(page.discount.percent, page.discount.lessons)}</p>}
               </div>
             </TutorLevelCard>
@@ -87,7 +87,7 @@ export default function TutorPublicPage({ client = supabase as unknown as Public
               <section className={LINK_CARD} data-hours>
                 <h2 className={LINK_HEADING}><Clock className="w-3.5 h-3.5" aria-hidden="true" />{COPY.hoursHeading}</h2>
                 <p className="text-sm">{page.hours}</p>
-                <p className="text-xs text-slate-600 mt-1">{COPY.hoursNote(page.firstName)}</p>
+                <p className="text-xs text-slate-600 mt-1">{COPY.hoursNote(page.firstName, page.booksOnConfirm)}</p>
               </section>
             )}
           </div>

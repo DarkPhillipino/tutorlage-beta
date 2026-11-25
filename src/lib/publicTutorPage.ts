@@ -29,6 +29,8 @@ export interface PublicTutorPage {
   discount: { percent: number; lessons: number } | null;
   hours: string | null;
   takingRequests: boolean;
+  // The tutor has accepted the new Terms: a booking from this page is confirmed without the tutor accepting, 24 hours ahead (PM line 81 C).
+  booksOnConfirm: boolean;
   // Her approved photo as a small JPEG data address, or null (no photo, or not yet approved: the database answers it only for an approved photo on a page that is on).
   photo: string | null;
 }
@@ -37,11 +39,17 @@ export const PUBLIC_PAGE_COPY = {
   notFound: 'This page is not available.',
   notFoundMore: 'The link may be wrong, or the tutor has not made her page public.',
   book: 'Book a lesson',
-  bookNote: (name: string) => `Sign in or create an account, choose a subject and a time, and send your request to ${name}.`,
+  bookNote: (name: string, onConfirm = false) =>
+    onConfirm
+      ? 'Sign in or create an account, choose a subject and an open time at least 24 hours ahead, and confirm your booking.'
+      : `Sign in or create an account, choose a subject and a time, and send your request to ${name}.`,
   discountNote: (percent: number, lessons: number) =>
     `A new parent or learner account created from this page pays ${percent}% less on its first ${lessons === 1 ? 'lesson' : `${lessons} lessons`}.`,
-  notTaking: (name: string) => `${name} has not set working hours yet, so a lesson cannot be requested at the moment.`,
-  hoursNote: (name: string) => `South African time. You ask for a time inside these hours, and the lesson is booked only when ${name} accepts.`,
+  notTaking: (name: string, onConfirm = false) => `${name} has not set working hours yet, so a lesson cannot be ${onConfirm ? 'booked' : 'requested'} at the moment.`,
+  hoursNote: (name: string, onConfirm = false) =>
+    onConfirm
+      ? 'South African time. Choose an open time inside these hours, at least 24 hours ahead. The lesson is booked when you confirm it.'
+      : `South African time. You ask for a time inside these hours, and the lesson is booked only when ${name} accepts.`,
   hoursHeading: 'When she teaches',
   subjectsHeading: 'What she teaches',
   subjectsPending: 'Her subjects are being approved.',
@@ -155,6 +163,7 @@ export function parsePublicPage(data: unknown): PublicTutorPage | null {
     discount: parseDiscount(d.discount),
     hours: typeof d.hours === 'string' && d.hours !== '' ? d.hours : null,
     takingRequests: d.taking_requests === true,
+    booksOnConfirm: d.books_on_confirm === true,
     photo: safePhoto(d.photo),
   };
 }

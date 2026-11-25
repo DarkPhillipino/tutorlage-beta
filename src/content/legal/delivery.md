@@ -1,7 +1,7 @@
 > **The short version.**
 > - Tutorlage supplies a **service**: online tutoring sessions. There is nothing to post, no courier and no delivery fee.
 > - A session takes place online at the time you booked, in Tutorlage's own video room or through a meeting link your tutor adds.
-> - Your booking is confirmed when a tutor accepts. If no tutor accepts, nothing is booked and you pay nothing.
+> - Your booking is confirmed when a tutor accepts. If no tutor accepts, nothing is booked and you pay nothing. Where a tutor's own page offers it, a booking is confirmed when you confirm it there.
 > - Lesson credit you add is credited once we have confirmed your bank transfer, usually within one business day.
 
 ## 1. What we deliver
@@ -15,6 +15,8 @@
 2. The request goes to approved tutors who teach that subject and grade. It stays open for up to 48 hours, or until 30 minutes after the start time you asked for, whichever comes first.
 3. **Your booking is confirmed the moment a tutor accepts.** You are told on screen, in your sessions list and in the bell at the top of the page.
 4. If no tutor accepts in time, the request expires, nothing is booked, and the held price goes straight back to your credit.
+
+Where a tutor's own page (tutorlage.com/t/ followed by the tutor's code) offers it, you choose an open time at least 24 hours ahead and confirm. The price is taken from your credit and the lesson is booked at once; you are told on screen, in your sessions list and in the bell.
 
 ## 3. How a session is delivered
 

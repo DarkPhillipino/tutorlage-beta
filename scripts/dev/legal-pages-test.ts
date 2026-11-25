@@ -135,7 +135,7 @@ function partBSections(text: string): Set<string> {
   check('terms and privacy: a learner under 18\'s camera is never used (CEO, 17 Oct 2026)', /A learner under 18's camera is never used/.test(t) && /A learner under 18's camera is never used/.test(p));
   check('terms: money is received into Tutorlage\'s bank account, held as lesson credit, and the tutor\'s share is credited only when the session is complete (CEO wallet design, 2 Nov 2026)',
     /Money you add is received into Tutorlage's business bank account/.test(t) && /the tutor's share is credited to the tutor's earnings/.test(t) && /not credited to the tutor until the session is complete/.test(t)&& /held against that booking until the session/.test(t));
-  check('terms: SACE is optional and the police clearance is required (CEO, 14 Oct 2026)', /you \*\*may\*\* also give us your \*\*SACE certificate\*\*; you do not have to/.test(t) && /police clearance certificate\*\* issued in the last 6 months/.test(t));
+  check('terms: SACE is optional and the police clearance is required (CEO, 14 Oct 2026)', /you \*\*may\*\* also give us your \*\*SACE certificate\*\*; you do not have to/.test(t) && /police clearance certificate\*\* that was issued in the last 6 months \*\*when you register\*\*/.test(t) && !/every 6 months|If yours expires/.test(t + docs.privacy) && /issued in the last 6 months \*\*when they register\*\*/.test(docs.privacy));
   check('terms: keep or swap is described (the choice is the learner\'s after the first session)', /keep that tutor/.test(t) && /tutor is not told why/.test(t));
   check('terms: the video room is described, under 18s only in a booked session, never recorded', /video room/.test(t) && /only that/.test(t) && /never recorded/.test(t));
   check('terms: the payments-outside-Tutorlage restraint (B10 of the draft) is NOT in the Terms (CEO, 14 Oct 2026)', !/12 months after your last session/.test(t) && !/restraint/i.test(t));
@@ -221,7 +221,7 @@ function partBSections(text: string): Set<string> {
   const page = read('src/pages/LegalPage.tsx');
   check('both texts say the page shows the qualification, study or other basis the level rests on, and no longer the lines about how the tutor was checked (25 Nov 2026)',
     /the qualification, study or other basis your level rests on/.test(t) && /the qualification, study or other basis her level rests on/.test(pv) && !/lines that say how (you were|she was) checked/.test(t + pv));
-  check('the version moved to 2026-11-25 (the basis of the level on the public page) with its date', /LEGAL_VERSION = '2026-11-25'/.test(page) && /LAST_UPDATED = '25 November 2026'/.test(page));
+  check('the version moved to 2026-11-25b (bookings confirmed from a tutor\'s page; the police certificate counts at registration) with its date', /LEGAL_VERSION = '2026-11-25b'/.test(page) && /LAST_UPDATED = '25 November 2026'/.test(page));
 }
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} FAILED`);

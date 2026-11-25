@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { BooksOnConfirmNote } from './BooksOnConfirmNote';
 import { Link2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import {
@@ -64,6 +65,7 @@ export const PublicPageCard: React.FC<{ client?: PublicPageClient }> = ({ client
       ) : me.isPublic ? (
         <>
           <p className="text-[11px] text-slate-700 leading-relaxed">{COPY.cardOn}</p>
+          <BooksOnConfirmNote />
           {link && <p className="text-[11px] font-mono text-slate-600 break-all">{link}</p>}
           {me.code && (
             <React.Suspense fallback={null}>

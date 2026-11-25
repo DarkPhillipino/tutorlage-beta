@@ -20,7 +20,7 @@ const PAGE = {
 };
 const GRADES = ['Grade R', ...Array.from({ length: 12 }, (_, i) => `Grade ${i + 1}`)].map((name) => ({ name }));
 
-interface World { role: 'parent' | 'student' | 'tutor'; inserts: Record<string, unknown>[]; signups: Record<string, unknown>[]; refuse?: boolean }
+interface World { role: 'parent' | 'student' | 'tutor'; inserts: Record<string, unknown>[]; signups: Record<string, unknown>[]; refuse?: boolean; onConfirm?: boolean; credit?: number; confirms: Record<string, unknown>[]; confirmFails?: 'refused' | 'lost' }
 
 function fakeSession(metadata: Record<string, unknown> = {}) {
   const exp = Math.floor(Date.now() / 1000) + 24 * 3600;
@@ -30,8 +30,8 @@ function fakeSession(metadata: Record<string, unknown> = {}) {
 }
 
 async function world(page: Page, opts: Partial<World> = {}, photo: string | null = null): Promise<World> {
-  const w: World = { role: 'parent', inserts: [], signups: [], ...opts };
-  const tutor = { ...PAGE, photo };
+  const w: World = { role: 'parent', inserts: [], signups: [], confirms: [], ...opts };
+  const tutor = { ...PAGE, photo, books_on_confirm: !!w.onConfirm };
   await page.route(/\.(supabase\.co|workers\.dev)\//, async (route) => {
     const request = route.request();
     const url = request.url();
@@ -44,6 +44,12 @@ async function world(page: Page, opts: Partial<World> = {}, photo: string | null
     }
     if (/\/auth\/v1\/token/.test(url)) return route.fulfill(json(fakeSession()));
     if (/\/auth\/v1\/user/.test(url)) return route.fulfill(json(fakeSession().user));
+    if (/\/rpc\/confirm_page_booking/.test(url)) {
+      w.confirms.push(request.postDataJSON() as Record<string, unknown>);
+      if (w.confirmFails === 'refused') return route.fulfill(json({ code: 'P0001', message: "Tessa isn't available at that time. Choose another time." }, 400));
+      if (w.confirmFails === 'lost' && w.confirms.length === 1) return route.abort();
+      return route.fulfill(json({ booked: true, request_id: 'r-1', session_id: 's-1', paid_rand: 280, discount_rand: 0, available_rand: (w.credit ?? 900) - 280 }));
+    }
     if (/\/rpc\/public_tutor_page/.test(url)) return route.fulfill(json(tutor));
     if (/\/rpc\/tutor_booking_page/.test(url)) return route.fulfill(json({ ...tutor, tutor_id: TUTOR }));
     if (/\/rpc\/tutor_page_times/.test(url)) return route.fulfill(json({ now_ok: false, days: [{ date: day(3), times: ['08:00', '08:30', '09:00'] }, { date: day(4), times: ['10:00'] }] }));
@@ -64,7 +70,7 @@ async function world(page: Page, opts: Partial<World> = {}, photo: string | null
     if (/\/rpc\/wallet_online_available/.test(url)) return route.fulfill(json(false));
     if (/\/rpc\/my_promo_quote/.test(url)) return route.fulfill(json({ applies: false }));
     if (/\/rpc\/check_promo_code/.test(url)) return route.fulfill(json({ valid: true, percent: 10, lessons: 3 }));
-    if (/\/rest\/v1\/wallets/.test(url)) return rows([{ available_rand: 900, held_rand: 0 }]);
+    if (/\/rest\/v1\/wallets/.test(url)) return rows([{ available_rand: w.credit ?? 900, held_rand: 0 }]);
     if (/\/rest\/v1\/session_requests/.test(url) && request.method() === 'POST') {
       const body = request.postDataJSON() as Record<string, unknown>;
       w.inserts.push(body);
@@ -214,6 +220,93 @@ test('a tutor account is told lessons are booked from a parent or learner accoun
   await expect(page.getByLabel('Subject', { exact: true })).toHaveCount(0);
   expect(problems.pageErrors).toEqual([]);
 });
+
+// BOOKED ON CONFIRM (PM line 81 C): a tutor who has accepted the new Terms. Nothing is sent until "Confirm booking".
+async function toConfirmStep(page: Page) {
+  await signedInAs(page);
+  await page.goto('/t/TESSA/book');
+  await chooseLesson(page);
+  await page.getByRole('button', { name: 'Continue', exact: true }).click({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Check your booking' })).toBeVisible();
+}
+
+test('booked on confirm: the confirm step shows the lesson, price, credit left and the cancelling rule, then "Booked"; no request is sent', async ({ page, problems }) => {
+  const w = await world(page, { onConfirm: true });
+  await toConfirmStep(page);
+  const facts = page.locator('[data-confirm-step]');
+  for (const words of ['Tessa', 'Sipho Madeup', 'Geography', 'Grade 10', '08:30 to 09:30', 'R280', 'R620', 'Until a session starts, you can cancel it yourself from your sessions list and the full price goes back to your credit at once.', 'We always refund in full when the tutor cancels, or does not turn up.']) await expect(facts).toContainText(words);
+  await expect(facts).not.toContainText(/accept|request/i);
+  expect(w.confirms.length).toBe(0);
+  await page.getByRole('button', { name: 'Change', exact: true }).click();
+  await expect(page.getByLabel('Subject', { exact: true })).toHaveValue('Geography');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm booking' }).click();
+  await expect(page.getByRole('heading', { name: 'Booked' })).toBeVisible();
+  await expect(page.locator('[data-booked]')).toContainText('R620');
+  await expect(page.getByRole('link', { name: 'Open my sessions' })).toBeVisible();
+  expect(w.confirms.length).toBe(1);
+  expect(w.confirms[0]).toMatchObject({ p_tutor: TUTOR, p_student: CHILD, p_level: '2C', p_hours: 1, p_expected_rand: 280 });
+  expect(String(w.confirms[0].p_start)).toContain('T06:30:00');
+  expect(w.inserts.length).toBe(0);
+  await onlyThisTutor(page);
+  expect(problems.pageErrors).toEqual([]);
+});
+
+test('booked on confirm: a refusal says nothing was booked; a lost answer is retried with the same reference', async ({ page }) => {
+  const w = await world(page, { onConfirm: true, confirmFails: 'lost' });
+  await toConfirmStep(page);
+  await page.getByRole('button', { name: 'Confirm booking' }).click();
+  await expect(page.getByRole('alert')).toContainText('you will not be charged twice');
+  await page.getByRole('button', { name: 'Confirm booking' }).click();
+  await expect(page.getByRole('heading', { name: 'Booked' })).toBeVisible();
+  expect(w.confirms.length).toBe(2);
+  expect(w.confirms[1].p_reference).toBe(w.confirms[0].p_reference);
+  w.confirmFails = 'refused';
+  await page.getByRole('button', { name: 'Book another lesson' }).click();
+  await chooseLesson(page);
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm booking' }).click();
+  await expect(page.getByRole('alert')).toContainText("Tessa isn't available at that time. Choose another time. Nothing was booked and no credit was taken.");
+});
+
+test('booked on confirm: too little credit shows how to add it and cannot be confirmed', async ({ page }) => {
+  const w = await world(page, { onConfirm: true, credit: 100 });
+  await signedInAs(page);
+  await page.goto('/t/TESSA/book');
+  await chooseLesson(page);
+  await expect(page.locator('[data-wallet-pay]')).toContainText('R180', { timeout: 15_000 });
+  await expect(page.getByRole('button', { name: /Add (credit|money)/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toHaveCount(0);
+  expect(w.confirms.length + w.inserts.length).toBe(0);
+});
+
+for (const [width, height] of [[360, 640], [1280, 585]] as const) {
+  test(`booked on confirm: the confirm step and "Booked" at ${width}x${height} keep the button on the first screen`, async ({ page, browserName }, info) => {
+    await page.setViewportSize({ width, height });
+    await world(page, { onConfirm: true });
+    await toConfirmStep(page);
+    await page.waitForTimeout(400);
+    const folder = process.env.SHOTS_DIR && info.project.name === 'chromium' && browserName === 'chromium' ? process.env.SHOTS_DIR : null;
+    if (folder) {
+      await page.screenshot({ path: `${folder}/2-confirm-${width}x${height}.png` });
+      await page.screenshot({ path: `${folder}/2-confirm-${width}x${height}-full.png`, fullPage: true });
+    }
+    const band = await page.locator('[data-hero]').boundingBox();
+    expect((band!.y + band!.height) / height).toBeLessThanOrEqual(0.32);
+    const price = await page.locator('[data-lesson-facts]').getByText('R280', { exact: true }).boundingBox();
+    expect(price!.y + price!.height).toBeLessThanOrEqual(height);
+    const button = await page.getByRole('button', { name: 'Confirm booking' }).boundingBox();
+    expect(button!.y + button!.height).toBeLessThanOrEqual(height);
+    await page.getByRole('button', { name: 'Confirm booking' }).click();
+    await expect(page.getByRole('heading', { name: 'Booked' })).toBeVisible();
+    await page.waitForTimeout(400);
+    if (folder) {
+      await page.screenshot({ path: `${folder}/3-booked-${width}x${height}.png` });
+      await page.screenshot({ path: `${folder}/3-booked-${width}x${height}-full.png`, fullPage: true });
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
 
 test('screenshots of the four screens at 390 and 1920 wide', async ({ page, browserName }, info) => {
   const folder = process.env.RUN9_SCREENS;

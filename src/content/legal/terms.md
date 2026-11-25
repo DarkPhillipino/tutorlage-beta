@@ -1,6 +1,6 @@
 > **The short version.**
 > - Tutorlage is a platform. The tutor gives the lesson; we arrange the match and collect the payment for the tutor.
-> - You see one fixed price before you send a request. You pay from your lesson credit or, where available, by card, and the price is only on hold until a tutor accepts. If none does, it goes straight back.
+> - You see one fixed price before you send a request. You pay from your lesson credit or, where available, by card, and the price is only on hold until a tutor accepts. If none does, it goes straight back. Where a tutor's own page offers it, a booking you confirm there is made at once, without the tutor accepting it first.
 > - Refunds go back to where the money came from (your lesson credit, or the card for a card payment) and are decided case by case. Section 8 lists the situations in which we always refund, and how we decide the rest.
 > - Parents and guardians hold the account for learners under 18.
 > - **Section 15 limits what we are responsible for. Please read it.**
@@ -52,6 +52,7 @@ Nothing in these Terms makes Tutorlage, a tutor and a learner each other's emplo
 2. **Your lesson credit.** Sessions are paid from your lesson credit (§6). When you send the request, its price is put on hold in your credit. If your credit is less than the price, the screen shows what is missing and lets you add credit.
 3. **A tutor accepts.** The request goes to approved tutors who teach the subject and grade at your chosen level or above. When one accepts, the held price becomes the money for that session.
 4. **The agreement for that session is made when a tutor accepts.** We confirm it on screen and in your sessions list.
+   - **Booking on a tutor's own page.** Points 1 to 4 describe a request. Where a tutor's page (tutorlage.com/t/ followed by the tutor's code) offers it, you instead choose an open time at least 24 hours ahead, check the lesson, the price and the credit left, and confirm. When you confirm, the price is taken from your lesson credit and the agreement for that session is made at once: the tutor does not accept it first and nothing is put on hold. If your credit is less than the price, nothing is booked or held. You can cancel under section 8.
 5. **The session.** It takes place online at the booked time, in Tutorlage's own video room or through a meeting link (for example Google Meet, Teams or Zoom) that the tutor adds to the session. It lasts the booked length (currently one hour). Where a tutor uses another service's meeting link, that service's own terms apply to it.
 6. **Your record.** Every booking, its price, its status and any refund stays in your sessions list. Your credit history shows every top-up, hold, refund and payment.
 
@@ -63,7 +64,7 @@ Nothing in these Terms makes Tutorlage, a tutor and a learner each other's emplo
   - **Limits.** The Add credit screen shows the most you can add at once and the most you can hold; these limits can change.
   - **What lesson credit is.** Money you add to your Tutorlage account is prepaid credit for tutoring sessions on Tutorlage ("lesson credit"). It is not a bank account or a deposit, it earns no interest, and it cannot be transferred to another person. Money you add is received into Tutorlage's business bank account, and we record every rand of lesson credit as money we owe you, separate from our own income. Lesson credit does not expire for at least three years from the day it is added.
   - **Getting it back.** While your account is open we do not pay lesson credit out in cash on request: it is for lessons. We do return money to you, to your bank account if you ask, when a session was not delivered or something went wrong that is our fault, when the law gives you a right to a refund, and in full when you close your account (Refund Policy §8). Write to support@tutorlage.com.
-- **On hold, then paid.** When you send a request, its price is put on hold in your credit. If no tutor accepts, it goes straight back (§7). When a tutor accepts, the held price becomes the money for that session. It is not credited to the tutor until the session is complete (§9).
+- **On hold, then paid.** When you send a request, its price is put on hold in your credit. If no tutor accepts, it goes straight back (§7). When a tutor accepts, the held price becomes the money for that session. A booking you confirm on a tutor's own page (§4) is paid from your credit when you confirm it. It is not credited to the tutor until the session is complete (§9).
 - **Where the money goes.** When a session is complete, the tutor's share is credited to the tutor's earnings and Tutorlage keeps its commission. The tutor asks us for a payout, and we pay it by bank transfer from our bank account.
 - **Our commission** depends on the tutor's level (B3); a tutor can ask us for the percentage for their level at any time.
 - **Promo codes.** If you joined with a promo code, you pay 10% less on the price of your first 3 lessons paid from your credit (the percentage and the number of lessons are shown with your code). The discount comes out of Tutorlage's share: a tutor's pay does not change. A lesson that does not take place, or is cancelled, does not use up one of the three. We may stop new families joining with a code: families that already joined keep their lessons. We may also pause a code, and a paused code gives no discount until it is switched on again. Card payments carry no promo discount.
@@ -107,7 +108,7 @@ Until a session starts, you can cancel it yourself from your sessions list and t
 ## 10. Your choice of tutor, and booking through Tutorlage
 
 1. **After a session, the choice is yours.** When a session is done you can **keep that tutor** (book them again, under the same price rules) or **ask for a different tutor**. Changing costs nothing, you do not have to give a reason, and the tutor is not told why.
-2. **Why book through Tutorlage.** When you book and pay through Tutorlage you get a tutor we have checked; payment taken only when a tutor accepts; refunds as the Refund Policy says; a record of your sessions and progress; a way to report a problem and have it looked into; and a safe place to talk to your tutor. Sessions you arrange or pay for outside Tutorlage have none of these, and our refunds, records and safety processes do not cover them.
+2. **Why book through Tutorlage.** When you book and pay through Tutorlage you get a tutor we have checked; payment taken only when a lesson is booked (when a tutor accepts your request, or when you confirm a booking on a tutor's own page); refunds as the Refund Policy says; a record of your sessions and progress; a way to report a problem and have it looked into; and a safe place to talk to your tutor. Sessions you arrange or pay for outside Tutorlage have none of these, and our refunds, records and safety processes do not cover them.
 3. **Please do not pay a tutor outside Tutorlage.** If someone asks you to, tell us at support@tutorlage.com. We do not charge penalties for this. Repeated breaches may lead to your account being suspended (§17).
 
 ## 11. Conduct and safety
@@ -241,11 +242,12 @@ These apply to you as well as Part A if you tutor on Tutorlage.
 3. Your profile must be truthful: your name, your qualifications, and the subjects and grades you can really teach.
 4. **Only you may tutor under your account.**
 5. **Your public page.** Once you are verified, your first name, the subjects and grades you are approved for, your level, the qualification, study or other basis your level rests on, your price, your working hours in words and, once the company has approved it, your photo appear on a public page, tutorlage.com/t/ followed by your code. It shows no surname and no contact details. You can add, replace or remove your photo on your Teach screen: a new or replaced photo is checked by the company before it shows, and until then the page shows the last approved photo, or none. You can switch the page off at any time, and switching it off or removing your photo hides it at once.
+6. **Bookings from your public page.** Once you have accepted the version of these Terms that contains this point, a family can book any open time inside your working hours from your page, at least 24 hours ahead, and the lesson is booked when they confirm it: you do not accept it first. We tell you by a notice in the app. Keep your working hours true. If you cannot teach a booked lesson, cancel it.
 
 ## B2. Your status
 
 - **You are an independent contractor**, not an employee, agent (except as B4 says) or partner of Tutorlage.
-- You choose when you are available and which requests to accept. You decide how to teach.
+- You choose when you are available and which requests to accept. A booking from your public page (B1 point 6) is made inside the working hours you set, without your accepting it, and you may cancel it. You decide how to teach.
 - You are free to tutor elsewhere.
 - You are responsible for your own tax.
 
@@ -289,8 +291,7 @@ These apply to you as well as Part A if you tutor on Tutorlage.
 
 ## B8. Screening
 
-- Before you can accept requests, you give Tutorlage a **police clearance certificate** issued in the last 6 months. If you are registered with SACE, you **may** also give us your **SACE certificate**; you do not have to.
-- You give us a new police clearance **every 6 months**. If yours expires, you cannot accept new requests until we have checked a current one.
+- Before you can accept requests, you give Tutorlage a **police clearance certificate** that was issued in the last 6 months **when you register**. If you are registered with SACE, you **may** also give us your **SACE certificate**; you do not have to.
 - You also give us a **photo of your ID or passport**, and **proof of your school results (if you are a beginner) or of your experience (if you are experienced)**.
 - You consent to Tutorlage checking these documents and keeping them as our Privacy Policy (§7) says. **If you do not agree, you cannot tutor on Tutorlage.**
 - Tell us at once if anything changes that a new clearance would show.

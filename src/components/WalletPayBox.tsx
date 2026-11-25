@@ -15,11 +15,13 @@ interface WalletPayBoxProps {
   addLabel?: string;
   // What happens to the held price. On one tutor's booking page it names that tutor.
   heldNote?: string;
+  // A booking that is confirmed at once (a tutor's own page): the words speak of a lesson and a booking, not a request.
+  booking?: boolean;
 }
 
 // The wallet's part of the booking page (CEO, 2 Nov 2026): enough money -> what will happen to it (the button under it says "Pay R180 from
 // your wallet"); not enough, or empty -> the balance, how much is missing and the "Add money" button. The request is not created while short.
-export const WalletPayBox: React.FC<WalletPayBoxProps> = ({ price, promoLine = null, state, onAddMoney, onRetry, addLabel = 'Add credit', heldNote = WALLET_COPY.heldOnRequest }) => {
+export const WalletPayBox: React.FC<WalletPayBoxProps> = ({ price, promoLine = null, state, onAddMoney, onRetry, addLabel = 'Add credit', heldNote = WALLET_COPY.heldOnRequest, booking = false }) => {
   if (state.status === 'loading' || state.status === 'closed') {
     return (
       <div role="status" data-wallet-pay className="flex items-center justify-center mb-5 text-slate-400">
@@ -52,7 +54,7 @@ export const WalletPayBox: React.FC<WalletPayBoxProps> = ({ price, promoLine = n
       {enough ? (
         <>
           <p className="text-xs text-slate-600">
-            This session is <span className="font-bold text-[#0F172A]">{rand0(price)}</span>. After this request you will have {rand0(state.available - price)} available.
+            {booking ? 'This lesson is' : 'This session is'} <span className="font-bold text-[#0F172A]">{rand0(price)}</span>. {booking ? 'After booking it' : 'After this request'} you will have {rand0(state.available - price)} available.
           </p>
           <p className="text-[11px] text-slate-500">{heldNote}</p>
         </>

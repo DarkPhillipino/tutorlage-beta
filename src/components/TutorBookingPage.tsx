@@ -3,7 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../lib/AuthContext';
-import { createSessionRequest, fetchGradeLevelSuggestions, fetchStudentGradeLevel } from '../lib/queries';
+import { confirmPageBooking, createSessionRequest, fetchGradeLevelSuggestions, fetchStudentGradeLevel } from '../lib/queries';
+import { CONFIRM_COPY, lessonTimes, longDate, parseBooked, wasRefused, type BookedResult } from '../lib/pageConfirm';
+import { BookedPanel, ConfirmBooking, type LessonFacts } from './ConfirmBooking';
 import { initializePayment } from '../lib/payments';
 import { FREE_FOR_NOW_DETAIL, FREE_FOR_NOW_NOTICE } from '../lib/freeSessions';
 import { sendMyRequestFree, useFreeSessionsOpen } from '../lib/freeSessionsHooks';
@@ -13,6 +15,7 @@ import { WalletRefusal, rand0, shortfall, walletPrice } from '../lib/wallet';
 import { promoQuoteLine } from '../lib/promoCode';
 import { usePromoQuote } from '../lib/promoHooks';
 import { useBankMainWay } from '../lib/walletOnlineHooks';
+import { ONLINE_COPY } from '../lib/walletOnline';
 import { siteUrl } from '../lib/siteUrl';
 import { getErrorMessage } from '../lib/errors';
 import { COPY } from '../lib/accountRules';
@@ -208,11 +211,83 @@ export function TutorBookingPage({ code, shown }: { code: string; shown: PublicT
     }
   };
 
+  // BOOKED ON CONFIRM (PM line 81 C): where the database says so for this tutor, nothing is sent from this form. "Continue" shows the confirm step, and only
+  // "Confirm booking" books and charges, in one database step. The reference stays the same for one confirm step, so a repeat can never book twice.
+  const confirmMode = !!page?.booksOnConfirm && walletAvailable;
+  const [step, setStep] = useState<{ reference: string; lesson: LessonFacts; price: number; promoLine: string | null; left: number } | null>(null);
+  const [stepError, setStepError] = useState<{ text: string; nothing: boolean } | null>(null);
+  const [booked, setBooked] = useState<{ lesson: LessonFacts; result: BookedResult } | null>(null);
+  useEffect(() => {
+    if (step || booked) window.scrollTo(0, 0);
+  }, [step, booked]);
+
+  const review = () => {
+    if (!page || !ready || !walletEnough || wallet.state.status !== 'ready') return;
+    setStepError(null);
+    setStep({
+      reference: crypto.randomUUID(),
+      lesson: {
+        tutor: page.firstName,
+        learner: isGuardian ? `${bookingFor!.firstName} ${bookingFor!.surname}`.trim() : (profile?.fullName ?? 'You'),
+        subject,
+        grade,
+        date: longDate(date),
+        times: lessonTimes(time, hours),
+      },
+      price: payPrice,
+      promoLine: promo ? promoQuoteLine(promo) : null,
+      left: wallet.state.available - payPrice,
+    });
+  };
+
+  const confirm = async () => {
+    if (!page || !user || !step || sendingRef.current) return;
+    sendingRef.current = true;
+    setIsSending(true);
+    setStepError(null);
+    try {
+      const result = parseBooked(await confirmPageBooking({
+        studentId: isGuardian ? bookingFor!.id : user.id,
+        subjectName: subject,
+        gradeLevel: grade,
+        tutorId: page.tutorId,
+        levelId: page.levelId,
+        date,
+        time,
+        durationHours: hours,
+        reference: step.reference,
+        expectedRand: step.price,
+      }));
+      if (!result) throw new Error('no answer');
+      setBooked({ lesson: step.lesson, result });
+      setStep(null);
+      wallet.reload();
+    } catch (e) {
+      const refused = wasRefused(e);
+      console.error('confirm_page_booking failed:', e);
+      setStepError(refused ? { text: bookingRefusalWords(getErrorMessage(e, 'The booking could not be made.'), page.firstName), nothing: true } : { text: CONFIRM_COPY.unknown, nothing: false });
+      if (refused) {
+        wallet.reload();
+        setTimesTick((t) => t + 1);
+      }
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  };
+
+  const another = () => {
+    setBooked(null);
+    setDate('');
+    setTime('');
+    setTimesTick((t) => t + 1);
+  };
+
   const doSignOut = async () => {
     await signOut();
   };
 
-  const frame = (children: React.ReactNode) => (
+  const frame = (children: React.ReactNode, compact = false) => (
     <LinkShell
       homeTo={pagePath(code)}
       headerRight={
@@ -221,7 +296,8 @@ export function TutorBookingPage({ code, shown }: { code: string; shown: PublicT
           <button type="button" onClick={() => void doSignOut()} className={headerLink}>Sign out</button>
         </nav>
       }
-      hero={<TutorHero name={shown.firstName} photo={shown.photo} title={WORDS.title(shown.firstName)} subtitle="Tutor on Tutorlage" />}
+      // The confirm step and "Booked" keep a slim band, so the details and the button fit the first screen.
+      hero={compact ? <p className="text-lg font-extrabold">{WORDS.title(shown.firstName)}</p> : <TutorHero name={shown.firstName} photo={shown.photo} title={WORDS.title(shown.firstName)} subtitle="Tutor on Tutorlage" />}
     >
       {children}
     </LinkShell>
@@ -260,6 +336,14 @@ export function TutorBookingPage({ code, shown }: { code: string; shown: PublicT
       </button>
     </>
   ) : null;
+
+  if (booked) return frame(<BookedPanel lesson={booked.lesson} paid={booked.result.paidRand} creditNow={booked.result.availableRand} onAnother={another} />, true);
+  if (step) {
+    return frame(
+      <ConfirmBooking lesson={step.lesson} price={step.price} promoLine={step.promoLine} creditLeft={step.left} busy={isSending} error={stepError} onConfirm={() => void confirm()} onChange={() => { setStep(null); setStepError(null); }} />,
+      true,
+    );
+  }
 
   return frame(
     <>
@@ -304,7 +388,7 @@ export function TutorBookingPage({ code, shown }: { code: string; shown: PublicT
           <span className={LINK_LABEL}>{WORDS.when}</span>
           {page.hours && <p data-tutor-hours className="text-xs font-semibold mb-2">{WORDS.hours(name, page.hours)}</p>}
           {!page.takingRequests ? (
-            <p className="text-sm text-slate-600">{name} has not set working hours yet, so a lesson cannot be requested at the moment.</p>
+            <p className="text-sm text-slate-600">{name} has not set working hours yet, so a lesson cannot be {page.booksOnConfirm ? 'booked' : 'requested'} at the moment.</p>
           ) : times.status === 'loading' ? (
             <p role="status" className="flex items-center gap-2 text-xs font-semibold text-slate-600"><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />Loading the times…</p>
           ) : times.status === 'failed' ? (
@@ -340,7 +424,7 @@ export function TutorBookingPage({ code, shown }: { code: string; shown: PublicT
                   </div>
                 </div>
               ))}
-              <p className="text-xs text-slate-600 mt-2" data-wait-note>{asap ? WORDS.waitAsap(name) : WORDS.waitScheduled(name)}</p>
+              <p className="text-xs text-slate-600 mt-2" data-wait-note>{confirmMode ? CONFIRM_COPY.note(name) : asap ? WORDS.waitAsap(name) : WORDS.waitScheduled(name)}</p>
             </>
           )}
         </div>
@@ -350,7 +434,7 @@ export function TutorBookingPage({ code, shown }: { code: string; shown: PublicT
 
       <section className={`${LINK_CARD} flex flex-col items-center text-center`} data-pay-card>
         <p className="text-sm font-bold mb-1" data-lesson-total>{describeLength(hours)} with {name}: {rand0(price)}</p>
-        <p className="text-xs text-slate-600 mb-4">{WORDS.toHer(name)}</p>
+        <p className="text-xs text-slate-600 mb-4">{confirmMode ? CONFIRM_COPY.youBook(name) : WORDS.toHer(name)}</p>
         {sendError && (
           <div ref={errorRef} role="alert" className="w-full mb-4 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs font-semibold text-rose-700 text-left" data-booking-refusal>
             <div className="flex items-start gap-2">
@@ -358,7 +442,7 @@ export function TutorBookingPage({ code, shown }: { code: string; shown: PublicT
               <span>{sendError}</span>
             </div>
             <div className="mt-2 pl-6">
-              <p className="text-slate-700">{WORDS.nothingSent}</p>
+              <p className="text-slate-700">{confirmMode ? CONFIRM_COPY.nothing : WORDS.nothingSent}</p>
               {page.hours && <p className="mt-1 text-slate-700">{WORDS.hours(name, page.hours)}</p>}
               <button type="button" onClick={() => timeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="mt-3 px-4 py-2.5 rounded-xl bg-[#0F172A] text-white text-xs font-bold cursor-pointer">
                 {WORDS.changeTime}
@@ -379,6 +463,13 @@ export function TutorBookingPage({ code, shown }: { code: string; shown: PublicT
           <p role="status" className="flex items-center gap-2 text-xs font-semibold text-slate-600"><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />{CARD_CLOSED_COPY.loading}</p>
         ) : !walletAvailable ? (
           cardPart ?? <p role="status" data-payments-not-open className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">{CARD_CLOSED_COPY.nothingOpen}</p>
+        ) : confirmMode ? (
+          <div data-wallet-main className="w-full flex flex-col items-center">
+            <WalletPayBox price={payPrice} promoLine={promo ? promoQuoteLine(promo) : null} state={wallet.state} onAddMoney={() => setAddMoneyOpen(true)} onRetry={wallet.reload} addLabel={bankMain ? ONLINE_COPY.addByBank : undefined} heldNote={CONFIRM_COPY.creditNote} booking />
+            {walletEnough && (
+              <button type="button" onClick={review} disabled={!ready} className={LINK_BUTTON}>{CONFIRM_COPY.next}</button>
+            )}
+          </div>
         ) : bankMain ? (
           <BankMainCheckout
             price={payPrice}

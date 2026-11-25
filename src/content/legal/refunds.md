@@ -11,6 +11,7 @@
 - You add credit to your Tutorlage account by bank transfer (EFT) and use it to pay for sessions (lesson credit). The Terms of Service (section 6) explain how.
 - When you send a request, the price is **put on hold** in your credit. Nobody is paid at that point.
 - When a tutor accepts, the held price becomes the money for that session.
+- Where a tutor's own page offers it, a booking you confirm there is paid from your credit as soon as you confirm it: nothing is put on hold first. Cancelling and refunds are the same as for any booked session.
 - The tutor's share is paid into the tutor's earnings only **after the session is complete**. A session with an open problem report is not completed. Until then your money has not gone to anyone, which is why refunds are simple.
 
 ## 2. If no tutor accepts your request

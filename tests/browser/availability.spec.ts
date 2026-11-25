@@ -19,9 +19,10 @@ const ME = '00000000-0000-4000-8000-000000000001';
 
 interface Row { id: string; tutor_id: string; day_of_week: number; start_time: string; end_time: string }
 
-async function open(page: Page, seed: Row[] = [], over: { onboarding?: unknown } = {}) {
+async function open(page: Page, seed: Row[] = [], over: { onboarding?: unknown; offer?: boolean } = {}) {
   const table: Row[] = [...seed];
   const writes: { method: string; body: unknown; url: string }[] = [];
+  let accepted = false;
   let next = 100;
   await signInFake(page);
   await page.route(/\.supabase\.co\//, async (route: Route) => {
@@ -31,6 +32,16 @@ async function open(page: Page, seed: Row[] = [], over: { onboarding?: unknown }
     const rpc = /\/rest\/v1\/rpc\/([a-z_0-9]+)/.exec(url)?.[1];
     if (/\/rest\/v1\/profiles\?/.test(url)) return route.fulfill(json([{ id: ME, full_name: 'Browser Test', role: 'tutor', avatar_url: null }]));
     if (rpc === 'my_date_of_birth') return route.fulfill(json('1985-05-05'));
+    // a tutor with a public page who has accepted only an older version of the Terms
+    if (over.offer && rpc === 'my_page_books_on_confirm') return route.fulfill(json(accepted));
+    if (over.offer && rpc === 'my_public_profile') return route.fulfill(json({ is_tutor: true, code: 'ZZ', can_be_public: true, is_public: true }));
+    if (over.offer && rpc === 'my_pending_acceptances') return route.fulfill(json(accepted ? [] : [{ document: 'terms', version: '2026-11-25b' }]));
+    if (over.offer && /\/rest\/v1\/policy_acceptances/.test(url)) return route.fulfill(json([{ document: 'terms' }, { document: 'privacy' }]));
+    if (over.offer && rpc === 'accept_current_policies') {
+      accepted = true;
+      writes.push({ method: 'ACCEPT', body: null, url });
+      return route.fulfill({ status: 204, headers: CORS, body: '' });
+    }
     if (rpc === 'my_pending_acceptances') return route.fulfill(json([]));
     if (rpc === 'my_needs_surname') return route.fulfill(json(false));
     if (rpc === 'card_checkout_available') return route.fulfill(json(true));
@@ -177,6 +188,21 @@ test('a verified tutor with an old certificate is taken into the app: no sign-up
   await expect(page.getByText('over 6 months old', { exact: false })).toHaveCount(0);
   await page.goto('/tutor-documents');
   await expect(page).toHaveURL(/\/$/);
+});
+
+test('a tutor is told what changes and accepts the new Terms before families can book without asking', async ({ page, problems }) => {
+  const { writes } = await open(page, [], { offer: true });
+  const sentence = 'Families can book any open time in your hours from your page, at least 24 hours ahead, without asking you first. If you cannot teach a booked lesson, cancel it.';
+  const offer = page.locator('[data-books-offer]').first();
+  await expect(offer).toContainText('This starts only after you accept the new Terms of Service.');
+  await expect(page.locator('[data-books-on-confirm]')).toHaveCount(0);
+  expect(writes.filter((w) => w.method === 'ACCEPT').length).toBe(0);
+  await offer.getByRole('button', { name: 'I accept the new Terms and Privacy Policy' }).click();
+  await expect(page.locator('[data-books-on-confirm]').first()).toHaveText(sentence);
+  expect(writes.filter((w) => w.method === 'ACCEPT').length).toBe(1);
+  expect(problems.pageErrors).toEqual([]);
+  const record = await audit(page, 'availability-books-on-confirm');
+  expect(blocking(record)).toEqual([]);
 });
 
 // Screenshots for the report (only when SHOTS_DIR is set): the editor as the tutor sees it while narrowing weekday hours, and after the save.

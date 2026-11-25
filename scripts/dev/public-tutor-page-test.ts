@@ -59,6 +59,7 @@ async function main() {
 
   // the words
   const c = PUBLIC_PAGE_COPY;
+  check('where the tutor books on confirm the public page says so and never speaks of asking or accepting', /confirm your booking/.test(c.bookNote('A', true)) && /at least 24 hours ahead/.test(c.hoursNote('A', true)) && !/request|accept|ask/i.test(c.bookNote('A', true) + c.hoursNote('A', true)));
   const allWords = JSON.stringify(c) + [c.bookNote('A'), c.discountNote(10, 3), c.notTaking('A'), c.hoursNote('A'), c.recordHeading('A')].join(' ');
   check('the discount is said of a new parent or learner account only; the time is asked for and booked only on acceptance; no other tutor is offered',
     c.discountNote(10, 3) === 'A new parent or learner account created from this page pays 10% less on its first 3 lessons.' && /booked only when A accepts/.test(c.hoursNote('A')) && !/another tutor|any tutor/i.test(allWords));

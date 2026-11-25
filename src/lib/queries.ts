@@ -1027,6 +1027,35 @@ export async function createSessionRequest(params: {
   return { id: data.id, requestedStart: data.requested_start, chargedAmount: Number(data.charged_amount) };
 }
 
+// A booking from a tutor's own page that is confirmed without the tutor accepting (PM line 81 C). One database step: it either books and charges, or does
+// nothing at all. The same reference sent again answers with the booking already made.
+export async function confirmPageBooking(params: {
+  studentId: string;
+  subjectName: string;
+  gradeLevel: string;
+  tutorId: string;
+  levelId: string;
+  date: string; // "YYYY-MM-DD"
+  time: string; // "HH:MM", South African time
+  durationHours: number;
+  reference: string;
+  expectedRand: number; // the price the family saw; the database refuses any other
+}): Promise<unknown> {
+  const enrollmentId = await findOrCreateStudentEnrollment(params.studentId, params.subjectName.trim(), params.gradeLevel.trim());
+  const { data, error } = await supabase.rpc('confirm_page_booking', {
+    p_student: params.studentId,
+    p_enrollment: enrollmentId,
+    p_tutor: params.tutorId,
+    p_level: params.levelId,
+    p_start: requestStartIso('scheduled', params.date, params.time),
+    p_hours: params.durationHours,
+    p_reference: params.reference,
+    p_expected_rand: params.expectedRand,
+  });
+  if (error) throw error;
+  return data;
+}
+
 interface AvailableRequestRow {
   id: string;
   student_id: string;

@@ -24,6 +24,7 @@ import {
   withValue,
   type SaveMode,
 } from '../lib/availabilityPlan';
+import { BooksOnConfirmNote } from './BooksOnConfirmNote';
 
 interface AvailabilityEditorProps {
   tutorId: string;
@@ -192,6 +193,8 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({ tutorId,
           the rest of the hours stay open for other lessons. Times are South African time.
         </span>
       </p>
+
+      <BooksOnConfirmNote tutorId={tutorId} />
 
       {setFromSignup && hasAny && (
         <p className="text-xs font-semibold text-[#15803D] mb-2" data-testid="hours-from-signup">
