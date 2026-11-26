@@ -221,7 +221,8 @@ function partBSections(text: string): Set<string> {
   const page = read('src/pages/LegalPage.tsx');
   check('both texts say the page shows the qualification, study or other basis the level rests on, and no longer the lines about how the tutor was checked (25 Nov 2026)',
     /the qualification, study or other basis your level rests on/.test(t) && /the qualification, study or other basis her level rests on/.test(pv) && !/lines that say how (you were|she was) checked/.test(t + pv));
-  check('the version moved to 2026-11-25b (bookings confirmed from a tutor\'s page; the police certificate counts at registration) with its date', /LEGAL_VERSION = '2026-11-25b'/.test(page) && /LAST_UPDATED = '25 November 2026'/.test(page));
+  check('the Terms give the promo code discount as 15% on the first 3 lessons, out of Tutorlage\'s share', /you pay 15% less on the price of your first 3 lessons paid from your credit/.test(t) && !/you pay 10% less/.test(t) && /comes out of Tutorlage's share: a tutor's pay does not change/.test(t));
+  check('the version moved to 2026-11-26 (the promo code discount is 15%) with its date', /LEGAL_VERSION = '2026-11-26'/.test(page) && /LAST_UPDATED = '26 November 2026'/.test(page));
 }
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} FAILED`);

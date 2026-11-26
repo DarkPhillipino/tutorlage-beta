@@ -39,8 +39,8 @@ async function main() {
     && parseTutorCode(null) === null && parseTutorCode('x') === null && parseTutorCode({ has_code: true, code: '' }) === null
     && (await fetchMyTutorCode(fake(() => ({ data: null, error: { code: '42883', message: 'function my_tutor_code does not exist' } })).db)) === null
     && (await fetchMyTutorCode({ rpc: async () => { throw new Error('offline'); } })) === null);
-  check('the figures come back as whole numbers, with the plan\'s defaults (10 percent, 3 lessons, 5 percent, 12 months) when the answer leaves them out',
-    (() => { const d = parseTutorCode({ has_code: true, code: 'A1B', families: '2', bonus_rand: 14.4 }); return d?.percent === 10 && d.lessons === 3 && d.bonusPercent === 5 && d.bonusMonths === 12 && d.families === 2 && d.bonusRand === 14 && d.active === true; })());
+  check('the figures come back as whole numbers, with the plan\'s defaults (15 percent, 3 lessons, 5 percent, 12 months) when the answer leaves them out',
+    (() => { const d = parseTutorCode({ has_code: true, code: 'A1B', families: '2', bonus_rand: 14.4 }); return d?.percent === 15 &&d.lessons === 3 && d.bonusPercent === 5 && d.bonusMonths === 12 && d.families === 2 && d.bonusRand === 14 && d.active === true; })());
 
   // ---- the words ---------------------------------------------------------------------------------------------------------------------------------------------
   const m = parseTutorCode(has)!;

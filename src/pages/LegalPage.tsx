@@ -15,8 +15,8 @@ import deliveryText from '../content/legal/delivery.md?raw';
 // app that the terms were updated (CEO, 17 Oct 2026: nobody is signed out or stopped by a change).
 //
 // One product (CEO, 16 Oct 2026): these replaced the "tester notice" (version 2026-10-phase1-c) on 16 Oct 2026.
-export const LEGAL_VERSION = '2026-11-25b';
-const LAST_UPDATED = '25 November 2026';
+export const LEGAL_VERSION = '2026-11-26';
+const LAST_UPDATED = '26 November 2026';
 // (17 Oct 2026: the "closed test" box that sat above the text was removed at the CEO's request. The closed-test data deletion
 // promise stays in the Privacy Policy, §14, last row.)
 

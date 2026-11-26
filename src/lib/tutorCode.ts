@@ -40,7 +40,7 @@ export function parseTutorCode(data: unknown): TutorCode | null {
   return {
     code: d.code,
     active: d.active !== false,
-    percent: whole(d.percent) || 10,
+    percent: whole(d.percent) || 15,
     lessons: whole(d.lessons) || 3,
     families: whole(d.families),
     bonusOn: d.bonus_on === true,
