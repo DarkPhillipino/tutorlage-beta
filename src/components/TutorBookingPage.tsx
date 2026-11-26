@@ -33,7 +33,6 @@ import { LearnersPanel } from './LearnersPanel';
 import { AddMoneyModal } from './AddMoneyModal';
 import { WalletPayBox } from './WalletPayBox';
 import { BankMainCheckout } from './BankMainCheckout';
-import { TutorLevelCard } from './TutorLevelCard';
 import { TutorPageMissing } from './TutorPageMissing';
 import { PageLoading } from './PageLoading';
 import { LINK_BUTTON, LINK_CARD, LINK_HEADING, LINK_INPUT, LINK_LABEL, LinkShell, TutorHero } from './LinkShell';
@@ -429,8 +428,6 @@ export function TutorBookingPage({ code, shown }: { code: string; shown: PublicT
           )}
         </div>
       </section>
-
-      <TutorLevelCard page={page} />
 
       <section className={`${LINK_CARD} flex flex-col items-center text-center`} data-pay-card>
         <p className="text-sm font-bold mb-1" data-lesson-total>{describeLength(hours)} with {name}: {rand0(price)}</p>

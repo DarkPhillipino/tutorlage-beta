@@ -290,7 +290,7 @@ for (const booker of BOOKERS) {
       await page.setViewportSize({ width, height });
       await page.goto('/t/NOMA/book');
       await expect(page.locator(booker.first).first()).toBeVisible({ timeout: 15_000 });
-      await expect(page.locator('[data-level-card]')).toHaveCount(1);
+      await expect(page.locator('[data-level-card]')).toHaveCount(0);
       if (booker.opts.learners === 1 && booker.opts.phone !== false) await expect(page.getByRole('button', { name: /Booking for Sipho/ })).toBeVisible();
       const facts = await screenFacts(page);
       const first = await edges(page, booker.first);

@@ -10,11 +10,20 @@ import { LINK_CARD } from './LinkShell';
 // What is passed inside it (the public page's Book button and its notes) is drawn at the foot of the same card.
 export function TutorLevelCard({ page, children }: { page: PublicTutorPage; children?: React.ReactNode }) {
   const basis = page.basis;
+  const money = (amount: number) => `${page.currency === 'ZAR' ? 'R' : getCurrencySymbol(page.currency)}${formatRate(amount)}`;
+  // While the tutor's code gives a discount, the usual price is crossed out and the price with the discount stands beside it (CEO, 26 Nov 2026). The note under the button, inside this
+  // card, says who gets it. The rounding is the database's (promo_paid_rand): the nearest whole rand, halves up.
+  const offer = page.discount ? Math.round((page.price * (100 - page.discount.percent)) / 100) : page.price;
   return (
     <section className={LINK_CARD} data-level-card={page.levelId} aria-label="Level and price per hour">
       <div className="flex items-start gap-4">
-        <div className="w-24 shrink-0">
-          <div className="text-2xl font-black leading-tight" data-price>{page.currency === 'ZAR' ? 'R' : getCurrencySymbol(page.currency)}{formatRate(page.price)}</div>
+        <div className="min-w-24 shrink-0">
+          <div className="flex items-baseline gap-1.5 whitespace-nowrap" data-price>
+            {offer < page.price && (
+              <s className="text-base font-bold text-slate-500" data-price-was><span className="sr-only">Usually </span>{money(page.price)}</s>
+            )}
+            <span className="text-2xl font-black leading-tight" data-price-now>{offer < page.price && <span className="sr-only">with the offer </span>}{money(offer)}</span>
+          </div>
           <div className="text-[11px] text-slate-600 font-semibold">per hour</div>
           <div className="mt-1.5 inline-block rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600">Level {page.levelId}</div>
         </div>

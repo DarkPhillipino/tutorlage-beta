@@ -115,6 +115,9 @@ test('the public page: navy bar and hero, one level card with the tutor\'s own c
   await expect(page.locator('[data-hero]')).toHaveCSS('background-color', 'rgb(15, 23, 42)');
   await expect(page.locator('[data-level-card]')).toHaveCount(1);
   await expect(page.locator('[data-level-card]')).toContainText('R280');
+  // The usual price is crossed out and the price with the 10% beside it; the note under the button says who gets it.
+  await expect(page.locator('s[data-price-was]')).toContainText('R280');
+  await expect(page.locator('[data-price-now]')).toContainText('R252');
   await expect(page.locator('[data-level-basis="credential"]')).toContainText('Student teacher enrolled in a B.Ed or PGCE (proof of enrolment)');
   await expect(page.getByText('booked only when Tessa accepts')).toBeVisible();
   await expect(page.locator('[data-discount]')).toHaveText('A new parent or learner account created from this page pays 10% less on its first 3 lessons.');
@@ -159,7 +162,9 @@ test('signed-out parent: sign-in card, create account with the two choices, then
   await expect(page.locator('[data-tutor-hours]')).toContainText('Saturday and Sunday, 8am to 5pm');
   await expect(page.locator('[data-wait-note]')).toContainText('Tessa has up to 48 hours to accept');
   await expect(page.getByLabel('Subject', { exact: true }).locator('option')).toHaveText(['Choose a subject', 'English Home Language', 'Geography']);
-  await expect(page.locator('[data-level-card]')).toHaveCount(1);
+  // The booking page shows no level card: the price was shown on the public page, and the total is above the button.
+  await expect(page.locator('[data-level-card]')).toHaveCount(0);
+  await expect(page.locator('[data-lesson-total]')).toContainText('R280');
   await chooseLesson(page);
   await onlyThisTutor(page);
   await page.getByRole('button', { name: 'Pay R280 from your credit' }).click();
