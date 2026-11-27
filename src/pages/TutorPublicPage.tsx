@@ -58,6 +58,12 @@ export default function TutorPublicPage({ client = supabase as unknown as Public
                   data-book
                 >
                   {COPY.book}
+                  {page.discount && (
+                    <>
+                      {' '}
+                      <span className="ml-1.5 inline-block align-middle rounded-full bg-[#0F172A] px-2.5 text-xs leading-5 font-extrabold text-white whitespace-nowrap" data-book-off>{COPY.bookOff(page.discount.percent)}</span>
+                    </>
+                  )}
                 </Link>
                 <p className="text-xs text-slate-600">{page.takingRequests ? COPY.bookNote(page.firstName, page.booksOnConfirm) : COPY.notTaking(page.firstName, page.booksOnConfirm)}</p>
                 {page.discount && <p className="text-xs text-slate-600" data-discount>{COPY.discountNote(page.discount.percent, page.discount.lessons)}</p>}

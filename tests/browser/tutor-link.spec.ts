@@ -121,6 +121,11 @@ test('the public page: navy bar and hero, one level card with the tutor\'s own c
   await expect(page.locator('[data-level-basis="credential"]')).toContainText('Student teacher enrolled in a B.Ed or PGCE (proof of enrolment)');
   await expect(page.getByText('booked only when Tessa accepts')).toBeVisible();
   await expect(page.locator('[data-discount]')).toHaveText('A new parent or learner account created from this page pays 10% less on its first 3 lessons.');
+  // The Book button carries the percentage in a navy pill with white words.
+  const off = page.locator('[data-book] [data-book-off]');
+  await expect(off).toHaveText('10% OFF');
+  await expect(off).toHaveCSS('background-color', 'rgb(15, 23, 42)');
+  await expect(off).toHaveCSS('color', 'rgb(255, 255, 255)');
   await onlyThisTutor(page);
   await page.getByRole('link', { name: 'Book a lesson' }).click();
   await expect(page).toHaveURL(/\/t\/TESSA\/book$/);

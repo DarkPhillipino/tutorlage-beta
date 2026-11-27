@@ -39,6 +39,8 @@ export const PUBLIC_PAGE_COPY = {
   notFound: 'This page is not available.',
   notFoundMore: 'The link may be wrong, or the tutor has not made her page public.',
   book: 'Book a lesson',
+  // The pill inside the Book button while the tutor's code gives a discount (CEO, 28 Nov 2026).
+  bookOff: (percent: number) => `${percent}% OFF`,
   bookNote: (name: string, onConfirm = false) =>
     onConfirm
       ? 'Sign in or create an account, choose a subject and an open time at least 24 hours ahead, and confirm your booking.'
