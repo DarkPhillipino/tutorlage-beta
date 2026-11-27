@@ -13,6 +13,7 @@ export function TutorLevelCard({ page, children }: { page: PublicTutorPage; chil
   const money = (amount: number) => `${page.currency === 'ZAR' ? 'R' : getCurrencySymbol(page.currency)}${formatRate(amount)}`;
   // While the tutor's code gives a discount, the usual price is crossed out and the price with the discount stands beside it (CEO, 26 Nov 2026). The note under the button, inside this
   // card, says who gets it. The rounding is the database's (promo_paid_rand): the nearest whole rand, halves up.
+  // The line is drawn here, not by the browser: lighter than the number and a little below its middle, so a crossed-out 8 does not read as a 0 (CEO, 26 and 28 Nov 2026).
   const offer = page.discount ? Math.round((page.price * (100 - page.discount.percent)) / 100) : page.price;
   return (
     <section className={LINK_CARD} data-level-card={page.levelId} aria-label="Level and price per hour">
@@ -20,7 +21,7 @@ export function TutorLevelCard({ page, children }: { page: PublicTutorPage; chil
         <div className="min-w-24 shrink-0">
           <div className="flex items-baseline gap-1.5 whitespace-nowrap" data-price>
             {offer < page.price && (
-              <s className="text-base font-bold text-slate-500" data-price-was><span className="sr-only">Usually </span>{money(page.price)}</s>
+              <s className="relative no-underline text-base font-bold text-slate-500 after:absolute after:inset-x-0 after:top-[55%] after:h-0.5 after:bg-slate-300" data-price-was><span className="sr-only">Usually </span>{money(page.price)}</s>
             )}
             <span className="text-2xl font-black leading-tight" data-price-now>{offer < page.price && <span className="sr-only">with the offer </span>}{money(offer)}</span>
           </div>
