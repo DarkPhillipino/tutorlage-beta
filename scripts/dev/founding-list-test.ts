@@ -226,10 +226,17 @@ async function main() {
   check('the gate shows its children while loading is over and the gate is off; it shows a plain "Loading…" meanwhile (no flash of the tutor side)', /if \(loading\) \{[\s\S]*gateLoading/.test(code('src/components/FoundingGate.tsx')) && /return <>\{children\}<\/>;/.test(code('src/components/FoundingGate.tsx')));
   check('the hook has no answer for a signed-out person (no call) and shares one answer for 30 seconds', /if \(!userId\) return \{ gate: GATE_OPEN, loading: false \}/.test(code('src/lib/foundingGateHooks.ts')) && /ANSWER_LIFETIME_MS = 30_000/.test(code('src/lib/foundingGateHooks.ts')));
 
+  const now = FOUNDING_COPY.signUpNow;
+  const teach = code('src/pages/FoundingTutors.tsx');
+  check('GATE OFF (28 Nov): the page says sign up now, with a Sign up button to the tutor sign-up and no waiting line', now.intro.endsWith('Sign up now.') && now.button === 'Sign up' && /\/signup\/tutor/.test(teach) && /if \(!gateOn\) return <SignUpNow/.test(teach)
+    && !/place opens|in groups|join the list/i.test(JSON.stringify(now)));
+  check('GATE OFF: outside hours count towards the hours a level needs, no booking is promised, the studying documents and the clearance cost are said', /count towards the hours a level needs/.test(now.priorHours) && /Bookings are not promised\./.test(now.link)
+    && /practicum letter/.test(now.studyingDocs) && /costs a fee and can take weeks/.test(now.clearanceCost) && /keeps a random number in your browser/.test(now.countingNote));
+
   const main = code('src/main.tsx');
   check('/teach is a public route (no sign-in needed) loaded on demand', /const FoundingTutors = lazyRoute\(\(\) => import\('\.\/pages\/FoundingTutors\.tsx'\)\);/.test(main) && /<Route path="\/teach" element=\{<FoundingTutors \/>\} \/>/.test(main));
   const meta = PAGE_META.find((m) => m.path === '/teach');
-  check('/teach is NOT indexed (not in the sitemap, disallowed in robots, noindex in its page) and its tab title and description are plain', !!meta && meta.index === false && meta.title === 'Founding tutors list | Tutorlage' && !/\bfree\b|campus|facult|universit/i.test(`${meta.title} ${meta.description}`));
+  check('/teach is NOT indexed (not in the sitemap, disallowed in robots, noindex in its page) and its tab title and description are plain', !!meta && meta.index === false && meta.title === 'Get paid to tutor | Tutorlage' && !/\bfree\b|campus|facult|universit/i.test(`${meta.title} ${meta.description}`));
   check('the page also puts a noindex line on itself while it is open, and puts the old one back', /setAttribute\('content', 'noindex'\)/.test(code('src/pages/FoundingTutors.tsx')) && /tag\.setAttribute\('content', before\)/.test(code('src/pages/FoundingTutors.tsx')));
   const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => { const p = join(dir, f); return statSync(p).isDirectory() ? walk(p) : /\.tsx?$/.test(f) ? [p] : []; });
   const linkers = walk('src').filter((p) => /['"`]\/teach['"`]|to="\/teach"|href="\/teach"/.test(read(p))).map((p) => p.replace(/\\/g, '/')).sort();

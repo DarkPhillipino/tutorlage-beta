@@ -9,8 +9,11 @@ import {
   buildJoinPayload, countingSwitchedOff, getFirstTag, getVisitorId, joinFoundingList, logFoundingEvent, logFoundingField, looksLikeBot, noticeBody, srcFromSearch, validateFoundingForm,
   type FormErrors, type FoundingClient, type FoundingEvent, type FoundingForm, type FoundingLists, type SubjectPick, type VisitorStore,
 } from '../lib/foundingList';
+import { useFoundingGateOn } from '../lib/foundingGatePublic';
 
-// THE FOUNDING TUTORS LIST PAGE: tutorlage.com/teach (CEO, 10 Nov 2026). Not shown in search engines (pageMeta.ts + a noindex line while it is open), not linked from
+// tutorlage.com/teach. While the founding list's gate is OFF (the database's switch) it is the "Get paid to tutor" page with a Sign up button (CEO, 28 Nov 2026);
+// while the gate is ON it is the list page below.
+// THE FOUNDING TUTORS LIST PAGE (CEO, 10 Nov 2026). Not shown in search engines (pageMeta.ts + a noindex line while it is open), not linked from
 // anywhere public. Mobile first and light on data: no images, one small read of the subject and grade lists once the page has drawn, and one call to join.
 // The words are in src/lib/foundingList.ts (from Drake/marketing-gtm/founding-tutors-drafts-2026-11-10.md). The page counts four things for the admin (opens by
 // ?src= tag, "See more" opens, form starts and, in the database, joins) against a random id kept in the browser; it holds no personal data.
@@ -75,8 +78,73 @@ const Tick: React.FC<{ id: string; checked: boolean; onChange: (v: boolean) => v
   </div>
 );
 
+const MoreBlock: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <div>
+    <h2 className="font-bold text-[#0F172A] mb-1">{title}</h2>
+    {children}
+  </div>
+);
+
+// The page while anybody may sign up at once.
+const SignUpNow: React.FC<{ moreOpen: boolean; toggleMore: () => void }> = ({ moreOpen, toggleMore }) => {
+  const open = FOUNDING_COPY.signUpNow;
+  const more = FOUNDING_COPY.more;
+  const signUp = (extra: string) => (
+    <a href={`${BASE_PATH}/signup/tutor`} data-sign-up className={`${buttonBase} bg-[#15803D] hover:bg-[#166534] text-white ${extra}`}>{open.button}</a>
+  );
+  return (
+    <div className="min-h-screen bg-[#FAF7F2] text-[#0F172A]">
+      <header className="max-w-xl mx-auto px-4 pt-5">
+        <span className="text-2xl font-extrabold tracking-tight">Tutorlage</span>
+      </header>
+      <main className="max-w-xl mx-auto px-4 pb-16">
+        <section className="pt-8 pb-6" aria-labelledby="founding-heading">
+          <h1 id="founding-heading" className="font-serif text-3xl sm:text-4xl leading-tight mb-3">{open.pageTitle}</h1>
+          <p className="text-base text-slate-700 leading-relaxed mb-5">{open.intro}</p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            {signUp('')}
+            <button type="button" onClick={toggleMore} aria-expanded={moreOpen} aria-controls="founding-more" className={`${buttonBase} gap-2 border border-slate-300 bg-white hover:border-[#15803D] text-[#0F172A]`}>
+              {moreOpen ? FOUNDING_COPY.seeLess : FOUNDING_COPY.seeMore}
+              <ChevronDown className={`w-4 h-4 transition-transform ${moreOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+            </button>
+          </div>
+        </section>
+
+        {moreOpen && (
+          <section id="founding-more" aria-label="More about tutoring" className="bg-white rounded-2xl border border-slate-200 p-5 mb-8 space-y-5 text-sm leading-relaxed text-slate-700">
+            <MoreBlock title={more.whatTitle}><p>{more.what}</p></MoreBlock>
+            <MoreBlock title={more.earnTitle}>
+              <p>{more.earn}</p>
+              <p className="mt-2">{open.priorHours}</p>
+            </MoreBlock>
+            <MoreBlock title={open.startTitle}><p>{open.start}</p></MoreBlock>
+            <MoreBlock title={open.afterTitle}><p>{open.after}</p></MoreBlock>
+            <MoreBlock title={more.docsTitle}>
+              <p className="mb-1">{open.docsIntro}</p>
+              <ul className="list-disc pl-5 space-y-0.5">
+                {[...more.docs, open.studyingDocs].map((d) => <li key={d}>{d}</li>)}
+              </ul>
+              <p className="mt-2">{open.clearanceCost}</p>
+              <p className="mt-2 font-semibold text-[#0F172A]">{more.docsWarning}</p>
+            </MoreBlock>
+            <MoreBlock title={open.linkTitle}><p>{open.link}</p></MoreBlock>
+            <MoreBlock title={more.whoTitle}><p>{more.who}</p></MoreBlock>
+            {signUp('w-full sm:w-auto')}
+          </section>
+        )}
+
+        <p className="text-xs text-slate-600 leading-relaxed">
+          {open.countingNote}{' '}
+          <a href={`${BASE_PATH}/privacy`} target="_blank" rel="noopener noreferrer" className="underline font-semibold text-[#15803D]">{FOUNDING_COPY.privacyLink}</a>
+        </p>
+      </main>
+    </div>
+  );
+};
+
 export default function FoundingTutors() {
   useNoIndex();
+  const gateOn = useFoundingGateOn();
   // The tag this link carried (opens are counted under it) and the visitor's FIRST tag ever (See more, form starts and the join are filed under it).
   const src = useMemo(() => srcFromSearch(window.location.search), []);
   const firstTag = useMemo(() => getFirstTag(safeStorage(), src), [src]);
@@ -132,9 +200,10 @@ export default function FoundingTutors() {
     }
   }, []);
   useEffect(() => {
+    if (!gateOn) return undefined; // only the join form needs the lists
     const t = window.setTimeout(() => void loadLists(), 250);
     return () => window.clearTimeout(t);
-  }, [loadLists]);
+  }, [gateOn, loadLists]);
 
   const set = <K extends keyof FoundingForm>(key: K, value: FoundingForm[K]) => {
     count('form_start');
@@ -205,6 +274,8 @@ export default function FoundingTutors() {
       window.setTimeout(() => document.getElementById('founding-done')?.focus(), 0);
     }
   };
+
+  if (!gateOn) return <SignUpNow moreOpen={moreOpen} toggleMore={toggleMore} />;
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#0F172A]">

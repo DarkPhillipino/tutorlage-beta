@@ -55,6 +55,24 @@ export const FOUNDING_COPY = {
     whoTitle: 'Who can join.',
     who: 'You must be 18 or older.',
   },
+  // WHILE THE GATE IS OFF (CEO, 28 Nov 2026): anybody may sign up at once, so the page says so and offers sign-up instead of the list. The lines above that are
+  // not replaced here are shown as they are; these replace the waiting lines and add to the rest.
+  signUpNow: {
+    pageTitle: 'Get paid to tutor',
+    intro: 'Paid, freelance tutoring on your own hours. Sign up now.',
+    button: 'Sign up',
+    priorHours: 'Proven hours you have tutored outside Tutorlage count towards the hours a level needs. Moving up by experience also needs ratings from learners on Tutorlage.',
+    startTitle: 'How to start.',
+    start: 'Sign up, upload your documents and finish one training module.',
+    afterTitle: 'After you sign up.',
+    after: 'A person checks your documents; this can take up to a week. When you are verified you can accept requests.',
+    docsIntro: 'You upload these after you sign up:',
+    studyingDocs: 'if you are studying to teach: proof that you are studying, and your practicum letter if you have one',
+    clearanceCost: 'A new police clearance costs a fee and can take weeks.',
+    linkTitle: 'Your own booking page (once you are verified).',
+    link: 'You get your own booking page and a personal link to share with families you know. Bookings are not promised.',
+    countingNote: 'To count visitors, this page keeps a random number in your browser; it holds no personal details.',
+  },
   formTitle: 'Join the list',
   formIntro: 'About 2 minutes. Fields marked * are needed.',
   labels: {

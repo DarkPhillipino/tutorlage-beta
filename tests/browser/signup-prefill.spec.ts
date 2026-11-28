@@ -124,8 +124,24 @@ test.describe('the personal link fills the tutor sign-up', () => {
   });
 });
 
+test('while the gate is off, /teach offers sign-up: no form, and See more tells how to start', async ({ page, problems }) => {
+  await answerRpc(page, 'founding_gate_public', () => ({ body: false }));
+  await page.goto('/teach?src=f1');
+  await expect(page.getByRole('heading', { level: 1, name: 'Get paid to tutor' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#f-firstName')).toHaveCount(0);
+  await page.getByRole('button', { name: 'See more' }).click();
+  await expect(page.getByText('Proven hours you have tutored outside Tutorlage count towards the hours a level needs.')).toBeVisible();
+  await expect(page.getByText('Bookings are not promised.')).toBeVisible();
+  await expect(page.getByText('place opens', { exact: false })).toHaveCount(0);
+  await expect(page.locator('[data-sign-up]')).toHaveCount(2);
+  await page.locator('[data-sign-up]').first().click();
+  await expect(page).toHaveURL(/\/signup\/tutor$/);
+  expect(problems.pageErrors).toEqual([]);
+});
+
 test.describe('the join form is the first stage of sign-up', () => {
   async function openJoinForm(page: Page) {
+    await answerRpc(page, 'founding_gate_public', () => ({ body: true })); // the list and its form are shown while the gate is on
     await page.route(/\/rest\/v1\/subjects/, (route) => route.request().method() === 'OPTIONS' ? route.fulfill({ status: 204, headers: CORS }) : route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify([{ name: 'Mathematics' }]) }));
     await page.route(/\/rest\/v1\/grade_levels/, (route) => route.request().method() === 'OPTIONS' ? route.fulfill({ status: 204, headers: CORS }) : route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify([{ name: 'Grade 8' }, { name: 'Grade 12' }]) }));
     await page.goto('/teach?src=f1-n1');
