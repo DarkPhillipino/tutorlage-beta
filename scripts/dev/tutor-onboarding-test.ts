@@ -62,7 +62,7 @@ async function main() {
   check('the documents map to the database types', requirementsFor('beginner').map((r) => r.documentType).join() === 'identity_doc,subject_results,police_clearance,teaching_qualification,practicum_letter' && experienced.map((r) => r.documentType).join() === 'identity_doc,police_clearance,proof_of_experience,teaching_qualification,sace_certificate,marking_appointment_letter');
   check('isTutorTrack accepts the two kinds only', isTutorTrack('beginner') && isTutorTrack('experienced') && !isTutorTrack('expert') && !isTutorTrack(null) && !isTutorTrack(undefined));
 
-  // ---- the 6-month rule ------------------------------------------------------------------------------------------
+  // ---- the 10-month rule ------------------------------------------------------------------------------------------
   check('addMonths: 13 Oct minus 6 months is 13 Apr', addMonthsIso('2026-10-13', -6) === '2026-04-13');
   check('addMonths: 31 Aug plus 6 months is 28 Feb', addMonthsIso('2026-08-31', 6) === '2027-02-28');
   check('addMonths: 29 Aug plus 6 months in a leap year is 29 Feb', addMonthsIso('2027-08-29', 6) === '2028-02-29');
@@ -74,16 +74,16 @@ async function main() {
 
   const today = '2026-10-13';
   check('police: issued today is fine', policeCertificateProblem('2026-10-13', today) === null);
-  check('police: exactly 6 months old is fine', policeCertificateProblem('2026-04-13', today) === null);
-  const old = policeCertificateProblem('2026-04-12', today);
-  check('police: one day over 6 months is refused, and says the earliest date in words', !!old && old.includes('13 April 2026') && /6 months/.test(old), old ?? '');
+  check('police: exactly 10 months old is fine', policeCertificateProblem('2025-12-13', today) === null);
+  const old = policeCertificateProblem('2025-12-12', today);
+  check('police: one day over 10 months is refused, and says the earliest date in words', !!old && old.includes('13 December 2025') && /10 months/.test(old), old ?? '');
   check('formatIsoLong writes a date in words', formatIsoLong('2026-04-13') === '13 April 2026' && formatIsoLong('2027-01-05') === '5 January 2027' && formatIsoLong('nope') === 'nope');
   check('police: a future date is refused', /future/.test(policeCertificateProblem('2026-10-14', today) ?? ''));
   check('police: a verified tutor is not held to the age, and a future date is still refused', policeCertificateProblem('2020-01-01', today, false) === null && /future/.test(policeCertificateProblem('2026-10-14', today, false) ?? ''));
   check('the one rule in the app: a verified tutor never meets the sign-up pages or the reminder', /if \(verified \|\| onboarding\?\.grandfathered\) return 'not-needed';/.test(readFileSync('src/lib/useTutorOnboarding.ts', 'utf8')) && /verified: profile\.data\?\.is_verified === true/.test(readFileSync('src/lib/useTutorOnboarding.ts', 'utf8')));
   check('police: an empty date is refused', /Enter the date/.test(policeCertificateProblem('', today) ?? ''));
   check('police: a made-up date is refused', /real date/.test(policeCertificateProblem('2026-02-30', today) ?? ''));
-  check('police: expires 6 months after issue', policeExpiresOn('2026-04-13') === '2026-10-13' && policeExpiresOn('2026-08-31') === '2027-02-28');
+  check('police: expires 10 months after issue', policeExpiresOn('2025-12-13') === '2026-10-13' && policeExpiresOn('2026-04-30') === '2027-02-28');
 
   // ---- files and links -------------------------------------------------------------------------------------------
   check('file: PDF, JPG and PNG are accepted', ACCEPTED_MIME_TYPES.every((t) => fileProblem({ type: t, size: 1000 }) === null));
@@ -112,7 +112,7 @@ async function main() {
 
   // ---- what is still missing -------------------------------------------------------------------------------------
   const fresh = '2026-09-01';
-  const stale = '2026-01-01';
+  const stale = '2025-10-01';
   const allBeginner = [
     { documentType: 'identity_doc', issuedOn: null },
     { documentType: 'subject_results', issuedOn: null },
@@ -121,9 +121,9 @@ async function main() {
   check('beginner with all three (fresh police date) and consent is complete', isOnboardingComplete('beginner', allBeginner, true, today));
   check('beginner with all three but no consent is not complete', !isOnboardingComplete('beginner', allBeginner, false, today));
   check('beginner without the results is missing exactly those', missingRequirements('beginner', allBeginner.filter((d) => d.documentType !== 'subject_results'), today).map((r) => r.key).join() === 'results');
-  check('a police certificate over 6 months old does not count', missingRequirements('beginner', [allBeginner[0], allBeginner[1], { documentType: 'police_clearance', issuedOn: stale }], today).map((r) => r.key).join() === 'police');
+  check('a police certificate over 10 months old does not count', missingRequirements('beginner', [allBeginner[0], allBeginner[1], { documentType: 'police_clearance', issuedOn: stale }], today).map((r) => r.key).join() === 'police');
   const staleStatus = requirementStatuses('beginner', [{ documentType: 'police_clearance', issuedOn: stale }], today).find((s) => s.requirement.key === 'police');
-  check('...and the tutor is told why', !!staleStatus && !staleStatus.done && /more than 6 months old/.test(staleStatus.problem ?? ''), staleStatus?.problem ?? '');
+  check('...and the tutor is told why', !!staleStatus && !staleStatus.done && /more than 10 months old/.test(staleStatus.problem ?? ''), staleStatus?.problem ?? '');
   check('a police certificate with no recorded date does not count', missingRequirements('beginner', [allBeginner[0], allBeginner[1], { documentType: 'police_clearance', issuedOn: null }], today).some((r) => r.key === 'police'));
   check('one fresh certificate counts even if an old one is also on file', missingRequirements('beginner', [...allBeginner, { documentType: 'police_clearance', issuedOn: stale }], today).length === 0);
   const allExperienced = [
@@ -152,7 +152,7 @@ async function main() {
   check('the explanation says why the ID is kept and that the police may be given it', /ID or passport/.test(ONBOARDING_COPY.whyId) && /police/.test(ONBOARDING_COPY.whyId) && /evidence/.test(ONBOARDING_COPY.whyId));
   check('the consent names the police clearance and the police disclosure', /police clearance certificate/.test(ONBOARDING_COPY.consent) && /give the police/.test(ONBOARDING_COPY.consent));
   check('the explanation says who can see the documents', /Only you and/.test(ONBOARDING_COPY.whyId));
-  check('the police help says "issued in the last 6 months" (never "no less than")', /issued in the last 6 months/.test(requirementsFor('beginner')[2].help) && ![...beginner, ...experienced, ...Object.values(TRACK_COPY).map((t) => ({ help: t.blurb }))].some((r) => /no less than/i.test(r.help)));
+  check('the police help says "issued in the last 10 months" (never "no less than")', /issued in the last 10 months/.test(requirementsFor('beginner')[2].help) && ![...beginner, ...experienced, ...Object.values(TRACK_COPY).map((t) => ({ help: t.blurb }))].some((r) => /no less than/i.test(r.help)));
   check('the SACE certificate is labelled optional', experienced.find((r) => r.key === 'sace')?.title.includes('optional') === true);
   check('every optional document says so in its title', [...beginner, ...experienced].filter((r) => !r.required).every((r) => r.title.includes('optional')));
   check('the page says what is shown decides the starting level, and that anything forgotten can be added later under Teaching', /level you start at/.test(ONBOARDING_COPY.levelNote) && /any time under Teaching/.test(ONBOARDING_COPY.levelNote));

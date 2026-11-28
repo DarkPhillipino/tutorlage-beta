@@ -48,7 +48,7 @@ export const FOUNDING_COPY = {
     open: 'You create your account, upload your documents, and a person checks them. This can take up to a week. When you are verified you can accept requests.',
     docsTitle: 'Start preparing your documents now.',
     docsIntro: 'We will ask for these when your place opens, not before:',
-    docs: ['your ID or passport', 'a police clearance certificate issued in the last 6 months', 'your school results or proof of your teaching experience', 'a bank account in your own name'],
+    docs: ['your ID or passport', 'a police clearance certificate issued in the last 10 months', 'your school results or proof of your teaching experience', 'a bank account in your own name'],
     docsWarning: 'Never send documents on WhatsApp. You upload them in the app.',
     linkTitle: 'Your own link (once you are verified).',
     link: 'Verified tutors get a personal link to share with families they know.',
@@ -97,7 +97,7 @@ export const FOUNDING_COPY = {
     { value: 'three_plus', label: 'Three or more blocks passed' },
   ],
   policeOptions: [
-    { value: 'have', label: 'I have one issued in the last 6 months' },
+    { value: 'have', label: 'I have one issued in the last 10 months' },
     { value: 'applied', label: 'I have applied' },
     { value: 'not_yet', label: 'Not yet' },
   ],

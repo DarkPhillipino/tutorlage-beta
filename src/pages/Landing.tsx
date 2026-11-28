@@ -43,7 +43,7 @@ const PARENT_POINTS = [
 
 const TUTOR_POINTS = [
   'Tutors must be 18 or older.',
-  'You give Tutorlage your ID or passport and a police clearance certificate issued in the last six months. You cannot accept requests until Tutorlage has verified your profile.',
+  'You give Tutorlage your ID or passport and a police clearance certificate issued in the last ten months. You cannot accept requests until Tutorlage has verified your profile.',
   'You choose your working hours, and you take requests for the subjects and grades you are approved to teach.',
 ];
 

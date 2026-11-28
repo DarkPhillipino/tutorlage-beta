@@ -291,7 +291,7 @@ These apply to you as well as Part A if you tutor on Tutorlage.
 
 ## B8. Screening
 
-- Before you can accept requests, you give Tutorlage a **police clearance certificate** that was issued in the last 6 months **when you register**. If you are registered with SACE, you **may** also give us your **SACE certificate**; you do not have to.
+- Before you can accept requests, you give Tutorlage a **police clearance certificate** that was issued in the last 10 months **when you register**. If you are registered with SACE, you **may** also give us your **SACE certificate**; you do not have to.
 - You also give us a **photo of your ID or passport**, and **proof of your school results (if you are a beginner) or of your experience (if you are experienced)**.
 - You consent to Tutorlage checking these documents and keeping them as our Privacy Policy (§7) says. **If you do not agree, you cannot tutor on Tutorlage.**
 - Tell us at once if anything changes that a new clearance would show.

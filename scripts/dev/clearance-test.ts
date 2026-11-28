@@ -22,7 +22,7 @@ check('A3 a Supabase-style error object (not an Error) works too', describeAccep
 check('A4 the token inside a longer message is still found', clearanceProblemFromMessage('Error: police_clearance_missing (42501)') === 'police_clearance_missing');
 check('A5 any other message is shown as it was (the database sentences are already plain)', describeAcceptError(new Error('Another tutor already accepted this request, or it is no longer available.'), 'x') === 'Another tutor already accepted this request, or it is no longer available.');
 check('A6 an empty failure falls back to the given sentence', describeAcceptError({}, 'Could not accept that request.') === 'Could not accept that request.');
-check('A7 the sentences say what to do and where, and the 6 months', /Teaching tab/.test(CLEARANCE_COPY.police_clearance_missing) && /6 months/.test(CLEARANCE_COPY.police_clearance_expired));
+check('A7 the sentences say what to do and where, and the 10 months', /Teaching tab/.test(CLEARANCE_COPY.police_clearance_missing) && /10 months/.test(CLEARANCE_COPY.police_clearance_expired));
 
 check('B1 a status row with a problem becomes a stop banner', clearanceBanner(toClearanceStatus({ problem: 'police_clearance_missing', latest_issued_on: null, expires_on: null }), TODAY)?.tone === 'stop');
 check('B2 a fine certificate that runs out in 3 days gets a gentle reminder with the date', (() => {

@@ -185,7 +185,7 @@ test('Save replaces the ticked day; a second time is its own button; Change, Rem
 test('a verified tutor with an old certificate is taken into the app: no sign-up documents page and no reminder', async ({ page }) => {
   await open(page, [], { onboarding: { track: 'experienced', grandfathered: false, consented_at: '2026-05-20T10:00:00Z', consent_version: 'x' } });
   await expect(page.getByText('Finish your documents')).toHaveCount(0);
-  await expect(page.getByText('over 6 months old', { exact: false })).toHaveCount(0);
+  await expect(page.getByText('over 10 months old', { exact: false })).toHaveCount(0);
   await page.goto('/tutor-documents');
   await expect(page).toHaveURL(/\/$/);
 });

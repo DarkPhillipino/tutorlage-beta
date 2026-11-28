@@ -67,7 +67,7 @@ const DocumentsPanelBody: React.FC<{ tutorId: string; verified: boolean }> = ({ 
   const [documentType, setDocumentType] = useState(DOCUMENT_TYPES[0].value);
   const [isUploading, setIsUploading] = useState(false);
   const [linkText, setLinkText] = useState('');
-  // Police clearance only: the date on the certificate is asked for here too (while registering it must be from the last 6 months).
+  // Police clearance only: the date on the certificate is asked for here too (while registering it must be from the last 10 months).
   const [issuedOn, setIssuedOn] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [reloadCount, setReloadCount] = useState(0);

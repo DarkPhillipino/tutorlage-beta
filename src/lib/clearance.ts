@@ -1,6 +1,6 @@
 // A tutor's police clearance certificate at accepting (CEO, 21 Oct 2026; migration 20261020180000, not applied yet).
 // The database refuses to let a tutor accept a request unless they have a police clearance certificate on file that was not rejected and
-// was issued in the last 6 months. It answers with one of two short tokens; this file turns them into plain sentences, and into the line
+// was issued in the last 10 months. It answers with one of two short tokens; this file turns them into plain sentences, and into the line
 // the request list shows ("add a current certificate") before the tutor tries.
 // Everything here works before and after the migration (see clearanceData.ts for the read of the tutor's status). No database import here, so
 // the checks in scripts/dev/clearance-test.ts can run it under Node.
@@ -19,8 +19,8 @@ export interface ClearanceStatus {
 const WHERE = 'Open the menu, choose the Teaching tab and add it under "Verification Documents".';
 
 export const CLEARANCE_COPY: Record<ClearanceProblem, string> = {
-  police_clearance_missing: `You need a police clearance certificate on file to accept requests. Add one that was issued in the last 6 months. ${WHERE}`,
-  police_clearance_expired: `Your police clearance certificate is not current (it must have been issued in the last 6 months), so you cannot accept requests. Add a new one. ${WHERE}`,
+  police_clearance_missing: `You need a police clearance certificate on file to accept requests. Add one that was issued in the last 10 months. ${WHERE}`,
+  police_clearance_expired: `Your police clearance certificate is not current (it must have been issued in the last 10 months), so you cannot accept requests. Add a new one. ${WHERE}`,
 };
 
 // The token anywhere in a message (the Worker passes the database's text through as it is).

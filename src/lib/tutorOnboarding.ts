@@ -6,8 +6,8 @@
 //
 // The CEO's rules (13 Oct 2026):
 //   Beginner tutor:     photo of ID or passport; proof of results (such as a report card); police clearance
-//                       issued in the last 6 months.
-//   Experienced tutor / teacher: photo of ID or passport; police clearance issued in the last 6 months; proof of
+//                       issued in the last 10 months.
+//   Experienced tutor / teacher: photo of ID or passport; police clearance issued in the last 10 months; proof of
 //                       experience (a link, a photo or a document); a SACE certificate is OPTIONAL.
 // The ID or passport copy is kept linked to the tutor's profile so that, if a crime is reported to have been
 // committed through Tutorlage, the police can be given the profile and ID details with the evidence.
@@ -47,7 +47,7 @@ export interface Requirement {
   needsIssueDate: boolean;
 }
 
-export const POLICE_MAX_AGE_MONTHS = 6;
+export const POLICE_MAX_AGE_MONTHS = 10;
 export const MAX_FILE_BYTES = 5 * 1024 * 1024; // the 'tutor-documents' bucket's own limit
 export const ACCEPTED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'] as const;
 
@@ -83,7 +83,7 @@ const POLICE: Requirement = {
   documentType: 'police_clearance',
   title: 'Police clearance certificate',
   help:
-    'The Police Clearance Certificate from the South African Police Service. It must have been issued in the last 6 months. ' +
+    'The Police Clearance Certificate from the South African Police Service. It must have been issued in the last 10 months. ' +
     'You can apply at any police station, where they take your fingerprints. It can take a few weeks, so apply early.',
   required: true,
   accepts: 'file',
@@ -166,7 +166,7 @@ export function isTutorTrack(value: unknown): value is TutorTrack {
   return value === 'beginner' || value === 'experienced';
 }
 
-// ---- the 6-month police clearance rule --------------------------------------------------------------------
+// ---- the 10-month police clearance rule --------------------------------------------------------------------
 
 function parseIsoDate(iso: string): { y: number; m: number; d: number } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
@@ -224,7 +224,7 @@ export function policeCertificateProblem(issuedOn: string, today = todayIsoSAST(
   return null;
 }
 
-// The last day a certificate issued on this date counts (issue date plus 6 months).
+// The last day a certificate issued on this date counts (issue date plus 10 months).
 export function policeExpiresOn(issuedOn: string): string | null {
   return addMonthsIso(issuedOn, POLICE_MAX_AGE_MONTHS);
 }
